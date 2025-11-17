@@ -1,0 +1,124 @@
+* { box-sizing: border-box; }
+body { 
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  /* Primary background - color only; background image set at runtime to avoid webpack resolving public files */
+  background-color: #f5f7fa;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: #333;
+}
+html { background: #f5f7fa; }
+h1 { margin-top: 0; color: #2d3748; font-size: 2.5em; font-weight: 700; }
+h2 { color: #2d3748; font-weight: 600; }
+h3 { color: #4a5568; font-weight: 600; }
+h4 { color: #718096; font-weight: 600; margin-top: 0; }
+button {
+  cursor: pointer;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  background: #667eea;
+  color: white;
+}
+button:hover { background: #5568d3; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+button:active { transform: translateY(0); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+input, select, textarea {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.3s ease;
+  background: white;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+input::placeholder { color: #a0aec0; }
+label { font-weight: 600; color: #4a5568; display: block; margin-bottom: 6px; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
+
+/* Auth page/layout helpers */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+}
+.auth-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* light overlay to wash out the photo (keeps text readable) */
+  background: rgba(255,255,255,0.66);
+  z-index: 0;
+}
+.auth-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(255,255,255,0.92);
+  padding: 32px;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  max-width: 480px;
+  width: 100%;
+  border: 1px solid rgba(0,0,0,0.06);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+
+  /* Ensure text and controls inside the auth card are dark for readability */
+  color: #1a202c;
+}
+
+.auth-card label, .auth-card input, .auth-card textarea, .auth-card select {
+  color: #1a202c;
+}
+.auth-card--large {
+  max-width: 700px;
+  padding: 48px;
+}
+
+/* Ensure the auth-page immediate child (page content) sits above the overlay and is centered */
+.auth-page > div {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 900px;
+  padding: 20px;
+}
+.auth-back-btn {
+  background: rgba(255,255,255,0.94);
+  color: #1a202c;
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 18px;
+  font-weight: 600;
+}
+.auth-back-btn:hover { opacity: 0.98; transform: translateY(-1px); }
+
+.auth-card input::placeholder { color: #718096; }
+
+/* small responsive tweak */
+@media (max-width: 520px) {
+  .auth-card { padding: 20px; border-radius: 10px; }
+  .auth-card--large { padding: 24px; }
+}
