@@ -6,7 +6,10 @@ import Register from './Register';
 import Dashboard from './Dashboard';
 import api from './api';
 
-const socket = io('http://localhost:4000');
+const socket = io("https://church-backend.onrender.com", {
+    transports: ["websocket"]
+});
+
 
 export const SocketContext = React.createContext();
 
