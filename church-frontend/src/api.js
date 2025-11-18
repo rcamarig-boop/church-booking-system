@@ -1,8 +1,13 @@
 import axios from 'axios';
-const BASE_URL = "https://church-booking-system.onrender.com";
+
+const API = 'https://church-booking-system.onrender.com/api';
+
 const client = axios.create({ baseURL: API });
+
 export default {
-  setToken: (t) => { client.defaults.headers.common['Authorization'] = t ? `Bearer ${t}` : ''; },
+  setToken: (t) => {
+    client.defaults.headers.common['Authorization'] = t ? `Bearer ${t}` : '';
+  },
   client,
   login: (data) => client.post('/auth/login', data),
   register: (data) => client.post('/auth/register', data),
@@ -26,7 +31,7 @@ export default {
     create: (data) => client.post('/events', data),
     delete: (id) => client.delete(`/events/${id}`)
   },
-  users: { 
+  users: {
     list: () => client.get('/users'),
     delete: (id) => client.delete(`/users/${id}`),
     deleteMe: () => client.delete('/users/me')
