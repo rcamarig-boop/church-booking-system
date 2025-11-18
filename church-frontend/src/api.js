@@ -1,5 +1,5 @@
 import axios from 'axios';
-const API = 'http://localhost:4000/api';
+const BASE_URL = "https://church-booking-system.onrender.com";
 const client = axios.create({ baseURL: API });
 export default {
   setToken: (t) => { client.defaults.headers.common['Authorization'] = t ? `Bearer ${t}` : ''; },
