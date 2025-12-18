@@ -1,4 +1,4 @@
-import React, { useState, createContext, useEffect } from 'react';
+import React, { useState, createContext, useEffect } from 'react'; 
 import LandingPage from './LandingPage';
 import Login from './Login';
 import Register from './Register';
@@ -35,9 +35,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (user) {
-      socket.emit('join', { userId: user.id });
-    }
+    if (user) socket.emit('join', { userId: user.id });
   }, [user]);
 
   return (
