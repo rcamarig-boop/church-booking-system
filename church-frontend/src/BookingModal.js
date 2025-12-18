@@ -13,7 +13,7 @@ export default function BookingModal({ date, onClose, onBooked, children }) {
         overflowY: 'auto'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ margin: 0 }}>📅 {children ? 'Booking Details' : `Book on ${date}`}</h3>
+          <h3 style={{ margin: 0 }}>{children ? 'Booking Details' : `Book on ${date}`}</h3>
           <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px' }}>✕</button>
         </div>
         {children || (
