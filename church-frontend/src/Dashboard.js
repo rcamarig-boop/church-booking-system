@@ -1,52 +1,55 @@
-// Dashboard.jsx
-import React, { useEffect, useState, useContext } from 'react';
-import api from './api';
+import React, { useState, useContext } from 'react';
+import CalendarView from './CalendarView';
+import AdminDashboardPanel from './AdminDashboardPanel';
+import NotificationCenter from './NotificationCenter';
 import { SocketContext } from './App';
+import api from './api';
 
-function Dashboard({ user, notifications, onLogout }) {
-  const [bookings, setBookings] = useState([]);
+export default function Dashboard({ user, notifications, onLogout, addNotification }) {
   const socket = useContext(SocketContext);
-
-  const loadBookings = () => {
-    api.bookings.list().then(res => setBookings(res.data)).catch(console.error);
-  };
-
-  const cancelBooking = (id) => {
-    if (!window.confirm('Cancel this booking?')) return;
-    api.bookings.cancel(id).then(() => loadBookings()).catch(console.error);
-  };
-
-  useEffect(() => {
-    loadBookings();
-    socket.on('new_booking', loadBookings);
-    socket.on('booking_deleted', loadBookings);
-    return () => {
-      socket.off('new_booking', loadBookings);
-      socket.off('booking_deleted', loadBookings);
-    };
-  }, [socket]);
+  const [adminMode, setAdminMode] = useState(user.role === 'admin');
 
   return (
-    <div>
-      <h2>Welcome, {user.name}</h2>
-      <button onClick={onLogout}>Logout</button>
+    <div className="dashboard-layout">
+      <div className="main-panel">
+        <div className="user-header">
+          <div>
+            <p className="welcome-text">Welcome back</p>
+            <h2 className="user-name">{user.name} <span className="user-role">({user.role})</span></h2>
+          </div>
+          <div className="header-actions">
+            {user.role === 'admin' && (
+              <button className="header-btn" onClick={() => setAdminMode(!adminMode)}>
+                {adminMode ? '👤 User View' : '⚙️ Admin Mode'}
+              </button>
+            )}
+            <button className="header-btn" onClick={onLogout}>🚪 Logout</button>
+            <button className="header-btn outline" onClick={async ()=>{
+              if(!window.confirm('Delete your account?')) return;
+              try{ await api.users.deleteMe(); addNotification({type:'info', text:'Account deleted'}); onLogout();}
+              catch(e){ addNotification({type:'error', text:e?.response?.data?.error||'Failed to delete account'});}
+            }}>🗑️ Delete Account</button>
+          </div>
+        </div>
 
-      <h3>Your Bookings</h3>
-      <ul>
-        {bookings.map(b => (
-          <li key={b.id}>
-            {b.service_type} on {b.date} ({b.time_slot})
-            <button onClick={() => cancelBooking(b.id)} style={{ marginLeft: '10px' }}>Cancel</button>
-          </li>
-        ))}
-      </ul>
+        <div className="content-area">
+          {adminMode ? <AdminDashboardPanel addNotification={addNotification} /> :
+            <>
+              <h3>📅 Book Your Appointment</h3>
+              <p>Click on a date in the calendar to book your service</p>
+            </>
+          }
+        </div>
+      </div>
 
-      <h3>Notifications</h3>
-      <ul>
-        {notifications.map((n, i) => <li key={i}>{n.text}</li>)}
-      </ul>
+      <div className="calendar-panel">
+        <h3>📆 Calendar</h3>
+        <div className="calendar-container">
+          <CalendarView addNotification={addNotification} compact />
+        </div>
+      </div>
+
+      <NotificationCenter items={notifications} />
     </div>
   );
 }
-
-export default Dashboard;
