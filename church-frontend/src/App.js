@@ -1,3 +1,4 @@
+// App.jsx
 import React, { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import LandingPage from './LandingPage';
@@ -6,20 +7,16 @@ import Register from './Register';
 import Dashboard from './Dashboard';
 import api from './api';
 
-// Connect to deployed backend
-const socket = io('https://church-booking-system.onrender.com', {
-  transports: ['websocket']
-});
+// Keep socket as requested
+const socket = io('https://church-booking-system.onrender.com', { transports: ['websocket'] });
 
-// React context to share socket
 export const SocketContext = React.createContext(socket);
 
 function App() {
   const [notifications, setNotifications] = useState([]);
   const [user, setUser] = useState(null);
-  const [currentPage, setCurrentPage] = useState('landing'); // 'landing', 'login', 'register', 'dashboard'
+  const [currentPage, setCurrentPage] = useState('landing');
 
-  // Load user from localStorage and setup socket events
   useEffect(() => {
     const raw = localStorage.getItem('church_user');
     if (raw) {
@@ -29,7 +26,6 @@ function App() {
       api.setToken(userData.token);
     }
 
-    // Socket event listeners
     const addNotification = (n) => setNotifications(prev => [n, ...prev].slice(0, 20));
 
     socket.on('new_booking', (booking) =>
@@ -40,18 +36,11 @@ function App() {
       addNotification({ type: 'deleted', text: `Booking cancelled for ${info.date}` })
     );
 
-    socket.on('calendar_config_updated', (info) =>
-      addNotification({ type: 'config', text: `Calendar updated: ${info.date} max slots ${info.max_slots}` })
-    );
-
     return () => {
       socket.off('new_booking');
       socket.off('booking_deleted');
-      socket.off('calendar_config_updated');
     };
   }, []);
-
-  const addNotification = (n) => setNotifications(prev => [n, ...prev].slice(0, 20));
 
   const handleLogin = (user, token) => {
     const u = { ...user, token };
@@ -68,7 +57,7 @@ function App() {
     setCurrentPage('landing');
   };
 
-  const handleChooseAuth = (type) => setCurrentPage(type); // 'login' or 'register'
+  const handleChooseAuth = (type) => setCurrentPage(type);
 
   return (
     <SocketContext.Provider value={socket}>
@@ -80,43 +69,11 @@ function App() {
       )}
 
       {currentPage === 'login' && (
-        <div className="auth-page">
-          <div style={{ width: '100%', maxWidth: '450px', position: 'relative', zIndex: 1 }}>
-            <button onClick={() => setCurrentPage('landing')} className="auth-back-btn">
-              ← Back
-            </button>
-            <Login onLogin={handleLogin} />
-            <p style={{ textAlign: 'center', color: '#4a5568', marginTop: '16px', fontSize: '14px' }}>
-              Don't have an account?{' '}
-              <button
-                onClick={() => handleChooseAuth('register')}
-                style={{ background: 'none', border: 'none', color: '#667eea', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                Create one
-              </button>
-            </p>
-          </div>
-        </div>
+        <Login onLogin={handleLogin} onBack={() => setCurrentPage('landing')} onRegister={() => handleChooseAuth('register')} />
       )}
 
       {currentPage === 'register' && (
-        <div className="auth-page">
-          <div style={{ width: '100%', maxWidth: '450px', position: 'relative', zIndex: 1 }}>
-            <button onClick={() => setCurrentPage('landing')} className="auth-back-btn">
-              ← Back
-            </button>
-            <Register onRegister={handleLogin} />
-            <p style={{ textAlign: 'center', color: '#4a5568', marginTop: '16px', fontSize: '14px' }}>
-              Already have an account?{' '}
-              <button
-                onClick={() => handleChooseAuth('login')}
-                style={{ background: 'none', border: 'none', color: '#667eea', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                Sign in
-              </button>
-            </p>
-          </div>
-        </div>
+        <Register onRegister={handleLogin} onBack={() => setCurrentPage('landing')} onLogin={() => handleChooseAuth('login')} />
       )}
 
       {currentPage === 'dashboard' && user && (
@@ -124,7 +81,6 @@ function App() {
           user={user}
           notifications={notifications}
           onLogout={handleLogout}
-          addNotification={addNotification}
         />
       )}
     </SocketContext.Provider>
