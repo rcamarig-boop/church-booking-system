@@ -1,32 +1,26 @@
-// api.js
 import axios from 'axios';
 
-const API = 'http://localhost:4000/api'; // Change to deployed URL
-const client = axios.create({ baseURL: API });
-
-const setToken = (token) => {
-  client.defaults.headers.common['Authorization'] = token ? `Bearer ${token}` : '';
-};
+const api = axios.create({
+  baseURL: 'https://church-booking-system.onrender.com/api',
+  headers: { 'Content-Type': 'application/json' },
+});
 
 export default {
-  client,
-  setToken,
-  auth: {
-    login: (data) => client.post('/auth/login', data),
-    register: (data) => client.post('/auth/register', data)
-  },
+  login: (data) => api.post('/auth/login', data),
+  register: (data) => api.post('/auth/register', data),
   bookings: {
-    list: () => client.get('/bookings'),
-    create: (data) => client.post('/bookings', data),
-    cancel: (id) => client.delete(`/bookings/${id}`)
-  },
-  users: {
-    list: () => client.get('/users'),
-    delete: (id) => client.delete(`/users/${id}`),
-    deleteMe: () => client.delete('/users/me')
+    list: () => api.get('/bookings'),
+    create: (data) => api.post('/bookings', data),
   },
   calendar: {
-    get: () => client.get('/calendar_config'),
-    config: (data) => client.post('/calendar/config', data)
-  }
+    get: () => api.get('/calendar'),
+  },
+  events: {
+    list: () => api.get('/events'),
+    create: (data) => api.post('/events', data),
+    delete: (id) => api.delete(`/events/${id}`),
+  },
+  users: {
+    deleteMe: () => api.delete('/users/me'),
+  },
 };
