@@ -1,57 +1,34 @@
-import React, { useState } from 'react';
-import api from './api';
+import React from 'react';
 
 export default function BookingModal({ date, onClose, onBooked, children }) {
-  const [service, setService] = useState('Counseling');
-  const [timeSlot, setTimeSlot] = useState('09:00-10:00');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!onBooked) return; // read-only view
-    setError(null);
-    setLoading(true);
-    try {
-      await api.bookingRequests.submit({ service_type: service, date, time_slot: timeSlot, notes });
-      onBooked();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Request submission failed');
-    } finally { setLoading(false); }
-  };
-
   return (
-    <div className="modal-overlay">
-      <div className="modal-card">
-        {!children && (
-          <>
-            <h2>📅 Request Booking</h2>
-            <p>Date: <strong>{date}</strong></p>
-            <form onSubmit={submit}>
-              <label>Service Type *</label>
-              <select value={service} onChange={e => setService(e.target.value)}>
-                <option>Counseling</option><option>Baptism</option><option>Wedding</option><option>Blessing</option><option>Facility Booking</option>
-              </select>
-
-              <label>Time Slot *</label>
-              <select value={timeSlot} onChange={e => setTimeSlot(e.target.value)}>
-                <option>09:00-10:00</option><option>10:00-11:00</option><option>11:00-12:00</option><option>13:00-14:00</option><option>14:00-15:00</option>
-              </select>
-
-              <label>Additional Notes</label>
-              <textarea placeholder="Any special requests..." value={notes} onChange={e=>setNotes(e.target.value)} />
-
-              {error && <div className="error-msg">⚠️ {error}</div>}
-
-              <div className="modal-actions">
-                <button type="button" onClick={onClose} disabled={loading}>Cancel</button>
-                <button type="submit" disabled={loading}>{loading ? '⏳ Submitting...' : '✉️ Submit Request'}</button>
-              </div>
-            </form>
-          </>
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.5)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', padding: '12px', zIndex: 1000
+    }}>
+      <div style={{
+        background: 'white', padding: '24px', width: '100%',
+        maxWidth: '450px', borderRadius: '16px', maxHeight: '90vh',
+        overflowY: 'auto'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0 }}>📅 {children ? 'Booking Details' : `Book on ${date}`}</h3>
+          <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+        </div>
+        {children || (
+          <form onSubmit={(e) => { e.preventDefault(); onBooked && onBooked(); }} style={{ display: 'grid', gap: '12px' }}>
+            <label>
+              Service Type
+              <input placeholder="Service" required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }} />
+            </label>
+            <label>
+              Notes
+              <textarea placeholder="Optional notes" style={{ width: '100%', minHeight: '60px', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0', fontFamily: 'inherit' }} />
+            </label>
+            <button type="submit" style={{ padding: '12px', borderRadius: '8px', border: 'none', background: '#667eea', color: 'white', cursor: 'pointer' }}>✨ Confirm Booking</button>
+          </form>
         )}
-        {children && children}
       </div>
     </div>
   );
