@@ -1,6 +1,8 @@
 import axios from 'axios';
-const API = 'http://localhost:4000/api';
+
+const API = process.env.REACT_APP_API_BASE; // picks environment-specific URL
 const client = axios.create({ baseURL: API });
+
 export default {
   setToken: (t) => {
     if (t) client.defaults.headers.common['Authorization'] = `Bearer ${t}`;
