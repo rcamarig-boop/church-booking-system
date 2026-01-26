@@ -1,142 +1,110 @@
 import React, { useState, useEffect, useContext } from 'react';
-import CalendarView from './CalendarView';
 import api from './api';
-import AdminDashboard from './AdminDashboard';
-import NotificationCenter from './NotificationCenter';
+import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
 
-export default function Dashboard({ user, notifications, onLogout, addNotification }) {
+export default function Dashboard({ addNotification, user, onLogout }) {
+  const [bookings, setBookings] = useState([]);
   const socket = useContext(SocketContext);
-  const [adminMode, setAdminMode] = useState(user.role === 'admin');
+
+  const fetchUserBookings = async () => {
+    try {
+      const res = await api.bookings.list();
+      const userBookings = res.data.filter(b => b.user_name === user.name);
+      setBookings(userBookings);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserBookings();
+    const refresh = () => fetchUserBookings();
+    socket.on('new_booking', refresh);
+    socket.on('booking_deleted', refresh);
+    return () => {
+      socket.off('new_booking', refresh);
+      socket.off('booking_deleted', refresh);
+    };
+  }, [socket]);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#f5f7fa' }}>
-      {/* Left Sidebar - Main Content */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f7fafc' }}>
+      {/* Header */}
       <div style={{
-        flex: 1,
-        padding: '40px',
-        overflowY: 'auto',
-        background: 'white',
-        borderRight: '1px solid #e2e8f0'
+        background: 'linear-gradient(to right, #667eea, #764ba2)',
+        color: 'white',
+        padding: '24px 32px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
-        {/* User Info Header */}
-        <div style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <p style={{ margin: '0 0 4px 0', fontSize: '14px', opacity: 0.9 }}>Welcome back</p>
-            <h2 style={{ margin: 0, color: 'white', fontSize: '20px' }}>
-              {user.name} <span style={{ fontSize: '14px', opacity: 0.9 }}>({user.role})</span>
-            </h2>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            {user.role === 'admin' && (
-              <button
-                onClick={() => setAdminMode(!adminMode)}
-                style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  borderRadius: '8px',
-                  border: 'none',
-                  color: 'white',
-                  padding: '8px 16px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                {adminMode ? '👤 User View' : '⚙️ Admin Mode'}
-              </button>
-            )}
-            <button
-              onClick={onLogout}
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                borderRadius: '8px',
-                border: 'none',
-                color: 'white',
-                padding: '8px 16px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
-            >
-              🚪 Logout
-            </button>
-            <button
-              onClick={async () => {
-                if (!confirm('Delete your account? This action is irreversible.')) return;
-                try {
-                  await api.users.deleteMe();
-                  addNotification({ type: 'info', text: 'Account deleted' });
-                  onLogout();
-                } catch (e) {
-                  const msg = e && e.response && e.response.data && e.response.data.error ? e.response.data.error : 'Failed to delete account';
-                  addNotification({ type: 'error', text: msg });
-                }
-              }}
-              style={{
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.18)',
-                borderRadius: '8px',
-                color: 'white',
-                padding: '8px 12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: '13px'
-              }}
-            >
-              🗑️ Delete Account
-            </button>
-          </div>
-        </div>
+        <h1 style={{ fontSize: '22px', fontWeight: 700 }}>
+          👋 Welcome back, {user.name}
+        </h1>
+        <button onClick={onLogout} style={styles.headerBtn}>Logout</button>
+      </div>
 
-        {/* Main Content Area */}
-        <div>
-          {adminMode ? (
-            <AdminDashboard addNotification={addNotification} />
+      {/* Main content */}
+      <div style={{ display: 'flex', flex: 1, gap: '16px', padding: '16px', overflow: 'hidden' }}>
+        {/* Left Panel: Bookings */}
+        <div style={styles.sidebar}>
+          <h2 style={styles.cardTitle}>📋 Your Bookings</h2>
+          {bookings.length === 0 ? (
+            <p style={{ color: '#718096', fontSize: '12px' }}>No bookings yet.</p>
           ) : (
-            <div>
-              <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#2d3748' }}>
-                📅 Book Your Appointment
-              </h3>
-              <p style={{ color: '#718096', marginBottom: '24px' }}>
-                Click on a date in the calendar to book your service
-              </p>
-              {/* Additional content can go here */}
-            </div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {bookings.map(b => (
+                <li key={b.id} style={styles.bookingItem}>
+                  <div style={{ fontWeight: 600, fontSize: '13px' }}>{b.service_type}</div>
+                  <div style={{ fontSize: '12px', color: '#4a5568' }}>{b.date} • {b.time_slot}</div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-      </div>
 
-      {/* Right Sidebar - Calendar */}
-      <div style={{
-        width: '420px',
-        background: '#f9fafb',
-        borderLeft: '1px solid #e2e8f0',
-        padding: '20px',
-        overflowY: 'auto',
-        boxShadow: '-2px 0 8px rgba(0,0,0,0.05)',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#2d3748' }}>
-          📆 Calendar
-        </h3>
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <CalendarView addNotification={addNotification} compact={true} />
+        {/* Right Panel: Calendar */}
+        <div style={styles.calendarContainer}>
+          <CalendarViewNew addNotification={addNotification} compact={false} />
         </div>
       </div>
-
-      {/* Notifications Panel - Hidden by default, can be toggled */}
-      {/* Or moved to a notification center elsewhere */}
-      <NotificationCenter items={notifications} />
     </div>
   );
 }
+
+const styles = {
+  headerBtn: {
+    background: 'white',
+    color: '#4a5568',
+    border: 'none',
+    padding: '8px 14px',
+    borderRadius: '6px',
+    fontWeight: 600,
+    cursor: 'pointer'
+  },
+  sidebar: {
+    width: '360px',
+    background: '#fff',
+    borderRadius: '12px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+    padding: '24px',
+    overflowY: 'auto',
+    flexShrink: 0,
+    maxHeight: '100%'
+  },
+  cardTitle: { fontSize: '18px', fontWeight: 700, color: '#2d3748', marginBottom: '16px' },
+  bookingItem: { padding: '12px 0', borderBottom: '1px solid #e2e8f0' },
+  calendarContainer: {
+    flex: 1,
+    background: '#fff',
+    borderRadius: '12px',
+    padding: '20px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
+    minWidth: 0,
+    overflowY: 'auto'
+  }
+};

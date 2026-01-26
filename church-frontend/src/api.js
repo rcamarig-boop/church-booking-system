@@ -2,7 +2,10 @@ import axios from 'axios';
 const API = 'http://localhost:4000/api';
 const client = axios.create({ baseURL: API });
 export default {
-  setToken: (t) => { client.defaults.headers.common['Authorization'] = t ? `Bearer ${t}` : ''; },
+  setToken: (t) => {
+    if (t) client.defaults.headers.common['Authorization'] = `Bearer ${t}`;
+    else delete client.defaults.headers.common['Authorization'];
+  },
   client,
   login: (data) => client.post('/auth/login', data),
   register: (data) => client.post('/auth/register', data),

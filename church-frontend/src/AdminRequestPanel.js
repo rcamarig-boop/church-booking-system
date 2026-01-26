@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import api from './api';
+import { SocketContext } from './App';
 
 export default function AdminRequestPanel({ addNotification }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('pending');
-  const [eventForm, setEventForm] = useState({ title: '', date: '', time_slot: '09:00-10:00', description: '', color: 'purple' });
+  const [eventForm, setEventForm] = useState({ 
+    title: '', 
+    date: '', 
+    time_slot: '09:00-10:00', 
+    useTimeSlot: true,
+    description: '', 
+    color: 'purple' 
+  });
   const [events, setEvents] = useState([]);
+  const socket = useContext(SocketContext);
 
   const loadRequests = async () => {
     try {
@@ -29,7 +38,21 @@ export default function AdminRequestPanel({ addNotification }) {
   useEffect(() => {
     loadRequests();
     loadEvents();
-  }, []);
+
+    const refresh = () => { 
+      loadRequests();
+      loadEvents();
+    };
+    socket.on('new_booking', refresh);
+    socket.on('event_added', refresh);
+    socket.on('event_deleted', refresh);
+
+    return () => {
+      socket.off('new_booking', refresh);
+      socket.off('event_added', refresh);
+      socket.off('event_deleted', refresh);
+    };
+  }, [socket]);
 
   const handleApprove = async (id) => {
     try {
@@ -58,12 +81,24 @@ export default function AdminRequestPanel({ addNotification }) {
       return;
     }
     try {
-      await api.events.create(eventForm);
+      const eventData = {
+        ...eventForm,
+        time_slot: eventForm.useTimeSlot ? eventForm.time_slot : 'all-day'
+      };
+      await api.events.create(eventData);
       addNotification({ type: 'info', text: '📌 Event added to calendar' });
-      setEventForm({ title: '', date: '', time_slot: '09:00-10:00', description: '', color: 'purple' });
+      setEventForm({ 
+        title: '', 
+        date: '', 
+        time_slot: '09:00-10:00', 
+        useTimeSlot: true,
+        description: '', 
+        color: 'purple' 
+      });
       loadEvents();
     } catch (e) {
       console.error('Error adding event:', e);
+      addNotification({ type: 'deleted', text: 'Error adding event: ' + (e.response?.data?.error || e.message) });
     }
   };
 
@@ -78,6 +113,24 @@ export default function AdminRequestPanel({ addNotification }) {
     }
   };
 
+  const createQuickEvent = (preset) => {
+    const today = new Date().toISOString().split('T')[0];
+    const presets = {
+      morning: { title: '⛪ Morning Mass', time_slot: '06:00-07:00', color: 'blue' },
+      evening: { title: '⛪ Evening Mass', time_slot: '18:00-19:00', color: 'purple' },
+      sunday: { title: '⛪ Sunday Service', time_slot: '09:00-11:00', color: 'green' },
+    };
+    const p = presets[preset];
+    setEventForm({
+      title: p.title,
+      date: today,
+      time_slot: p.time_slot,
+      useTimeSlot: true,
+      description: '',
+      color: p.color
+    });
+  };
+
   const filteredRequests = requests.filter(r => filterStatus === 'all' || r.status === filterStatus);
 
   return (
@@ -85,6 +138,68 @@ export default function AdminRequestPanel({ addNotification }) {
       {/* Add Event Section */}
       <div style={{ marginBottom: '32px', padding: '20px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '12px', color: 'white' }}>
         <h3 style={{ margin: '0 0 16px 0', color: 'white' }}>📌 Add Event to Calendar</h3>
+        
+        {/* Quick Event Buttons */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <button
+            type="button"
+            onClick={() => createQuickEvent('morning')}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.5)',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '12px',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+            onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+          >
+            + Morning Mass
+          </button>
+          <button
+            type="button"
+            onClick={() => createQuickEvent('evening')}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.5)',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '12px',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+            onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+          >
+            + Evening Mass
+          </button>
+          <button
+            type="button"
+            onClick={() => createQuickEvent('sunday')}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.5)',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '12px',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+            onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+          >
+            + Sunday Service
+          </button>
+        </div>
+
         <form onSubmit={handleAddEvent} style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
@@ -109,19 +224,77 @@ export default function AdminRequestPanel({ addNotification }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ color: 'rgba(255,255,255,0.9)' }}>Time Slot</label>
-              <select
-                value={eventForm.time_slot}
-                onChange={(e) => setEventForm({ ...eventForm, time_slot: e.target.value })}
-                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: 'none' }}
-              >
-                <option>09:00-10:00</option>
-                <option>10:00-11:00</option>
-                <option>11:00-12:00</option>
-                <option>13:00-14:00</option>
-                <option>14:00-15:00</option>
-              </select>
+              <label style={{ color: 'rgba(255,255,255,0.9)' }}>Use Time Slot?</label>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setEventForm({ ...eventForm, useTimeSlot: true })}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: eventForm.useTimeSlot ? 'white' : 'rgba(255,255,255,0.3)',
+                    color: eventForm.useTimeSlot ? '#667eea' : 'rgba(255,255,255,0.9)',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEventForm({ ...eventForm, useTimeSlot: false })}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: !eventForm.useTimeSlot ? 'white' : 'rgba(255,255,255,0.3)',
+                    color: !eventForm.useTimeSlot ? '#667eea' : 'rgba(255,255,255,0.9)',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  All-day
+                </button>
+              </div>
             </div>
+          </div>
+          {eventForm.useTimeSlot && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ color: 'rgba(255,255,255,0.9)' }}>Time Slot</label>
+                <select
+                  value={eventForm.time_slot}
+                  onChange={(e) => setEventForm({ ...eventForm, time_slot: e.target.value })}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: 'none' }}
+                >
+                  <option>09:00-10:00</option>
+                  <option>10:00-11:00</option>
+                  <option>11:00-12:00</option>
+                  <option>13:00-14:00</option>
+                  <option>14:00-15:00</option>
+                  <option>15:00-16:00</option>
+                  <option>16:00-17:00</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ color: 'rgba(255,255,255,0.9)' }}>Color</label>
+                <select
+                  value={eventForm.color}
+                  onChange={(e) => setEventForm({ ...eventForm, color: e.target.value })}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: 'none' }}
+                >
+                  <option value="purple">Purple</option>
+                  <option value="blue">Blue</option>
+                  <option value="green">Green</option>
+                  <option value="red">Red</option>
+                </select>
+              </div>
+            </div>
+          )}
+          {!eventForm.useTimeSlot && (
             <div>
               <label style={{ color: 'rgba(255,255,255,0.9)' }}>Color</label>
               <select
@@ -135,7 +308,7 @@ export default function AdminRequestPanel({ addNotification }) {
                 <option value="red">Red</option>
               </select>
             </div>
-          </div>
+          )}
           <div>
             <label style={{ color: 'rgba(255,255,255,0.9)' }}>Description</label>
             <textarea

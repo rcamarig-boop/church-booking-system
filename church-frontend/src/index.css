@@ -1,21 +1,25 @@
+/* ===== Global Reset & Base Styles ===== */
 * { box-sizing: border-box; }
 body { 
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
-  /* Primary background - color only; background image set at runtime to avoid webpack resolving public files */
   background-color: #f5f7fa;
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  background-attachment: fixed;
   min-height: 100vh;
   color: #333;
 }
 html { background: #f5f7fa; }
-h1 { margin-top: 0; color: #2d3748; font-size: 2.5em; font-weight: 700; }
+h1, h2, h3, h4 { margin-top: 0; }
+
+/* ===== Typography ===== */
+h1 { color: #2d3748; font-size: 2.5em; font-weight: 700; }
 h2 { color: #2d3748; font-weight: 600; }
 h3 { color: #4a5568; font-weight: 600; }
-h4 { color: #718096; font-weight: 600; margin-top: 0; }
+h4 { color: #718096; font-weight: 600; }
+
+/* ===== Buttons ===== */
 button {
   cursor: pointer;
   padding: 10px 20px;
@@ -27,9 +31,15 @@ button {
   background: #667eea;
   color: white;
 }
-button:hover { background: #5568d3; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+button:hover { 
+  background: #5568d3; 
+  transform: translateY(-2px); 
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); 
+}
 button:active { transform: translateY(0); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ===== Inputs & Forms ===== */
 input, select, textarea {
   padding: 10px 12px;
   border: 1px solid #e2e8f0;
@@ -44,11 +54,15 @@ input:focus, select:focus, textarea:focus {
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
-input::placeholder { color: #a0aec0; }
+input::placeholder, textarea::placeholder { color: #a0aec0; }
+
+/* ===== Labels ===== */
 label { font-weight: 600; color: #4a5568; display: block; margin-bottom: 6px; }
+
+/* ===== HR ===== */
 hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
 
-/* Auth page/layout helpers */
+/* ===== Auth Pages ===== */
 .auth-page {
   min-height: 100vh;
   display: flex;
@@ -61,7 +75,6 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   content: '';
   position: absolute;
   inset: 0;
-  /* light overlay to wash out the photo (keeps text readable) */
   background: rgba(255,255,255,0.66);
   z-index: 0;
 }
@@ -77,32 +90,9 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   border: 1px solid rgba(0,0,0,0.06);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
-
-  /* Ensure text and controls inside the auth card are dark for readability */
   color: #1a202c;
 }
-
-.auth-card label, .auth-card input, .auth-card textarea, .auth-card select {
-  color: #1a202c;
-}
-.auth-card--large {
-  max-width: 700px;
-  padding: 48px;
-}
-
-/* Ensure the auth-page immediate child (page content) sits above the overlay and is centered */
-.auth-page > div {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  width: 100%;
-  max-width: 900px;
-  padding: 20px;
-}
+.auth-card--large { max-width: 700px; padding: 48px; }
 .auth-back-btn {
   background: rgba(255,255,255,0.94);
   color: #1a202c;
@@ -115,9 +105,54 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
 }
 .auth-back-btn:hover { opacity: 0.98; transform: translateY(-1px); }
 
-.auth-card input::placeholder { color: #718096; }
+/* ===== Calendar Styles ===== */
+.fc .fc-daygrid-day-frame {
+  border-radius: 8px;
+  transition: background 0.3s ease, color 0.3s ease;
+}
 
-/* small responsive tweak */
+/* Make background events fill the entire cell */
+.fc .fc-daygrid-day-bg {
+  border-radius: 8px !important;
+}
+
+/* Highlight selected day */
+.fc .fc-daygrid-day.fc-day-today {
+  background-color: rgba(102, 126, 234, 0.1);
+}
+
+/* Tooltip overrides */
+.tippy-box {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+/* ===== Modal Overrides ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.5);
+}
+.modal-content {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+/* ===== Booking List ===== */
+.booking-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* ===== Responsive tweaks ===== */
 @media (max-width: 520px) {
   .auth-card { padding: 20px; border-radius: 10px; }
   .auth-card--large { padding: 24px; }
