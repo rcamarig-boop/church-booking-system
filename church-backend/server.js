@@ -883,6 +883,8 @@ io.on('connection', () => {
 });
 
 /* ===================== START SERVER ===================== */
-server.listen(4000, () => {
-  console.log('✅ SQLite server running on http://localhost:4000');
+const PORT = Number(process.env.PORT) || 4000;
+server.listen(PORT, () => {
+  console.log(`SQLite server running on port ${PORT}`);
 });
+
