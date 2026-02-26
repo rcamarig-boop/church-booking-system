@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+const DEFAULT_API_BASE = 'http://localhost:4000/api';
+const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL ||
+  (process.env.NODE_ENV === 'production' ? '/api' : DEFAULT_API_BASE);
+
 const api = axios.create({
-  baseURL: 'http://localhost:4000/api'
+  baseURL: API_BASE_URL
 });
 
 export function setToken(token) {

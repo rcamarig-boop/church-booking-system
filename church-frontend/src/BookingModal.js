@@ -150,7 +150,7 @@ export default function BookingModal({
         background: '#fff',
         padding: 24,
         borderRadius: 12,
-        width: 420,
+        width: 'min(420px, calc(100vw - 24px))',
         boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
         maxHeight: '90vh',
         overflowY: 'auto'
@@ -306,7 +306,7 @@ export default function BookingModal({
           <div style={{
             background: '#fff',
             borderRadius: 12,
-            width: 460,
+            width: 'min(460px, calc(100vw - 24px))',
             maxHeight: '90vh',
             overflowY: 'auto',
             padding: 20

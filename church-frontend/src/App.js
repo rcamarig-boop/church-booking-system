@@ -9,7 +9,14 @@ import NotificationCenter from './NotificationCenter';
 import api from './api';
 
 export const SocketContext = createContext();
-const socket = io('http://localhost:4000');
+const DEFAULT_SOCKET_URL = 'http://localhost:4000';
+const socketBaseFromApi = process.env.REACT_APP_API_BASE_URL
+  ? process.env.REACT_APP_API_BASE_URL.replace(/\/api\/?$/, '')
+  : null;
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
+  socketBaseFromApi ||
+  (process.env.NODE_ENV === 'production' ? window.location.origin : DEFAULT_SOCKET_URL);
+const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
 const MAX_NOTIFICATIONS = 50;
 const NOTIFICATION_DEDUPE_WINDOW_MS = 15000;
 

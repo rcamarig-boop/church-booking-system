@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import api from './api';
 import PageWrapper from './PageWrapper';
 
-export default function Register({ onLogin }) {
+export default function Register({ onLogin, onBack }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,13 +19,18 @@ export default function Register({ onLogin }) {
 
   return (
     <PageWrapper>
-      <div style={{ textAlign:'center' }}>
+      <div className="auth-form-shell">
+        {onBack && (
+          <button className="auth-secondary-btn" onClick={onBack}>
+            Back
+          </button>
+        )}
         <h1>Create Account</h1>
-        <input placeholder="Name" value={name} onChange={e=>setName(e.target.value)} />
-        <input placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
-        <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
+        <input className="auth-input" placeholder="Name" value={name} onChange={e=>setName(e.target.value)} />
+        <input className="auth-input" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
+        <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
         {error && <p style={{color:'red'}}>{error}</p>}
-        <button onClick={submit}>Register</button>
+        <button className="auth-primary-btn" onClick={submit}>Register</button>
       </div>
     </PageWrapper>
   );

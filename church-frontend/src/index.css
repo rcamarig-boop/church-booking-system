@@ -153,7 +153,60 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
 }
 
 /* ===== Responsive tweaks ===== */
+.auth-form-shell {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  text-align: center;
+}
+.auth-input {
+  width: 100%;
+  display: block;
+  margin-bottom: 12px;
+}
+.auth-primary-btn, .auth-secondary-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+.auth-secondary-btn {
+  background: #fff;
+  color: #2d3748;
+  border: 1px solid #d1d5db;
+}
+
+.landing-shell {
+  text-align: center;
+}
+.landing-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.landing-primary-btn, .landing-secondary-btn {
+  padding: 16px 24px;
+  font-weight: 600;
+  border-radius: 8px;
+  min-width: 160px;
+}
+.landing-primary-btn {
+  border: none;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+}
+.landing-secondary-btn {
+  border: 2px solid #667eea;
+  background: #fff;
+  color: #667eea;
+}
+
 @media (max-width: 520px) {
   .auth-card { padding: 20px; border-radius: 10px; }
   .auth-card--large { padding: 24px; }
+  .landing-actions {
+    flex-direction: column;
+  }
+  .landing-primary-btn, .landing-secondary-btn {
+    width: 100%;
+  }
 }

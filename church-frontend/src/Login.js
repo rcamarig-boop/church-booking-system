@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import api from './api';
 import PageWrapper from './PageWrapper';
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -18,15 +18,20 @@ export default function Login({ onLogin }) {
 
   return (
     <PageWrapper>
-      <div style={{ textAlign: 'center' }}>
+      <div className="auth-form-shell">
+        {onBack && (
+          <button className="auth-secondary-btn" onClick={onBack}>
+            Back
+          </button>
+        )}
         <h1 style={{ marginBottom: 24 }}>Sign In</h1>
 
-        <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
-        <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
+        <input className="auth-input" type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
+        <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
 
         {error && <p style={{ color:'red' }}>{error}</p>}
 
-        <button onClick={submit}>Sign In</button>
+        <button className="auth-primary-btn" onClick={submit}>Sign In</button>
       </div>
     </PageWrapper>
   );

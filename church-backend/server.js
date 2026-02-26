@@ -3,6 +3,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const Database = require('better-sqlite3');
 
@@ -13,11 +14,12 @@ const io = new Server(server, { cors: { origin: '*' } });
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = 'SUPER_SECRET_KEY';
+const JWT_SECRET = process.env.JWT_SECRET || 'SUPER_SECRET_KEY';
 
 /* ===================== SQLITE ===================== */
 const DEFAULT_MAX_SLOTS = 5;
-const db = new Database('church.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'church.db');
+const db = new Database(DB_PATH);
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
