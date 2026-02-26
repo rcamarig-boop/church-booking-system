@@ -1,16 +1,28 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
-export default function NotificationCenter({ items }) {
+export default function NotificationCenter({
+  items,
+  onMarkRead,
+  onMarkAllRead,
+  onClearAll
+}) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const unreadCount = useMemo(
+    () => items.reduce((count, n) => count + (n.read ? 0 : 1), 0),
+    [items]
+  );
 
   const getIcon = (type) => {
     const icons = {
-      new_booking: '✅',
-      deleted: '❌',
-      config: '⚙️',
-      info: 'ℹ️'
+      new_booking: '[OK]',
+      deleted: '[X]',
+      config: '[CFG]',
+      event_soon: '[SOON]',
+      success: '[DONE]',
+      info: '[INFO]'
     };
-    return icons[type] || '📌';
+    return icons[type] || '[*]';
   };
 
   const getColor = (type) => {
@@ -23,191 +35,176 @@ export default function NotificationCenter({ items }) {
     return colors[type] || '#718096';
   };
 
+  const formatWhen = (value) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
-    <>
-      <div className="notification-wrapper">
-        {/* Bell Button */}
-        <button
-          className="notification-bell"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          🔔
-          {items.length > 0 && (
-            <span className="notification-badge">
-              {items.length > 9 ? '9+' : items.length}
-            </span>
-          )}
-        </button>
-
-        {/* Popup */}
-        {isOpen && (
-          <div className="notification-popup">
-            <div className="notification-header">
-              <span>📬 Notifications ({items.length})</span>
-              <button onClick={() => setIsOpen(false)}>✕</button>
-            </div>
-
-            {items.length === 0 ? (
-              <div className="notification-empty">
-                📭 No notifications
-              </div>
-            ) : (
-              <ul className="notification-list">
-                {items.map((n, i) => (
-                  <li
-                    key={i}
-                    className="notification-item"
-                    style={{ borderLeftColor: getColor(n.type) }}
-                  >
-                    <div className="notification-text">
-                      {getIcon(n.type)} {n.text}
-                    </div>
-                    <div className="notification-type">
-                      {n.type}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+    <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 999 }}>
+      <button
+        onClick={() => {
+          const next = !isOpen;
+          setIsOpen(next);
+          if (next && unreadCount > 0) {
+            onMarkAllRead?.();
+          }
+        }}
+        style={{
+          width: 60,
+          height: 60,
+          borderRadius: '50%',
+          border: 'none',
+          background: '#667eea',
+          backgroundImage: 'linear-gradient(135deg,#667eea,#764ba2)',
+          color: '#fff',
+          fontSize: 24,
+          cursor: 'pointer',
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+        }}
+      >
+        N
+        {unreadCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              background: '#f56565',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         )}
-      </div>
+      </button>
 
-      {/* Styles */}
-      <style>{`
-        .notification-wrapper {
-          position: fixed;
-          bottom: 20px;
-          right: 20px;
-          z-index: 999;
-        }
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 80,
+            right: 0,
+            width: 360,
+            maxHeight: '70vh',
+            background: '#fff',
+            borderRadius: 12,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <div
+            style={{
+              padding: 14,
+              borderBottom: '1px solid #e2e8f0',
+              fontWeight: 600,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <span>Notifications ({items.length})</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={() => onMarkAllRead?.()}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  color: '#4a5568'
+                }}
+              >
+                Mark all read
+              </button>
+              <button
+                onClick={() => onClearAll?.()}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  color: '#c53030'
+                }}
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => setIsOpen(false)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  color: '#a0aec0'
+                }}
+              >
+                x
+              </button>
+            </div>
+          </div>
 
-        .notification-bell {
-          width: 60px;
-          height: 60px;
-          border-radius: 50%;
-          border: none;
-          cursor: pointer;
-          font-size: 24px;
-          background: linear-gradient(135deg, #667eea, #764ba2);
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          position: relative;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          transition: transform 0.2s ease;
-        }
-
-        .notification-bell:hover {
-          transform: scale(1.1);
-        }
-
-        .notification-badge {
-          position: absolute;
-          top: -6px;
-          right: -6px;
-          width: 26px;
-          height: 26px;
-          border-radius: 50%;
-          background: #f56565;
-          color: white;
-          font-size: 12px;
-          font-weight: bold;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .notification-popup {
-          position: absolute;
-          bottom: 80px;
-          right: 0;
-          width: 360px;
-          max-height: 70vh;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-
-        .notification-header {
-          padding: 14px 16px;
-          border-bottom: 1px solid #e2e8f0;
-          font-weight: 600;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .notification-header button {
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 18px;
-          color: #a0aec0;
-        }
-
-        .notification-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          overflow-y: auto;
-        }
-
-        .notification-item {
-          padding: 12px 16px;
-          border-bottom: 1px solid #e2e8f0;
-          border-left: 4px solid;
-          background: #fff;
-        }
-
-        .notification-text {
-          font-size: 13px;
-          font-weight: 600;
-          color: #2d3748;
-        }
-
-        .notification-type {
-          font-size: 11px;
-          color: #a0aec0;
-          text-transform: uppercase;
-          margin-top: 4px;
-        }
-
-        .notification-empty {
-          padding: 32px;
-          text-align: center;
-          color: #a0aec0;
-          font-size: 14px;
-        }
-
-        /* ===== MOBILE ===== */
-        @media (max-width: 480px) {
-          .notification-wrapper {
-            right: 16px;
-            bottom: 16px;
-          }
-
-          .notification-bell {
-            width: 52px;
-            height: 52px;
-            font-size: 22px;
-          }
-
-          .notification-popup {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            width: 100%;
-            max-height: 75vh;
-            border-radius: 16px 16px 0 0;
-          }
-        }
-      `}</style>
-    </>
+          {items.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', color: '#a0aec0', fontSize: 14 }}>
+              No notifications
+            </div>
+          ) : (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              {items.map((n) => (
+                <li
+                  key={n.id}
+                  onClick={() => onMarkRead?.(n.id)}
+                  style={{
+                    padding: 12,
+                    borderBottom: '1px solid #e2e8f0',
+                    borderLeft: `4px solid ${getColor(n.type)}`,
+                    background: n.read ? '#fff' : '#f7fafc',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#2d3748' }}>
+                    {getIcon(n.type)} {n.text}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#a0aec0',
+                      textTransform: 'uppercase',
+                      marginTop: 4,
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>{n.type}</span>
+                    <span>{formatWhen(n.createdAt)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

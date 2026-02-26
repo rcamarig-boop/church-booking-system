@@ -1,54 +1,193 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, createContext, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import LandingPage from './LandingPage';
 import Login from './Login';
 import Register from './Register';
 import Dashboard from './Dashboard';
 import AdminDashboard from './AdminDashboard';
+import NotificationCenter from './NotificationCenter';
 import api from './api';
 
+export const SocketContext = createContext();
 const socket = io('http://localhost:4000');
-console.log('[App] Socket initialized');
-export const SocketContext = React.createContext();
+const MAX_NOTIFICATIONS = 50;
+const NOTIFICATION_DEDUPE_WINDOW_MS = 15000;
 
-function App() {
-  const [notifications, setNotifications] = useState([]);
+export default function App() {
   const [user, setUser] = useState(null);
-  const [currentPage, setCurrentPage] = useState('landing'); // 'landing', 'login', 'register', 'dashboard'
+  const [currentPage, setCurrentPage] = useState('landing');
+  const [notifications, setNotifications] = useState([]);
+  const [eventsForNotify, setEventsForNotify] = useState([]);
+  const notifiedEventIdsRef = useRef(new Set());
+  const userRef = useRef(null);
+  const recentNotificationMapRef = useRef(new Map());
+  const eventRefreshTimerRef = useRef(null);
 
-  // Load user from localStorage on mount
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const addNotification = useCallback((incoming) => {
+    const now = Date.now();
+    const type = incoming?.type || 'info';
+    const text = String(incoming?.text || '').trim();
+    if (!text) return;
+
+    const dedupeKey = incoming?.dedupeKey || `${type}:${text}`;
+    const previousTs = recentNotificationMapRef.current.get(dedupeKey);
+    if (previousTs && now - previousTs < NOTIFICATION_DEDUPE_WINDOW_MS) return;
+    recentNotificationMapRef.current.set(dedupeKey, now);
+
+    for (const [key, ts] of recentNotificationMapRef.current.entries()) {
+      if (now - ts > NOTIFICATION_DEDUPE_WINDOW_MS * 4) {
+        recentNotificationMapRef.current.delete(key);
+      }
+    }
+
+    setNotifications(prev => [
+      {
+        id: incoming?.id || `${now}-${Math.random().toString(36).slice(2, 8)}`,
+        type,
+        text,
+        createdAt: incoming?.createdAt || new Date(now).toISOString(),
+        read: false
+      },
+      ...prev
+    ].slice(0, MAX_NOTIFICATIONS));
+  }, []);
+
+  const scheduleEventRefresh = useCallback(() => {
+    if (eventRefreshTimerRef.current) return;
+    eventRefreshTimerRef.current = setTimeout(async () => {
+      eventRefreshTimerRef.current = null;
+      if (!userRef.current) return;
+      try {
+        const res = await api.events.list();
+        setEventsForNotify(res.data || []);
+      } catch {
+        // ignore
+      }
+    }, 400);
+  }, []);
+
   useEffect(() => {
     const raw = localStorage.getItem('church_user');
     if (raw) {
-      const userData = JSON.parse(raw);
-      setUser(userData);
+      const u = JSON.parse(raw);
+      setUser(u);
+      api.setToken(u.token);
       setCurrentPage('dashboard');
-      api.setToken(userData.token);
     }
 
-    // Socket listeners
-    socket.on('connect', () => console.log('[App] Socket connected!'));
-    socket.on('disconnect', () => console.log('[App] Socket disconnected!'));
-    socket.on('new_booking', (booking) => {
-      console.log('[App] new_booking event received:', booking);
-      addNotification({ type: 'new_booking', text: `New booking: ${booking.service_type} on ${booking.date} (${booking.time_slot})` });
-    });
-    socket.on('booking_deleted', (info) => addNotification({ type: 'deleted', text: `Booking cancelled for ${info.date}` }));
-    socket.on('calendar_config_updated', (info) => addNotification({ type: 'config', text: `Calendar updated: ${info.date} max slots ${info.max_slots}` }));
+    socket.on('connect', () => console.log('[Socket] Connected'));
+    socket.on('disconnect', () => console.log('[Socket] Disconnected'));
+
+    const onNewBooking = (b) => {
+      if (userRef.current && b.userId === userRef.current.id) {
+        addNotification({
+          type: 'new_booking',
+          text: `Booking confirmed: ${b.service} on ${b.date} (${b.slot})`,
+          dedupeKey: `new_booking:${b.id || `${b.date}:${b.slot}:${b.service}`}`
+        });
+      }
+    };
+    const onBookingDeleted = (b) => {
+      addNotification({
+        type: 'deleted',
+        text: `Booking cancelled for ${b.date}`,
+        dedupeKey: `deleted:${b.id || b.date}`
+      });
+    };
+    const onCalendarConfigUpdated = (b) => {
+      addNotification({
+        type: 'config',
+        text: `Calendar updated for ${b.date}`,
+        dedupeKey: `config:${b.date}`
+      });
+    };
+    const onEventChanged = () => scheduleEventRefresh();
+
+    socket.on('new_booking', onNewBooking);
+    socket.on('booking_deleted', onBookingDeleted);
+    socket.on('calendar_config_updated', onCalendarConfigUpdated);
+    socket.on('event_created', onEventChanged);
+    socket.on('event_updated', onEventChanged);
+    socket.on('event_deleted', onEventChanged);
 
     return () => {
-      socket.off('new_booking');
-      socket.off('booking_deleted');
-      socket.off('calendar_config_updated');
+      socket.off('new_booking', onNewBooking);
+      socket.off('booking_deleted', onBookingDeleted);
+      socket.off('calendar_config_updated', onCalendarConfigUpdated);
+      socket.off('event_created', onEventChanged);
+      socket.off('event_updated', onEventChanged);
+      socket.off('event_deleted', onEventChanged);
+      if (eventRefreshTimerRef.current) {
+        clearTimeout(eventRefreshTimerRef.current);
+        eventRefreshTimerRef.current = null;
+      }
     };
+  }, [addNotification, scheduleEventRefresh]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const loadEvents = async () => {
+      try {
+        const res = await api.events.list();
+        setEventsForNotify(res.data || []);
+      } catch {
+        // ignore
+      }
+    };
+
+    loadEvents();
+    const interval = setInterval(loadEvents, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !eventsForNotify.length) return;
+
+    const now = new Date();
+    eventsForNotify.forEach(e => {
+      if (!e.time || !e.date) return;
+      if (notifiedEventIdsRef.current.has(e.id)) return;
+
+      const eventTime = new Date(`${e.date}T${e.time}`);
+      if (isNaN(eventTime.getTime())) return;
+
+      const msUntil = eventTime.getTime() - now.getTime();
+      if (msUntil <= 0) return;
+      if (msUntil > 60 * 60 * 1000) return;
+
+      notifiedEventIdsRef.current.add(e.id);
+      addNotification({
+        type: 'event_soon',
+        text: `Event in 1 hour: ${e.title} (${e.date} ${e.time})`,
+        dedupeKey: `event_soon:${e.id}`
+      });
+    });
+  }, [eventsForNotify, user, addNotification]);
+
+  const markNotificationRead = useCallback((id) => {
+    setNotifications(prev =>
+      prev.map(n => (n.id === id ? { ...n, read: true } : n))
+    );
   }, []);
 
-  const addNotification = (n) => setNotifications(prev => [n, ...prev].slice(0, 20));
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => (n.read ? n : { ...n, read: true })));
+  }, []);
 
-  const handleLogin = (userInfo, token) => {
-    const u = { ...userInfo, token };
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const handleLogin = ({ token, user }) => {
+    const u = { ...user, token };
     localStorage.setItem('church_user', JSON.stringify(u));
     api.setToken(token);
+    notifiedEventIdsRef.current = new Set();
     setUser(u);
     setCurrentPage('dashboard');
   };
@@ -57,69 +196,43 @@ function App() {
     localStorage.removeItem('church_user');
     api.setToken(null);
     setUser(null);
+    setEventsForNotify([]);
+    notifiedEventIdsRef.current = new Set();
     setCurrentPage('landing');
-  };
-
-  const handleChooseAuth = (type) => {
-    setCurrentPage(type); // 'login' or 'register'
   };
 
   return (
     <SocketContext.Provider value={socket}>
       {currentPage === 'landing' && (
         <LandingPage
-          onChooseLogin={() => handleChooseAuth('login')}
-          onChooseRegister={() => handleChooseAuth('register')}
+          onChooseLogin={() => setCurrentPage('login')}
+          onChooseRegister={() => setCurrentPage('register')}
         />
       )}
 
       {currentPage === 'login' && (
-        <div className="auth-page">
-          <div style={{ width: '100%', maxWidth: '450px', position: 'relative', zIndex: 1 }}>
-            <button onClick={() => setCurrentPage('landing')} className="auth-back-btn">← Back</button>
-            <Login onLogin={handleLogin} />
-            <p style={{ textAlign: 'center', color: '#4a5568', marginTop: '16px', fontSize: '14px' }}>
-              Don't have an account? <button onClick={() => handleChooseAuth('register')} style={styles.linkBtn}>Create one</button>
-            </p>
-          </div>
-        </div>
+        <Login onLogin={handleLogin} onBack={() => setCurrentPage('landing')} />
       )}
 
       {currentPage === 'register' && (
-        <div className="auth-page">
-          <div style={{ width: '100%', maxWidth: '450px', position: 'relative', zIndex: 1 }}>
-            <button onClick={() => setCurrentPage('landing')} className="auth-back-btn">← Back</button>
-            <Register onRegister={handleLogin} />
-            <p style={{ textAlign: 'center', color: '#4a5568', marginTop: '16px', fontSize: '14px' }}>
-              Already have an account? <button onClick={() => handleChooseAuth('login')} style={styles.linkBtn}>Sign in</button>
-            </p>
-          </div>
-        </div>
+        <Register onLogin={handleLogin} onBack={() => setCurrentPage('landing')} />
       )}
 
       {currentPage === 'dashboard' && user && (
         <>
           {user.role === 'admin' ? (
-            <AdminDashboard
-              user={user}
-              addNotification={addNotification}
-              onLogout={handleLogout}
-            />
+            <AdminDashboard user={user} onLogout={handleLogout} />
           ) : (
-            <Dashboard
-              user={user}
-              addNotification={addNotification}
-              onLogout={handleLogout}
-            />
+            <Dashboard user={user} onLogout={handleLogout} />
           )}
+          <NotificationCenter
+            items={notifications}
+            onMarkRead={markNotificationRead}
+            onMarkAllRead={markAllNotificationsRead}
+            onClearAll={clearNotifications}
+          />
         </>
       )}
     </SocketContext.Provider>
   );
 }
-
-const styles = {
-  linkBtn: { background: 'none', border: 'none', color: '#667eea', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }
-};
-
-export default App;

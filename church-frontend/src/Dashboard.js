@@ -1,110 +1,291 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
 import api from './api';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
 
-export default function Dashboard({ addNotification, user, onLogout }) {
-  const [bookings, setBookings] = useState([]);
+export default function Dashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
 
-  const fetchUserBookings = async () => {
+  const [bookings, setBookings] = useState([]);
+  const [bookingRequests, setBookingRequests] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [calendarBookings, setCalendarBookings] = useState([]);
+  const [calendarConfig, setCalendarConfig] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('calendar'); // calendar | bookings | events | requests
+
+  const loadData = useCallback(async () => {
     try {
-      const res = await api.bookings.list();
-      const userBookings = res.data.filter(b => b.user_name === user.name);
-      setBookings(userBookings);
-    } catch (e) {
-      console.error(e);
+      const [b, br, e, c, s] = await Promise.all([
+        api.bookings.list(),
+        api.bookingRequests.my(),
+        api.events.list(),
+        api.calendar.get(),
+        api.bookings.slots()
+      ]);
+
+      setBookings(b.data || []);
+      setBookingRequests(br.data || []);
+      setEvents(e.data || []);
+      setCalendarConfig(c.data || {});
+      setCalendarBookings(s.data || []);
+    } catch (err) {
+      console.error('Dashboard load failed', err);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchUserBookings();
-    const refresh = () => fetchUserBookings();
+    loadData();
+
+    if (!socket) return;
+    const refresh = () => loadData();
+
     socket.on('new_booking', refresh);
+    socket.on('booking_updated', refresh);
     socket.on('booking_deleted', refresh);
+    socket.on('booking_request_created', refresh);
+    socket.on('booking_request_updated', refresh);
+    socket.on('event_added', refresh);
+    socket.on('event_deleted', refresh);
+    socket.on('calendar_config_updated', refresh);
+
     return () => {
       socket.off('new_booking', refresh);
+      socket.off('booking_updated', refresh);
       socket.off('booking_deleted', refresh);
+      socket.off('booking_request_created', refresh);
+      socket.off('booking_request_updated', refresh);
+      socket.off('event_added', refresh);
+      socket.off('event_deleted', refresh);
+      socket.off('calendar_config_updated', refresh);
     };
-  }, [socket]);
+  }, [socket, loadData]);
+
+  useEffect(() => {
+    if (activeTab !== 'events' && activeTab !== 'bookings' && activeTab !== 'requests') return;
+    const intervalId = setInterval(() => {
+      loadData();
+    }, 5000);
+    return () => clearInterval(intervalId);
+  }, [activeTab, loadData]);
+
+  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f7fafc' }}>
-      {/* Header */}
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', background: '#f0f4f8' }}>
+      {/* Sidebar Tabs */}
       <div style={{
-        background: 'linear-gradient(to right, #667eea, #764ba2)',
-        color: 'white',
-        padding: '24px 32px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+        width: 180,
+        borderRight: '1px solid #ddd',
+        background: '#fff',
+        padding: '16px 8px'
       }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700 }}>
-          👋 Welcome back, {user.name}
-        </h1>
-        <button onClick={onLogout} style={styles.headerBtn}>Logout</button>
+        <h3 style={{ textAlign: 'center', marginBottom: 24 }}>Dashboard</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <button
+            onClick={() => setActiveTab('calendar')}
+            style={{
+              padding: 12,
+              background: activeTab === 'calendar' ? '#667eea' : '#f9f9f9',
+              color: activeTab === 'calendar' ? '#fff' : '#333',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer'
+            }}
+          >Calendar</button>
+
+          <button
+            onClick={() => setActiveTab('events')}
+            style={{
+              padding: 12,
+              background: activeTab === 'events' ? '#667eea' : '#f9f9f9',
+              color: activeTab === 'events' ? '#fff' : '#333',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer'
+            }}
+          >Events</button>
+
+          <button
+            onClick={() => setActiveTab('bookings')}
+            style={{
+              padding: 12,
+              background: activeTab === 'bookings' ? '#667eea' : '#f9f9f9',
+              color: activeTab === 'bookings' ? '#fff' : '#333',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer'
+            }}
+          >My Bookings</button>
+
+          <button
+            onClick={() => setActiveTab('requests')}
+            style={{
+              padding: 12,
+              background: activeTab === 'requests' ? '#667eea' : '#f9f9f9',
+              color: activeTab === 'requests' ? '#fff' : '#333',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer'
+            }}
+          >My Requests</button>
+
+          <button
+            onClick={onLogout}
+            style={{
+              padding: 12,
+              background: '#f56565',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              marginTop: 24
+            }}
+          >Logout</button>
+        </div>
       </div>
 
-      {/* Main content */}
-      <div style={{ display: 'flex', flex: 1, gap: '16px', padding: '16px', overflow: 'hidden' }}>
-        {/* Left Panel: Bookings */}
-        <div style={styles.sidebar}>
-          <h2 style={styles.cardTitle}>📋 Your Bookings</h2>
-          {bookings.length === 0 ? (
-            <p style={{ color: '#718096', fontSize: '12px' }}>No bookings yet.</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {bookings.map(b => (
-                <li key={b.id} style={styles.bookingItem}>
-                  <div style={{ fontWeight: 600, fontSize: '13px' }}>{b.service_type}</div>
-                  <div style={{ fontSize: '12px', color: '#4a5568' }}>{b.date} • {b.time_slot}</div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      {/* Main Content */}
+      <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
+        {activeTab === 'calendar' && (
+          <CalendarViewNew
+            bookings={bookings}
+            calendarBookings={calendarBookings}
+            events={events}
+            calendarConfig={calendarConfig}
+            user={user}
+          />
+        )}
 
-        {/* Right Panel: Calendar */}
-        <div style={styles.calendarContainer}>
-          <CalendarViewNew addNotification={addNotification} compact={false} />
-        </div>
+        {activeTab === 'events' && (
+          <div>
+            <h2>Events</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#eee' }}>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>ID</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Title</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Date</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map(e => (
+                  <tr key={e.id}>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{e.id}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{e.title}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{e.date}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{e.time || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activeTab === 'bookings' && (
+          <div>
+            <h2>My Bookings</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#eee' }}>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Service</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Date</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Time</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map(b => (
+                  <tr key={b.id}>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{b.service}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{b.date}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{b.slot}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>
+                      <button
+                        style={{
+                          padding: '6px 10px',
+                          background: '#f56565',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 4,
+                          cursor: 'pointer'
+                        }}
+                        onClick={async () => {
+                          if (!b.id) {
+                            window.alert('Cannot cancel: missing booking id.');
+                            return;
+                          }
+                          if (window.confirm('Cancel this booking?')) {
+                            try {
+                              await api.bookings.remove(b.id);
+                              loadData();
+                            } catch (err) {
+                              if (err.response?.status === 404) {
+                                loadData();
+                                return;
+                              }
+                              window.alert(
+                                err.response?.data?.error || 'Cancel failed. Please refresh and try again.'
+                              );
+                            }
+                          }
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {bookings.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: 8, border: '1px solid #ccc' }}>
+                      No bookings yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activeTab === 'requests' && (
+          <div>
+            <h2>My Requests</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#eee' }}>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Service</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Date</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Slot</th>
+                  <th style={{ padding: 8, border: '1px solid #ccc' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookingRequests.map(r => (
+                  <tr key={r.id}>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{r.service}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{r.date}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc' }}>{r.slot}</td>
+                    <td style={{ padding: 8, border: '1px solid #ccc', textTransform: 'capitalize' }}>
+                      {r.status || 'pending'}
+                    </td>
+                  </tr>
+                ))}
+                {bookingRequests.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ padding: 8, border: '1px solid #ccc' }}>
+                      No booking requests yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
-const styles = {
-  headerBtn: {
-    background: 'white',
-    color: '#4a5568',
-    border: 'none',
-    padding: '8px 14px',
-    borderRadius: '6px',
-    fontWeight: 600,
-    cursor: 'pointer'
-  },
-  sidebar: {
-    width: '360px',
-    background: '#fff',
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-    padding: '24px',
-    overflowY: 'auto',
-    flexShrink: 0,
-    maxHeight: '100%'
-  },
-  cardTitle: { fontSize: '18px', fontWeight: 700, color: '#2d3748', marginBottom: '16px' },
-  bookingItem: { padding: '12px 0', borderBottom: '1px solid #e2e8f0' },
-  calendarContainer: {
-    flex: 1,
-    background: '#fff',
-    borderRadius: '12px',
-    padding: '20px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-    display: 'flex',
-    flexDirection: 'column',
-    minHeight: 0,
-    minWidth: 0,
-    overflowY: 'auto'
-  }
-};

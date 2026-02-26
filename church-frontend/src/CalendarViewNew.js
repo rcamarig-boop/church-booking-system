@@ -1,82 +1,118 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import api from './api';
 import BookingModal from './BookingModal';
 import { SocketContext } from './App';
 
 const STATUS_COLORS = {
-  green:   { bg: 'rgba(72,196,17,0.25)', border: '#11c411' },
-  yellow:  { bg: 'rgba(255,255,0,0.25)', border: '#ffc800' },
-  orange:  { bg: 'rgba(255,165,0,0.25)', border: '#ff8c00' },
-  red:     { bg: 'rgba(236,30,30,0.35)', border: '#dc1414' },
+  green:  { bg: 'rgba(72,196,17,0.15)', border: '#11c411' },
+  yellow: { bg: 'rgba(255,255,0,0.15)', border: '#eeff00' },
+  orange: { bg: 'rgba(255,165,0,0.15)', border: '#ff8c00' },
+  red:    { bg: 'rgba(236,30,30,0.2)', border: '#dc1414' },
+  gray:   { bg: 'rgba(160,174,192,0.35)', border: '#718096' },
 };
 
 const DEFAULT_MAX_SLOTS = 5;
 
-export default function CalendarViewNew({ addNotification, compact = false }) {
-  const [events, setEvents] = useState([]);
-  const [dateMap, setDateMap] = useState({});
-  const [modalData, setModalData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [currentDate, setCurrentDate] = useState(new Date());
+export default function CalendarViewNew({
+  bookings = [],
+  calendarBookings = null,
+  events = [],
+  calendarConfig = {},
+  user,
+  isAdmin = false,
+  addNotification,
+  compact = false
+}) {
   const socket = useContext(SocketContext);
 
-  const fetchAllEvents = async () => {
-    const [bookingsRes, eventsRes] = await Promise.all([
-      api.bookings.list(),
-      api.events.list()
-    ]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [modalDate, setModalDate] = useState(null);
+  const [modalEvents, setModalEvents] = useState([]);
+  const [modalMode, setModalMode] = useState('list');
+  const [dateMap, setDateMap] = useState({});
+  const [allSlots, setAllSlots] = useState([]);
 
-    const bookingEvents = (bookingsRes.data || []).map(b => ({
-      id: b.id,
-      date: b.date,
-      title: `${b.service_type} — ${b.user_name}`,
-      extendedProps: b
-    }));
-
-    const adminEvents = (eventsRes.data || []).map(e => ({
-      id: `event-${e.id}`,
-      date: e.date,
-      title: e.title,
-      extendedProps: e
-    }));
-
-    setEvents([...bookingEvents, ...adminEvents]);
-  };
-
-  const fetchCalendar = async () => {
-    const res = await api.calendar.get();
-    setDateMap(res.data || {});
-  };
+  /* ---------------------------
+     SYNC CONFIG ONLY (max slots)
+  --------------------------- */
+  useEffect(() => {
+    setDateMap(calendarConfig || {});
+  }, [calendarConfig]);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      await Promise.all([fetchAllEvents(), fetchCalendar()]);
-      setLoading(false);
-    };
+    if (calendarBookings) {
+      setAllSlots(calendarBookings);
+    }
+  }, [calendarBookings]);
+ 
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      refreshCalendar();
+      refreshSlots();
+    }, 1000);
+ 
+    return () => clearInterval(intervalId);
+  }, []);
 
-    load();
+  /* ---------------------------
+     SOCKET REFRESH
+  --------------------------- */
+  const refreshCalendar = useCallback(async () => {
+    try {
+      const res = await api.calendar.get();
+      setDateMap(res.data || {});
+    } catch (err) {
+      console.error('Calendar refresh failed', err);
+    }
+  }, []);
 
-    const refresh = () => {
-      fetchAllEvents();
-      fetchCalendar();
-    };
+  const refreshSlots = useCallback(async () => {
+    try {
+      const res = await api.bookings.slots();
+      setAllSlots(res.data || []);
+    } catch (err) {
+      // ignore slot refresh errors
+    }
+  }, []);
 
-    socket.on('new_booking', refresh);
-    socket.on('booking_deleted', refresh);
-    socket.on('calendar_config_updated', refresh);
-    socket.on('event_added', refresh);
-    socket.on('event_deleted', refresh);
-
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('new_booking', refreshCalendar);
+    socket.on('booking_updated', refreshCalendar);
+    socket.on('booking_deleted', refreshCalendar);
+    socket.on('calendar_config_updated', refreshCalendar);
+    socket.on('new_booking', refreshSlots);
+    socket.on('booking_updated', refreshSlots);
+    socket.on('booking_deleted', refreshSlots);
     return () => {
-      socket.off('new_booking', refresh);
-      socket.off('booking_deleted', refresh);
-      socket.off('calendar_config_updated', refresh);
-      socket.off('event_added', refresh);
-      socket.off('event_deleted', refresh);
+      socket.off('new_booking', refreshCalendar);
+      socket.off('booking_updated', refreshCalendar);
+      socket.off('booking_deleted', refreshCalendar);
+      socket.off('calendar_config_updated', refreshCalendar);
+      socket.off('new_booking', refreshSlots);
+      socket.off('booking_updated', refreshSlots);
+      socket.off('booking_deleted', refreshSlots);
     };
-  }, [socket]);
+  }, [socket, refreshCalendar, refreshSlots]);
 
+  useEffect(() => {
+    if (!calendarBookings) {
+      refreshSlots();
+    }
+  }, [calendarBookings, refreshSlots]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      refreshCalendar();
+      refreshSlots();
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [refreshCalendar, refreshSlots]);
+
+  /* ---------------------------
+     DATE HELPERS
+  --------------------------- */
   const formatDate = (y, m, d) =>
     `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
@@ -87,78 +123,142 @@ export default function CalendarViewNew({ addNotification, compact = false }) {
 
   const calendarDays = [
     ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1)
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
 
-  const getStatus = (date) => {
-    const max = dateMap[date]?.max_slots || DEFAULT_MAX_SLOTS;
-    const booked = dateMap[date]?.booked || 0;
-    const remaining = max - booked;
+  const bookingSource = allSlots || calendarBookings || bookings;
 
-    if (remaining <= 0) return 'red';
-    if (remaining <= 1) return 'orange';
-    if (remaining <= Math.ceil(max * 0.6)) return 'yellow';
-    return 'green';
+  const bookingsByDate = useMemo(() => {
+    const map = {};
+    bookingSource.forEach(b => {
+      if (!b?.date) return;
+      map[b.date] = (map[b.date] || 0) + 1;
+    });
+    return map;
+  }, [bookingSource]);
+
+  /* ---------------------------
+     STATUS LOGIC
+     bookings are computed LIVE
+  --------------------------- */
+  const getLoadStatus = (date) => {
+    const max = dateMap[date]?.max_slots ?? DEFAULT_MAX_SLOTS;
+    const booked = bookingsByDate[date] || 0;
+    if (booked >= max) return 'red';
+    if (booked <= 0) return 'green';
+    if (booked <= max / 4) return 'yellow';
+    return 'orange';
   };
 
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: 40 }}>Loading calendar…</div>;
-  }
+  /* ---------------------------
+     MODAL
+  --------------------------- */
+  const openModal = (date) => {
+    const ownBookings = bookings
+      .filter(b => b.date === date)
+      .map(b => ({ ...b, _type: 'booking', _isOwner: true }));
 
+    const eventItems = events
+      .filter(e => e.date === date)
+      .map(e => ({ ...e, _type: 'event' }));
+
+    const modalItems = isAdmin
+      ? [
+          ...eventItems,
+          ...bookings.filter(b => b.date === date).map(b => ({ ...b, _type: 'booking' }))
+        ]
+      : [...eventItems, ...ownBookings];
+
+    setModalDate(date);
+    setModalEvents(modalItems);
+    setModalMode('list');
+  };
+
+  const handleBooked = async () => {
+    await refreshCalendar();
+    addNotification?.({
+      type: 'success',
+      text: `Booking request submitted for ${modalDate}`,
+    });
+    setModalMode('list');
+  };
+
+  const handleCancelled = async () => {
+    await refreshCalendar();
+    addNotification?.({
+      type: 'info',
+      text: `Booking cancelled on ${modalDate}`,
+    });
+    setModalMode('list');
+  };
+
+  /* ---------------------------
+     RENDER
+  --------------------------- */
   return (
-    <div>
+    <div style={{
+      background: 'rgba(255,255,255,0.6)',
+      padding: 20,
+      borderRadius: 14,
+    }}>
       {!compact && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
           <button onClick={() => setCurrentDate(new Date(year, month - 1))}>◀</button>
-          <strong>
-            {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </strong>
+          <strong>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong>
           <button onClick={() => setCurrentDate(new Date(year, month + 1))}>▶</button>
         </div>
       )}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(7, 1fr)',
-        gap: 6
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
           <div key={d} style={{ fontWeight: 700, textAlign: 'center' }}>{d}</div>
         ))}
 
         {calendarDays.map((day, i) => {
           if (!day) return <div key={i} />;
-
           const dateStr = formatDate(year, month, day);
-          const status = getStatus(dateStr);
+          const status = getLoadStatus(dateStr);
+          const isFuture = new Date(dateStr) >= new Date().setHours(0,0,0,0);
+          const max = dateMap[dateStr]?.max_slots ?? DEFAULT_MAX_SLOTS;
+          const booked = bookingsByDate[dateStr] || 0;
+          const isClosed = max <= 0;
+          const isSelectable = isFuture && !isClosed;
+          const palette = isSelectable ? STATUS_COLORS[status] : STATUS_COLORS.gray;
 
           return (
             <div
               key={dateStr}
-              onClick={() => !compact && setModalData({
-                date: dateStr,
-                events: events.filter(e => e.date === dateStr)
-              })}
+              onClick={() => isSelectable && !compact && openModal(dateStr)}
               style={{
                 padding: 10,
-                minHeight: 70,
-                cursor: compact ? 'default' : 'pointer',
-                background: STATUS_COLORS[status].bg,
-                border: `2px solid ${STATUS_COLORS[status].border}`,
-                borderRadius: 8
+                minHeight: 80,
+                cursor: isSelectable ? 'pointer' : 'not-allowed',
+                background: palette.bg,
+                border: `2px solid ${palette.border}`,
+                borderRadius: 10,
+                opacity: isSelectable ? 1 : 0.4,
               }}
             >
               <div style={{ fontWeight: 700 }}>{day}</div>
+              {!compact && (
+                <div style={{ fontSize: 12, marginTop: 6 }}>
+                  {booked}/{max} booked
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {modalData && (
+      {modalDate && (
         <BookingModal
-          data={modalData}
-          onClose={() => setModalData(null)}
-          addNotification={addNotification}
+          date={modalDate}
+          events={modalEvents}
+          mode={modalMode}
+          onClose={() => setModalDate(null)}
+          onBooked={handleBooked}
+          onCancelled={handleCancelled}
+          canCancel={!isAdmin}
         />
       )}
     </div>

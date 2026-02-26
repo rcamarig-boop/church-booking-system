@@ -1,39 +1,57 @@
 import axios from 'axios';
 
-const API = process.env.REACT_APP_API_BASE; // picks environment-specific URL
-const client = axios.create({ baseURL: API });
+const api = axios.create({
+  baseURL: 'http://localhost:4000/api'
+});
+
+export function setToken(token) {
+  if (token)
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  else
+    delete api.defaults.headers.common.Authorization;
+}
 
 export default {
-  setToken: (t) => {
-    if (t) client.defaults.headers.common['Authorization'] = `Bearer ${t}`;
-    else delete client.defaults.headers.common['Authorization'];
+  setToken,
+
+  auth: {
+    login: data => api.post('/auth/login', data),
+    register: data => api.post('/auth/register', data)
   },
-  client,
-  login: (data) => client.post('/auth/login', data),
-  register: (data) => client.post('/auth/register', data),
+
   bookings: {
-    list: () => client.get('/bookings'),
-    create: (data) => client.post('/bookings', data),
-    delete: (id) => client.delete(`/bookings/${id}`)
+    list: () => api.get('/bookings'),
+    slots: () => api.get('/bookings/slots'),
+    create: data => api.post('/bookings', data),
+    update: (id, data) => api.put(`/bookings/${id}`, data),
+    remove: id => api.delete(`/bookings/${id}`)
   },
+
   bookingRequests: {
-    submit: (data) => client.post('/booking-requests', data),
-    list: () => client.get('/booking-requests'),
-    approve: (id) => client.patch(`/booking-requests/${id}`, { status: 'approved' }),
-    reject: (id) => client.patch(`/booking-requests/${id}`, { status: 'rejected' })
+    list: () => api.get('/booking-requests'),
+    my: () => api.get('/booking-requests/my'),
+    update: (id, data) => api.put(`/booking-requests/${id}`, data),
+    approve: id => api.post(`/booking-requests/${id}/approve`),
+    reject: id => api.post(`/booking-requests/${id}/reject`)
   },
-  calendar: {
-    get: () => client.get('/calendar'),
-    config: (d) => client.post('/calendar/config', d)
+
+  bookingRecords: {
+    list: () => api.get('/booking-records')
   },
+
   events: {
-    list: () => client.get('/events'),
-    create: (data) => client.post('/events', data),
-    delete: (id) => client.delete(`/events/${id}`)
+    list: () => api.get('/events'),
+    create: data => api.post('/events', data),
+    update: (id, data) => api.put(`/events/${id}`, data),
+    remove: id => api.delete(`/events/${id}`)
   },
-  users: { 
-    list: () => client.get('/users'),
-    delete: (id) => client.delete(`/users/${id}`),
-    deleteMe: () => client.delete('/users/me')
+
+  calendar: {
+    get: () => api.get('/calendar'),
+    update: data => api.post('/calendar', data)
+  },
+
+  users: {
+    list: () => api.get('/users')
   }
 };

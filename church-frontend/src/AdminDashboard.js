@@ -1,529 +1,617 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import api from './api';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
+import AdminRequestPanel from './AdminRequestPanel';
 
-export default function AdminDashboard({ addNotification, onLogout }) {
-  const [bookings, setBookings] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [dateLimits, setDateLimits] = useState({});
-  const [events, setEvents] = useState([]);
-  const [activeTab, setActiveTab] = useState('events');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [newLimit, setNewLimit] = useState('');
-  const [eventForm, setEventForm] = useState({
-    title: '',
-    date: '',
-    startTime: '09:00',
-    endTime: '10:00',
-    description: ''
-  });
+/* ---------- shared styles ---------- */
+const th = {
+  padding: 8,
+  border: '1px solid #ccc',
+  textAlign: 'left',
+};
+
+const td = {
+  padding: 8,
+  border: '1px solid #ccc',
+};
+
+const dangerBtn = {
+  padding: '6px 10px',
+  background: '#f56565',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 4,
+  cursor: 'pointer',
+};
+
+export default function AdminDashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
 
-  /** Fetch bookings from API */
-  const fetchBookings = async () => {
+  const [activeTab, setActiveTab] = useState('calendar');
+  const [bookings, setBookings] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [calendarConfig, setCalendarConfig] = useState({});
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [eventTime, setEventTime] = useState('');
+  const [eventDescription, setEventDescription] = useState('');
+  const [eventError, setEventError] = useState(null);
+  const [eventSaving, setEventSaving] = useState(false);
+  const [bookingControlDate, setBookingControlDate] = useState('');
+  const [bookingMaxSlots, setBookingMaxSlots] = useState('5');
+  const [bookingControlMsg, setBookingControlMsg] = useState('');
+  const [bookingControlBusy, setBookingControlBusy] = useState(false);
+
+  const editEvent = async (event) => {
+    const title = window.prompt('Title', event.title || '');
+    if (title === null) return;
+    const date = window.prompt('Date (YYYY-MM-DD)', event.date || '');
+    if (date === null) return;
+    const time = window.prompt('Time (optional, HH:MM)', event.time || '');
+    if (time === null) return;
+    const description = window.prompt('Description (optional)', event.description || '');
+    if (description === null) return;
+
     try {
-      const res = await api.bookings.list();
-      setBookings(res.data);
-    } catch (e) {
-      console.error(e);
+      await api.events.update(event.id, { title, date, time, description });
+      await loadData();
+    } catch (err) {
+      window.alert(err.response?.data?.error || 'Failed to edit event.');
     }
   };
 
-  /** Fetch events from API */
-  const fetchEvents = async () => {
+  const editAcceptedBooking = async (booking) => {
+    const service = window.prompt('Service', booking.service || '');
+    if (service === null) return;
+    const date = window.prompt('Date (YYYY-MM-DD)', booking.date || '');
+    if (date === null) return;
+    const slot = window.prompt('Time slot (HH:MM, AM, or PM)', booking.slot || '');
+    if (slot === null) return;
+    const detailsText = window.prompt(
+      'Details JSON',
+      JSON.stringify(booking.details || {}, null, 2)
+    );
+    if (detailsText === null) return;
+
+    let details = {};
     try {
-      const res = await api.events.list();
-      setEvents(res.data || []);
-    } catch (e) {
-      console.error(e);
+      details = detailsText.trim() ? JSON.parse(detailsText) : {};
+    } catch {
+      window.alert('Invalid details JSON.');
+      return;
+    }
+
+    try {
+      await api.bookings.update(booking.id, { service, date, slot, details });
+      await loadData();
+    } catch (err) {
+      window.alert(err.response?.data?.error || 'Failed to edit booking.');
     }
   };
 
-  /** Fetch users from API */
-  const fetchUsers = async () => {
+  /* ---------- load all admin data ---------- */
+  const loadData = async () => {
     try {
-      const res = await api.users.list();
-      setUsers(res.data);
-    } catch (e) {
-      console.error(e);
+      const [b, r, e, c, u] = await Promise.all([
+        api.bookings.list(),
+        api.bookingRecords.list(),
+        api.events.list(),
+        api.calendar.get(),
+        api.users.list(),
+      ]);
+
+      setBookings(b.data || []);
+      setRecords(r.data || []);
+      setEvents(e.data || []);
+      setCalendarConfig(c.data || {});
+      setUsers(u.data || []);
+    } catch (err) {
+      console.error('Admin load failed', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  /** Fetch calendar limits */
-  const fetchCalendar = async () => {
-    try {
-      const res = await api.calendar.get();
-      setDateLimits(res.data || {});
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
+  /* ---------- socket refresh ---------- */
   useEffect(() => {
-    fetchBookings();
-    fetchUsers();
-    fetchCalendar();
-    fetchEvents();
+    loadData();
 
-    const refresh = () => { 
-      fetchBookings(); 
-      fetchCalendar(); 
-      fetchEvents();
-    };
+    const refresh = () => loadData();
+
     socket.on('new_booking', refresh);
+    socket.on('booking_updated', refresh);
     socket.on('booking_deleted', refresh);
-    socket.on('calendar_config_updated', refresh);
-    socket.on('event_added', refresh);
+    socket.on('booking_request_created', refresh);
+    socket.on('booking_request_updated', refresh);
+    socket.on('event_created', refresh);
+    socket.on('event_updated', refresh);
     socket.on('event_deleted', refresh);
+    socket.on('calendar_config_updated', refresh);
 
     return () => {
       socket.off('new_booking', refresh);
+      socket.off('booking_updated', refresh);
       socket.off('booking_deleted', refresh);
-      socket.off('calendar_config_updated', refresh);
-      socket.off('event_added', refresh);
+      socket.off('booking_request_created', refresh);
+      socket.off('booking_request_updated', refresh);
+      socket.off('event_created', refresh);
+      socket.off('event_updated', refresh);
       socket.off('event_deleted', refresh);
+      socket.off('calendar_config_updated', refresh);
     };
   }, [socket]);
 
-  /** Delete a booking */
-  const handleDeleteBooking = async (id) => {
-    if (!window.confirm('Delete this booking?')) return;
-    try {
-      await api.bookings.delete(id);
-      addNotification({ type: 'deleted', text: 'Booking deleted' });
-      fetchBookings();
-    } catch (e) { console.error(e); }
-  };
-
-  /** Delete a user */
-  const handleDeleteUser = async (id) => {
-    if (!window.confirm('Delete this user?')) return;
-    try {
-      await api.users.delete(id);
-      addNotification({ type: 'deleted', text: 'User deleted' });
-      fetchUsers();
-    } catch (e) { console.error(e); }
-  };
-
-  /** Set max bookings for a selected date */
-  const handleSetLimit = async () => {
-    if (!selectedDate || !newLimit) return;
-    try {
-      // Format date as YYYY-MM-DD to match backend expectation
-      const formattedDate = new Date(selectedDate).toISOString().split('T')[0];
-      
-      await api.calendar.config({ date: formattedDate, max_slots: parseInt(newLimit) });
-      addNotification({ type: 'info', text: `✅ Limit updated for ${formattedDate}` });
-      setNewLimit('');
-      setSelectedDate('');
-      
-      // Fetch updated calendar data
-      await fetchCalendar();
-      await fetchBookings();
-      
-      // Emit socket event to notify other clients
-      socket.emit('calendar_config_updated', { date: formattedDate, max_slots: parseInt(newLimit) });
-    } catch (e) { 
-      addNotification({ type: 'deleted', text: 'Error updating limit' });
-      console.error(e); 
+  useEffect(() => {
+    if (!bookingControlDate) return;
+    const configured = calendarConfig?.[bookingControlDate]?.max_slots;
+    if (configured === undefined || configured === null) {
+      setBookingMaxSlots('5');
+    } else {
+      setBookingMaxSlots(String(configured));
     }
-  };
+  }, [bookingControlDate, calendarConfig]);
 
-  /** Create custom event for admin */
-  const handleCreateCustomEvent = async (e) => {
-    e.preventDefault();
-    if (!eventForm.title || !eventForm.date || !eventForm.startTime || !eventForm.endTime) {
-      addNotification({ type: 'deleted', text: 'Please fill all required fields' });
-      return;
-    }
-    
-    // Validate that end time is after start time
-    if (eventForm.endTime <= eventForm.startTime) {
-      addNotification({ type: 'deleted', text: 'End time must be after start time' });
-      return;
-    }
-
-    try {
-      const eventData = {
-        title: eventForm.title,
-        date: eventForm.date,
-        time_slot: `${eventForm.startTime}-${eventForm.endTime}`,
-        description: eventForm.description,
-        color: 'purple',
-        is_admin_event: true
-      };
-      await api.events.create(eventData);
-      addNotification({ type: 'info', text: '✅ Custom event created successfully!' });
-      setEventForm({
-        title: '',
-        date: '',
-        startTime: '09:00',
-        endTime: '10:00',
-        description: ''
-      });
-      fetchEvents();
-    } catch (e) {
-      console.error('Error creating event:', e);
-      addNotification({ type: 'deleted', text: 'Error creating event' });
-    }
-  };
+  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
-    <div style={{ background: '#f7fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      
-      {/* Header */}
+    <div style={{ display: 'flex', height: '100vh', background: '#f0f4f8', fontFamily: 'sans-serif' }}>
+      {/* ---------- SIDEBAR ---------- */}
       <div style={{
-        background: 'linear-gradient(to right, #667eea, #764ba2)',
-        color: 'white',
-        padding: '20px 32px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+        width: 220,
+        background: '#ffffff',
+        borderRight: '1px solid #ddd',
+        padding: 16,
       }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700 }}>👋 Admin Dashboard</h1>
-        <button onClick={onLogout} style={styles.headerBtn}>Logout</button>
+        <h3 style={{ textAlign: 'center', marginBottom: 24 }}>Admin Panel</h3>
+
+        <button style={tabBtn(activeTab === 'calendar')} onClick={() => setActiveTab('calendar')}>
+          Calendar
+        </button>
+
+        <button style={tabBtn(activeTab === 'users')} onClick={() => setActiveTab('users')}>
+          Users
+        </button>
+
+        <button style={tabBtn(activeTab === 'events')} onClick={() => setActiveTab('events')}>
+          Events & Bookings
+        </button>
+
+        <button style={tabBtn(activeTab === 'requests')} onClick={() => setActiveTab('requests')}>
+          Request Panel
+        </button>
+
+        <button style={tabBtn(activeTab === 'records')} onClick={() => setActiveTab('records')}>
+          Records
+        </button>
+
+        <button style={tabBtn(activeTab === 'add_event')} onClick={() => setActiveTab('add_event')}>
+          Add Event
+        </button>
+
+        <button
+          onClick={onLogout}
+          style={{ ...tabBtn(false), background: '#f56565', color: '#fff', marginTop: 24 }}
+        >
+          Logout
+        </button>
       </div>
 
-      {/* Main Content */}
-      <div style={{ display: 'flex', padding: '32px', gap: '24px' }}>
+      {/* ---------- MAIN CONTENT ---------- */}
+      <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
+        {/* CALENDAR */}
+        {activeTab === 'calendar' && (
+          <div>
+            <div
+              style={{
+                marginBottom: 16,
+                background: '#fff',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid #ddd',
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+                flexWrap: 'wrap'
+              }}
+            >
+              <strong>Booking Date Controls</strong>
+              <input
+                type="date"
+                value={bookingControlDate}
+                onChange={e => setBookingControlDate(e.target.value)}
+                style={{ padding: 8, borderRadius: 6, border: '1px solid #ccc' }}
+              />
+              <input
+                type="number"
+                min="0"
+                value={bookingMaxSlots}
+                onChange={e => setBookingMaxSlots(e.target.value)}
+                placeholder="Max bookings"
+                style={{ width: 140, padding: 8, borderRadius: 6, border: '1px solid #ccc' }}
+              />
+              <button
+                disabled={!bookingControlDate || bookingControlBusy}
+                onClick={async () => {
+                  const maxSlots = Number(bookingMaxSlots);
+                  if (!Number.isFinite(maxSlots) || maxSlots < 0) {
+                    setBookingControlMsg('Max bookings must be 0 or more.');
+                    return;
+                  }
+                  try {
+                    setBookingControlBusy(true);
+                    setBookingControlMsg('');
+                    await api.calendar.update({ date: bookingControlDate, max_slots: maxSlots });
+                    setBookingControlMsg(`Set ${bookingControlDate} max bookings to ${maxSlots}.`);
+                    await loadData();
+                  } catch (err) {
+                    setBookingControlMsg(err.response?.data?.error || 'Failed to set max bookings.');
+                  } finally {
+                    setBookingControlBusy(false);
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: 'none',
+                  borderRadius: 6,
+                  background: '#2b6cb0',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Set Max Bookings
+              </button>
+              <button
+                disabled={!bookingControlDate || bookingControlBusy}
+                onClick={async () => {
+                  try {
+                    setBookingControlBusy(true);
+                    setBookingControlMsg('');
+                    await api.calendar.update({ date: bookingControlDate, max_slots: 0 });
+                    setBookingControlMsg(`Closed ${bookingControlDate} for bookings.`);
+                    await loadData();
+                  } catch (err) {
+                    setBookingControlMsg(err.response?.data?.error || 'Failed to close date.');
+                  } finally {
+                    setBookingControlBusy(false);
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: 'none',
+                  borderRadius: 6,
+                  background: '#e53e3e',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Close Date
+              </button>
+              <button
+                disabled={!bookingControlDate || bookingControlBusy}
+                onClick={async () => {
+                  const value = window.prompt('Set max slots to reopen this date', '5');
+                  if (value === null) return;
+                  const maxSlots = Number(value);
+                  if (!Number.isFinite(maxSlots) || maxSlots <= 0) {
+                    setBookingControlMsg('Max slots must be a positive number.');
+                    return;
+                  }
+                  try {
+                    setBookingControlBusy(true);
+                    setBookingControlMsg('');
+                    await api.calendar.update({ date: bookingControlDate, max_slots: maxSlots });
+                    setBookingControlMsg(`Opened ${bookingControlDate} with ${maxSlots} slot(s).`);
+                    await loadData();
+                  } catch (err) {
+                    setBookingControlMsg(err.response?.data?.error || 'Failed to open date.');
+                  } finally {
+                    setBookingControlBusy(false);
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: 'none',
+                  borderRadius: 6,
+                  background: '#38a169',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Open Date
+              </button>
+              {bookingControlMsg && (
+                <span style={{ fontSize: 13, color: '#2d3748' }}>{bookingControlMsg}</span>
+              )}
+            </div>
 
-        {/* Sidebar - Tabbed Panel */}
-        <div style={styles.sidebar}>
-          {/* Tab Headers */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '2px solid #e2e8f0' }}>
+            <CalendarViewNew
+              bookings={bookings}
+              calendarBookings={bookings}
+              events={events}
+              calendarConfig={calendarConfig}
+              user={user}
+              isAdmin
+            />
+          </div>
+        )}
+
+        {/* USERS */}
+        {activeTab === 'users' && (
+          <div>
+            <h2>Users</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#eee' }}>
+                  <th style={th}>ID</th>
+                  <th style={th}>Name</th>
+                  <th style={th}>Email</th>
+                  <th style={th}>Role</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id}>
+                    <td style={td}>{u.id}</td>
+                    <td style={td}>{u.name}</td>
+                    <td style={td}>{u.email}</td>
+                    <td style={td}>{u.role}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* EVENTS + BOOKINGS (SAME TAB) */}
+        {activeTab === 'events' && (
+          <div>
+            {/* EVENTS */}
+            <h2>Events</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 40 }}>
+              <thead>
+                <tr style={{ background: '#eee' }}>
+                  <th style={th}>ID</th>
+                  <th style={th}>Title</th>
+                  <th style={th}>Date</th>
+                  <th style={th}>Time</th>
+                  <th style={th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map(e => (
+                  <tr key={e.id}>
+                    <td style={td}>{e.id}</td>
+                    <td style={td}>{e.title}</td>
+                    <td style={td}>{e.date}</td>
+                    <td style={td}>{e.time || '-'}</td>
+                    <td style={td}>
+                      <button
+                        style={{ ...dangerBtn, background: '#3182ce', marginRight: 8 }}
+                        onClick={() => editEvent(e)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        style={dangerBtn}
+                        onClick={async () => {
+                          if (window.confirm('Delete this event?')) {
+                            await api.events.remove(e.id);
+                            loadData();
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* BOOKINGS */}
+            <h2>Bookings</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#eee' }}>
+                  <th style={th}>ID</th>
+                  <th style={th}>User</th>
+                  <th style={th}>Service</th>
+                  <th style={th}>Date</th>
+                  <th style={th}>Time</th>
+                  <th style={th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map(b => (
+                  <tr key={b.id}>
+                    <td style={td}>{b.id}</td>
+                    <td style={td}>{b.name || b.email}</td>
+                    <td style={td}>{b.service}</td>
+                    <td style={td}>{b.date}</td>
+                    <td style={td}>{b.slot}</td>
+                    <td style={td}>
+                      <button
+                        style={{ ...dangerBtn, background: '#3182ce', marginRight: 8 }}
+                        onClick={() => editAcceptedBooking(b)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        style={dangerBtn}
+                        onClick={async () => {
+                          if (window.confirm('Cancel this booking?')) {
+                            await api.bookings.remove(b.id);
+                            loadData();
+                          }
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activeTab === 'requests' && (
+          <AdminRequestPanel onDecision={loadData} />
+        )}
+
+        {activeTab === 'records' && (
+          <div>
+            <h2>Booking Records</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#eee' }}>
+                  <th style={th}>ID</th>
+                  <th style={th}>User</th>
+                  <th style={th}>Service</th>
+                  <th style={th}>Date</th>
+                  <th style={th}>Slot</th>
+                  <th style={th}>Action</th>
+                  <th style={th}>Details</th>
+                  <th style={th}>At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map(r => (
+                  <tr key={r.id}>
+                    <td style={td}>{r.id}</td>
+                    <td style={td}>{r.name || r.email || '-'}</td>
+                    <td style={td}>{r.service || '-'}</td>
+                    <td style={td}>{r.date || '-'}</td>
+                    <td style={td}>{r.slot || '-'}</td>
+                    <td style={{ ...td, textTransform: 'capitalize' }}>{r.action || '-'}</td>
+                    <td style={td}>
+                      {r.details && typeof r.details === 'object'
+                        ? Object.entries(r.details)
+                            .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join(' | ')
+                        : '-'}
+                    </td>
+                    <td style={td}>{r.actionAt || '-'}</td>
+                  </tr>
+                ))}
+                {records.length === 0 && (
+                  <tr>
+                    <td style={td} colSpan={8}>No booking records yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* ADD EVENT */}
+        {activeTab === 'add_event' && (
+          <div style={{ maxWidth: 520 }}>
+            <h2>Add Church Event</h2>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 6 }}>Title</label>
+              <input
+                type="text"
+                value={eventTitle}
+                onChange={e => setEventTitle(e.target.value)}
+                placeholder="Event title"
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 6 }}>Date</label>
+              <input
+                type="date"
+                value={eventDate}
+                onChange={e => setEventDate(e.target.value)}
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 6 }}>Time (optional)</label>
+              <input
+                type="time"
+                value={eventTime}
+                onChange={e => setEventTime(e.target.value)}
+                step="60"
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 6 }}>Description (optional)</label>
+              <textarea
+                value={eventDescription}
+                onChange={e => setEventDescription(e.target.value)}
+                placeholder="Notes about the event"
+                rows={4}
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+              />
+            </div>
+            {eventError && (
+              <div style={{ color: 'red', marginBottom: 12 }}>{eventError}</div>
+            )}
             <button
-              onClick={() => setActiveTab('events')}
+              disabled={eventSaving}
+              onClick={async () => {
+                if (!eventTitle.trim() || !eventDate) {
+                  setEventError('Title and date are required.');
+                  return;
+                }
+                try {
+                  setEventSaving(true);
+                  setEventError(null);
+                  await api.events.create({
+                    title: eventTitle.trim(),
+                    date: eventDate,
+                    time: eventTime.trim(),
+                    description: eventDescription.trim()
+                  });
+                  setEventTitle('');
+                  setEventDate('');
+                  setEventTime('');
+                  setEventDescription('');
+                  loadData();
+                  setActiveTab('events');
+                } catch (err) {
+                  setEventError(err.response?.data?.error || 'Failed to create event.');
+                } finally {
+                  setEventSaving(false);
+                }
+              }}
               style={{
-                ...styles.tabButton,
-                borderBottom: activeTab === 'events' ? '3px solid #667eea' : 'none',
-                color: activeTab === 'events' ? '#667eea' : '#4a5568'
+                padding: '10px 14px',
+                background: '#667eea',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer'
               }}
             >
-              ✏️ Custom Events
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              style={{
-                ...styles.tabButton,
-                borderBottom: activeTab === 'settings' ? '3px solid #667eea' : 'none',
-                color: activeTab === 'settings' ? '#667eea' : '#4a5568'
-              }}
-            >
-              👥 Users & Limits
+              {eventSaving ? 'Saving...' : 'Create Event'}
             </button>
           </div>
-
-          {/* Tab Content - Custom Events */}
-          {activeTab === 'events' && (
-            <div>
-              <p style={{ fontSize: '13px', color: '#718096', marginBottom: '20px' }}>
-                Admin only - Create events with custom times. Members book fixed time slots.
-              </p>
-
-              <form onSubmit={handleCreateCustomEvent} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {/* Event Title */}
-                <div>
-                  <label style={styles.formLabel}>Event Title *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Counseling, Prayer Meeting"
-                    value={eventForm.title}
-                    onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-                    style={styles.formInput}
-                  />
-                </div>
-
-                {/* Event Date */}
-                <div>
-                  <label style={styles.formLabel}>Date *</label>
-                  <input
-                    type="date"
-                    value={eventForm.date}
-                    onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
-                    style={styles.formInput}
-                  />
-                </div>
-
-                {/* Start Time */}
-                <div>
-                  <label style={styles.formLabel}>Start Time *</label>
-                  <input
-                    type="time"
-                    value={eventForm.startTime}
-                    onChange={(e) => setEventForm({ ...eventForm, startTime: e.target.value })}
-                    style={styles.formInput}
-                  />
-                </div>
-
-                {/* End Time */}
-                <div>
-                  <label style={styles.formLabel}>End Time *</label>
-                  <input
-                    type="time"
-                    value={eventForm.endTime}
-                    onChange={(e) => setEventForm({ ...eventForm, endTime: e.target.value })}
-                    style={styles.formInput}
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label style={styles.formLabel}>Description</label>
-                  <textarea
-                    placeholder="Add event details..."
-                    value={eventForm.description}
-                    onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
-                    style={{...styles.formInput, resize: 'vertical', minHeight: '80px'}}
-                  />
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  style={{
-                    width: '100%',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    marginTop: '12px',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseOver={(e) => e.target.style.transform = 'scale(1.02)'}
-                  onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
-                >
-                  ➕ Create Custom Event
-                </button>
-              </form>
-
-              <hr style={{ margin: '24px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
-
-              {/* Recent Events */}
-              <h3 style={styles.sidebarTitle}>📌 Recent Custom Events</h3>
-              {events.length === 0 ? (
-                <p style={{ color: '#718096', fontSize: '14px' }}>No custom events yet.</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {events.slice(-5).reverse().map(evt => (
-                    <li key={evt.id} style={styles.bookingItem}>
-                      <div style={{ fontWeight: 600, color: getColorValue(evt.color || 'purple') }}>
-                        {evt.title}
-                      </div>
-                      <div style={{ fontSize: '13px', color: '#4a5568' }}>
-                        {evt.date} • {evt.time_slot}
-                      </div>
-                      {evt.description && (
-                        <div style={{ fontSize: '12px', color: '#718096', marginTop: '4px', fontStyle: 'italic' }}>
-                          {evt.description}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          {/* Tab Content - Users & Limits */}
-          {activeTab === 'settings' && (
-            <div>
-              {/* Bookings Section */}
-              <h3 style={styles.sidebarTitle}>📋 All Bookings</h3>
-              {bookings.length === 0 ? (
-                <p style={{ color: '#718096', marginBottom: '24px' }}>No bookings yet.</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginBottom: '24px' }}>
-                  {bookings.map(b => (
-                    <li key={b.id} style={styles.bookingItem}>
-                      <div style={{ fontWeight: 600 }}>{b.service_type} — {b.user_name}</div>
-                      <div style={{ fontSize: '14px', color: '#4a5568' }}>
-                        {b.date} • {b.time_slot}
-                      </div>
-                      <button style={styles.cancelBtn} onClick={() => handleDeleteBooking(b.id)}>Cancel</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <hr style={{ margin: '24px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
-
-              {/* Users Section */}
-              <h3 style={styles.sidebarTitle}>👥 Users</h3>
-              {users.length === 0 ? (
-                <p style={{ color: '#718096', marginBottom: '24px' }}>No users found.</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginBottom: '24px' }}>
-                  {users.map(u => (
-                    <li key={u.id} style={styles.bookingItem}>
-                      <div style={{ fontWeight: 600 }}>{u.name}</div>
-                      <div style={{ fontSize: '14px', color: '#4a5568' }}>{u.email}</div>
-                      <button style={styles.cancelBtn} onClick={() => handleDeleteUser(u.id)}>Delete</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <hr style={{ margin: '24px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
-
-              {/* Set date limit */}
-              <h3 style={styles.sidebarTitle}>📅 Set Booking Limit</h3>
-              <p style={{ fontSize: '13px', color: '#718096', marginBottom: '16px' }}>
-                Set maximum number of slots available per date.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label style={styles.formLabel}>Date</label>
-                  <input 
-                    type="date" 
-                    value={selectedDate} 
-                    onChange={e => setSelectedDate(e.target.value)}
-                    style={styles.formInput}
-                  />
-                </div>
-                <div>
-                  <label style={styles.formLabel}>Max Slots</label>
-                  <input 
-                    type="number" 
-                    min={1} 
-                    value={newLimit} 
-                    onChange={e => setNewLimit(e.target.value)}
-                    style={styles.formInput}
-                  />
-                </div>
-                <button 
-                  onClick={handleSetLimit}
-                  style={{
-                    width: '100%',
-                    background: '#667eea',
-                    color: 'white',
-                    border: 'none',
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    marginTop: '8px',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseOver={(e) => e.target.style.background = '#764ba2'}
-                  onMouseOut={(e) => e.target.style.background = '#667eea'}
-                >
-                  Set Limit
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Calendar */}
-        <div style={styles.calendarContainer}>
-          <CalendarViewNew addNotification={addNotification} compact={true} />
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-const styles = {
-  headerBtn: {
-    background: 'white',
-    color: '#4a5568',
-    border: 'none',
-    padding: '8px 14px',
-    borderRadius: '6px',
-    fontWeight: 600,
-    cursor: 'pointer'
-  },
-  tabButton: {
-    background: 'none',
-    border: 'none',
-    padding: '12px 16px',
-    fontSize: '14px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    marginBottom: '-2px'
-  },
-  sidebar: {
-    width: '380px',
-    minWidth: '300px',
-    maxHeight: '80vh',
-    overflowY: 'auto',
-    background: '#fff',
-    borderRadius: '12px',
-    padding: '20px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-    flexShrink: 0
-  },
-  sidebarTitle: {
-    fontSize: '18px',
-    fontWeight: 700,
-    color: '#2d3748',
-    marginBottom: '12px'
-  },
-  formLabel: {
-    display: 'block',
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#4a5568',
-    marginBottom: '6px'
-  },
-  formInput: {
+/* ---------- helper ---------- */
+function tabBtn(active) {
+  return {
     width: '100%',
-    padding: '10px 12px',
-    border: '1px solid #e2e8f0',
-    borderRadius: '6px',
-    fontSize: '14px',
-    fontFamily: 'inherit',
-    boxSizing: 'border-box',
-    transition: 'border-color 0.2s',
-    ':focus': {
-      outline: 'none',
-      borderColor: '#667eea'
-    }
-  },
-  bookingItem: {
-    marginBottom: '16px',
-    paddingBottom: '12px',
-    borderBottom: '1px solid #e2e8f0'
-  },
-  cancelBtn: {
-    marginTop: '8px',
-    background: '#e53e3e',
-    color: 'white',
+    padding: 12,
+    marginBottom: 12,
     border: 'none',
-    padding: '6px 12px',
-    borderRadius: '6px',
-    fontSize: '14px',
-    cursor: 'pointer'
-  },
-  calendarContainer: {
-    flex: 1,
-    background: '#fff',
-    borderRadius: '12px',
-    padding: '20px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-    maxHeight: '90vh',
-    overflowY: 'auto'
-  }
-};
-
-/** Helper function to get color values */
-function getColorValue(color) {
-  const colorMap = {
-    'purple': '#a855f7',
-    'blue': '#3b82f6',
-    'green': '#10b981',
-    'red': '#ef4444',
-    'orange': '#f97316',
-    'pink': '#ec4899',
-    'indigo': '#6366f1',
-    'teal': '#14b8a6'
+    borderRadius: 6,
+    cursor: 'pointer',
+    background: active ? '#667eea' : '#f9f9f9',
+    color: active ? '#fff' : '#333',
+    fontSize: 15,
   };
-  return colorMap[color] || '#a855f7';
 }
