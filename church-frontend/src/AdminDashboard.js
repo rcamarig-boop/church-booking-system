@@ -226,8 +226,8 @@ export default function AdminDashboard({ user, onLogout }) {
 
       {/* ---------- MAIN CONTENT ---------- */}
       <div className="dashboard-main">
-        <button className="dashboard-mobile-tabs-btn" onClick={() => setMobileTabsOpen(v => !v)}>
-          Tabs
+        <button className="dashboard-mobile-tabs-btn" onClick={() => setMobileTabsOpen(v => !v)} aria-label="Open tabs menu" title="Tabs">
+          ☰
         </button>
         {/* CALENDAR */}
         {activeTab === 'calendar' && (

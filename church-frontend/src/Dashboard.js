@@ -134,8 +134,8 @@ export default function Dashboard({ user, onLogout }) {
 
       {/* Main Content */}
       <div className="dashboard-main">
-        <button className="dashboard-mobile-tabs-btn" onClick={() => setMobileTabsOpen(v => !v)}>
-          Tabs
+        <button className="dashboard-mobile-tabs-btn" onClick={() => setMobileTabsOpen(v => !v)} aria-label="Open tabs menu" title="Tabs">
+          ☰
         </button>
         {activeTab === 'calendar' && (
           <CalendarViewNew
