@@ -15,6 +15,10 @@ app.use(cors());
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'SUPER_SECRET_KEY';
+const AUTO_SEED_ADMIN = process.env.AUTO_SEED_ADMIN !== 'false';
+const ADMIN_NAME = process.env.ADMIN_NAME || 'Admin User';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@church.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 
 /* ===================== SQLITE ===================== */
 const DEFAULT_MAX_SLOTS = 5;
@@ -117,6 +121,29 @@ const hasPhoneColumn = userColumns.includes('phone');
 if (!passwordColumn) {
   throw new Error('Users table missing password/password_hash column.');
 }
+
+function ensureAdminUser() {
+  if (!AUTO_SEED_ADMIN) return;
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) return;
+
+  const existing = db.prepare('SELECT id FROM users WHERE email=?').get(ADMIN_EMAIL);
+  if (existing) return;
+
+  const hash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
+  const columns = hasPhoneColumn
+    ? `name, email, ${passwordColumn}, phone, role`
+    : `name, email, ${passwordColumn}, role`;
+  const values = hasPhoneColumn
+    ? [ADMIN_NAME, ADMIN_EMAIL, hash, '', 'admin']
+    : [ADMIN_NAME, ADMIN_EMAIL, hash, 'admin'];
+
+  db.prepare(
+    `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')})`
+  ).run(...values);
+  console.log(`Seeded admin user: ${ADMIN_EMAIL}`);
+}
+
+ensureAdminUser();
 
 const bookingColumns = db.prepare('PRAGMA table_info(bookings)').all().map(c => c.name);
 if (!bookingColumns.includes('details')) {
