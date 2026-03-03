@@ -29,10 +29,6 @@ export default function AdminDashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
 
   const [activeTab, setActiveTab] = useState('calendar');
-  const [tabsExpanded, setTabsExpanded] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return window.innerWidth > 900;
-  });
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [records, setRecords] = useState([]);
@@ -160,64 +156,45 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }, [bookingControlDate, calendarConfig]);
 
-  useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth <= 900) {
-        setTabsExpanded(false);
-      } else {
-        setMobileTabsOpen(false);
-      }
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div className="dashboard-layout">
       <aside
-        className={`dashboard-sidebar ${tabsExpanded ? 'expanded' : 'collapsed'} ${mobileTabsOpen ? 'mobile-open' : ''}`}
+        className={`dashboard-sidebar ${mobileTabsOpen ? 'mobile-open' : ''}`}
       >
         <div className="dashboard-sidebar-header">
-          {tabsExpanded && <h3 style={{ margin: 0 }}>Admin Panel</h3>}
-          <button
-            className="dashboard-toggle-btn"
-            onClick={() => setTabsExpanded(v => !v)}
-            title={tabsExpanded ? 'Collapse tabs' : 'Expand tabs'}
-          >
-            {tabsExpanded ? '<' : '>'}
-          </button>
+          <h3 style={{ margin: 0 }}>Admin Panel</h3>
         </div>
 
         <div className="dashboard-tab-list">
           <button className={`dashboard-tab-btn ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => { setActiveTab('calendar'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">📅</span>
-            {tabsExpanded && <span>Calendar</span>}
+            <span>Calendar</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">👥</span>
-            {tabsExpanded && <span>Users</span>}
+            <span>Users</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'events' ? 'active' : ''}`} onClick={() => { setActiveTab('events'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">📌</span>
-            {tabsExpanded && <span>Events & Bookings</span>}
+            <span>Events & Bookings</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => { setActiveTab('requests'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">📨</span>
-            {tabsExpanded && <span>Request Panel</span>}
+            <span>Request Panel</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'records' ? 'active' : ''}`} onClick={() => { setActiveTab('records'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">🧾</span>
-            {tabsExpanded && <span>Records</span>}
+            <span>Records</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'add_event' ? 'active' : ''}`} onClick={() => { setActiveTab('add_event'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">➕</span>
-            {tabsExpanded && <span>Add Event</span>}
+            <span>Add Event</span>
           </button>
           <button className="dashboard-tab-btn logout" onClick={onLogout}>
             <span className="dashboard-tab-short">🚪</span>
-            {tabsExpanded && <span>Logout</span>}
+            <span>Logout</span>
           </button>
         </div>
       </aside>

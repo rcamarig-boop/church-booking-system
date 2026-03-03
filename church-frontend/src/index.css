@@ -165,28 +165,24 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   border-right: 1px solid #ddd;
   padding: 12px 8px;
   z-index: 1001;
-  transition: width 0.2s ease, transform 0.2s ease;
+  transition: transform 0.2s ease;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  transform: translateX(-100%);
+  width: 240px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
 }
-.dashboard-sidebar.expanded {
-  width: 220px;
-}
-.dashboard-sidebar.collapsed {
-  width: 76px;
+.dashboard-sidebar.mobile-open {
+  transform: translateX(0);
 }
 .dashboard-sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   margin-bottom: 16px;
   min-height: 40px;
-}
-.dashboard-toggle-btn {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border-radius: 8px;
-  background: #edf2f7;
-  color: #2d3748;
 }
 .dashboard-tab-list {
   display: flex;
@@ -228,10 +224,21 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   overflow-y: auto;
 }
 .dashboard-mobile-tabs-btn {
-  display: none;
+  display: inline-flex;
+  margin-bottom: 12px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: #2d3748;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
 }
 .dashboard-mobile-overlay {
-  display: none;
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1000;
 }
 
 /* ===== Responsive tweaks ===== */
@@ -294,35 +301,8 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
 }
 
 @media (max-width: 900px) {
-  .dashboard-sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    transform: translateX(-100%);
-    width: 240px !important;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-  }
-  .dashboard-sidebar.mobile-open {
-    transform: translateX(0);
-  }
-  .dashboard-mobile-overlay {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.35);
-    z-index: 1000;
-  }
   .dashboard-main {
     padding: 16px;
-  }
-  .dashboard-mobile-tabs-btn {
-    display: inline-flex;
-    margin-bottom: 12px;
-    padding: 9px 14px;
-    border-radius: 8px;
-    background: #2d3748;
-    color: #fff;
   }
   .dashboard-main table {
     display: block;

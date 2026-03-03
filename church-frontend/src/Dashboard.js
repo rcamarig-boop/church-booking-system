@@ -13,10 +13,6 @@ export default function Dashboard({ user, onLogout }) {
   const [calendarConfig, setCalendarConfig] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('calendar'); // calendar | bookings | events | requests
-  const [tabsExpanded, setTabsExpanded] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return window.innerWidth > 900;
-  });
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -76,56 +72,37 @@ export default function Dashboard({ user, onLogout }) {
     return () => clearInterval(intervalId);
   }, [activeTab, loadData]);
 
-  useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth <= 900) {
-        setTabsExpanded(false);
-      } else {
-        setMobileTabsOpen(false);
-      }
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div className="dashboard-layout">
       <aside
-        className={`dashboard-sidebar ${tabsExpanded ? 'expanded' : 'collapsed'} ${mobileTabsOpen ? 'mobile-open' : ''}`}
+        className={`dashboard-sidebar ${mobileTabsOpen ? 'mobile-open' : ''}`}
       >
         <div className="dashboard-sidebar-header">
-          {tabsExpanded && <h3 style={{ margin: 0 }}>Dashboard</h3>}
-          <button
-            className="dashboard-toggle-btn"
-            onClick={() => setTabsExpanded(v => !v)}
-            title={tabsExpanded ? 'Collapse tabs' : 'Expand tabs'}
-          >
-            {tabsExpanded ? '<' : '>'}
-          </button>
+          <h3 style={{ margin: 0 }}>Dashboard</h3>
         </div>
 
         <div className="dashboard-tab-list">
           <button className={`dashboard-tab-btn ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => { setActiveTab('calendar'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">📅</span>
-            {tabsExpanded && <span>Calendar</span>}
+            <span>Calendar</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'events' ? 'active' : ''}`} onClick={() => { setActiveTab('events'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">📌</span>
-            {tabsExpanded && <span>Events</span>}
+            <span>Events</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'bookings' ? 'active' : ''}`} onClick={() => { setActiveTab('bookings'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">📖</span>
-            {tabsExpanded && <span>My Bookings</span>}
+            <span>My Bookings</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => { setActiveTab('requests'); setMobileTabsOpen(false); }}>
             <span className="dashboard-tab-short">📨</span>
-            {tabsExpanded && <span>My Requests</span>}
+            <span>My Requests</span>
           </button>
           <button className="dashboard-tab-btn logout" onClick={onLogout}>
             <span className="dashboard-tab-short">🚪</span>
-            {tabsExpanded && <span>Logout</span>}
+            <span>Logout</span>
           </button>
         </div>
       </aside>
