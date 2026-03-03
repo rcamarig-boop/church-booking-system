@@ -1,7 +1,9 @@
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
+const path = require('path');
 
-const db = new Database('church.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'church.db');
+const db = new Database(DB_PATH);
 
 const userColumns = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
 const passwordColumn =

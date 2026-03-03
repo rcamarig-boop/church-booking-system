@@ -152,6 +152,88 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   border-bottom: 1px solid #e2e8f0;
 }
 
+/* ===== Dashboard Tabs ===== */
+.dashboard-layout {
+  display: flex;
+  height: 100vh;
+  font-family: sans-serif;
+  background: #f0f4f8;
+  position: relative;
+}
+.dashboard-sidebar {
+  background: #fff;
+  border-right: 1px solid #ddd;
+  padding: 12px 8px;
+  z-index: 1001;
+  transition: width 0.2s ease, transform 0.2s ease;
+}
+.dashboard-sidebar.expanded {
+  width: 220px;
+}
+.dashboard-sidebar.collapsed {
+  width: 76px;
+}
+.dashboard-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  min-height: 40px;
+}
+.dashboard-toggle-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  background: #edf2f7;
+  color: #2d3748;
+}
+.dashboard-tab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dashboard-tab-btn {
+  width: 100%;
+  padding: 11px 10px;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-start;
+  background: #f7fafc;
+  color: #2d3748;
+}
+.dashboard-tab-btn.active {
+  background: #667eea;
+  color: #fff;
+}
+.dashboard-tab-btn.logout {
+  margin-top: 10px;
+  background: #f56565;
+  color: #fff;
+}
+.dashboard-tab-short {
+  min-width: 34px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  line-height: 1;
+}
+.dashboard-main {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+.dashboard-mobile-tabs-btn {
+  display: none;
+}
+.dashboard-mobile-overlay {
+  display: none;
+}
+
 /* ===== Responsive tweaks ===== */
 .auth-form-shell {
   width: 100%;
@@ -208,5 +290,44 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   }
   .landing-primary-btn, .landing-secondary-btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    width: 240px !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  }
+  .dashboard-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .dashboard-mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1000;
+  }
+  .dashboard-main {
+    padding: 16px;
+  }
+  .dashboard-mobile-tabs-btn {
+    display: inline-flex;
+    margin-bottom: 12px;
+    padding: 9px 14px;
+    border-radius: 8px;
+    background: #2d3748;
+    color: #fff;
+  }
+  .dashboard-main table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
   }
 }
