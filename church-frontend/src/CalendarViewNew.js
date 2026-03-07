@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import api from './api';
 import BookingModal from './BookingModal';
 import { SocketContext } from './App';
@@ -44,15 +44,6 @@ export default function CalendarViewNew({
       setAllSlots(calendarBookings);
     }
   }, [calendarBookings]);
- 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      refreshCalendar();
-      refreshSlots();
-    }, 1000);
- 
-    return () => clearInterval(intervalId);
-  }, []);
 
   /* ---------------------------
      SOCKET REFRESH
@@ -206,9 +197,9 @@ export default function CalendarViewNew({
     }}>
       {!compact && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <button onClick={() => setCurrentDate(new Date(year, month - 1))}>◀</button>
+          <button onClick={() => setCurrentDate(new Date(year, month - 1))}>{'\u25C0'}</button>
           <strong>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong>
-          <button onClick={() => setCurrentDate(new Date(year, month + 1))}>▶</button>
+          <button onClick={() => setCurrentDate(new Date(year, month + 1))}>{'\u25B6'}</button>
         </div>
       )}
 
@@ -267,3 +258,4 @@ export default function CalendarViewNew({
     </div>
   );
 }
+
