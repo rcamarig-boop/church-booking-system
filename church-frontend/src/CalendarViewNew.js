@@ -200,6 +200,9 @@ export default function CalendarViewNew({
       background: 'rgba(255,255,255,0.6)',
       padding: 20,
       borderRadius: 14,
+      width: '100%',
+      maxWidth: 820,
+      marginLeft: 'auto',
     }}>
       {!compact && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>

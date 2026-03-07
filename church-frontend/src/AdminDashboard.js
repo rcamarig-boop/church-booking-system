@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+﻿import React, { useEffect, useState, useContext, useMemo } from 'react';
 import api from './api';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
@@ -29,7 +29,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
 
   const [activeTab, setActiveTab] = useState('calendar');
-  const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
+  const [tabsExpanded, setTabsExpanded] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [records, setRecords] = useState([]);
   const [events, setEvents] = useState([]);
@@ -46,6 +46,10 @@ export default function AdminDashboard({ user, onLogout }) {
   const [bookingMaxSlots, setBookingMaxSlots] = useState('5');
   const [bookingControlMsg, setBookingControlMsg] = useState('');
   const [bookingControlBusy, setBookingControlBusy] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [eventSearch, setEventSearch] = useState('');
+  const [bookingSearch, setBookingSearch] = useState('');
+  const [recordSearch, setRecordSearch] = useState('');
 
   const editEvent = async (event) => {
     const title = window.prompt('Title', event.title || '');
@@ -156,56 +160,150 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }, [bookingControlDate, calendarConfig]);
 
+  const userSearchTerm = userSearch.trim().toLowerCase();
+  const eventSearchTerm = eventSearch.trim().toLowerCase();
+  const bookingSearchTerm = bookingSearch.trim().toLowerCase();
+  const recordSearchTerm = recordSearch.trim().toLowerCase();
+
+  const filteredUsers = useMemo(
+    () => users.filter(u => {
+      if (!userSearchTerm) return true;
+      return [u.id, u.name, u.email, u.role]
+        .map(v => String(v || '').toLowerCase())
+        .some(v => v.includes(userSearchTerm));
+    }),
+    [users, userSearchTerm]
+  );
+
+  const filteredEvents = useMemo(
+    () => events.filter(e => {
+      if (!eventSearchTerm) return true;
+      return [e.id, e.title, e.date, e.time]
+        .map(v => String(v || '').toLowerCase())
+        .some(v => v.includes(eventSearchTerm));
+    }),
+    [events, eventSearchTerm]
+  );
+
+  const filteredBookings = useMemo(
+    () => bookings.filter(b => {
+      if (!bookingSearchTerm) return true;
+      return [b.id, b.name, b.email, b.service, b.date, b.slot]
+        .map(v => String(v || '').toLowerCase())
+        .some(v => v.includes(bookingSearchTerm));
+    }),
+    [bookings, bookingSearchTerm]
+  );
+
+  const filteredRecords = useMemo(
+    () => records.filter(r => {
+      if (!recordSearchTerm) return true;
+      const detailsText = r.details && typeof r.details === 'object'
+        ? JSON.stringify(r.details)
+        : String(r.details || '');
+      return [r.id, r.name, r.email, r.service, r.date, r.slot, r.action, r.actionAt, detailsText]
+        .map(v => String(v || '').toLowerCase())
+        .some(v => v.includes(recordSearchTerm));
+    }),
+    [records, recordSearchTerm]
+  );
+
+  const reportData = useMemo(() => {
+    const serviceCounts = bookings.reduce((acc, b) => {
+      const key = String(b.service || 'unknown');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const actionCounts = records.reduce((acc, r) => {
+      const key = String(r.action || 'unknown');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const roleCounts = users.reduce((acc, u) => {
+      const key = String(u.role || 'member');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    return {
+      totalUsers: users.length,
+      totalEvents: events.length,
+      totalBookings: bookings.length,
+      totalRecords: records.length,
+      serviceCounts,
+      actionCounts,
+      roleCounts
+    };
+  }, [bookings, records, users, events]);
+
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
-    <div className="dashboard-layout">
-      <aside
-        className={`dashboard-sidebar ${mobileTabsOpen ? 'mobile-open' : ''}`}
-      >
+    <div
+      className="dashboard-page"
+      style={{
+        background:
+          "linear-gradient(rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.72)), url('/login-bg.jpg') center/cover no-repeat fixed"
+      }}
+    >
+      <div className="dashboard-brand">
+        <div className="dashboard-brand-title">CABS</div>
+        <div className="dashboard-brand-subtitle">Church Appointment & Booking System</div>
+      </div>
+    <div className="dashboard-layout dashboard-two-col">
+      <div className="dashboard-left-column">
+      <aside className={`dashboard-sidebar dashboard-left-panel ${tabsExpanded ? 'expanded' : 'collapsed'}`}>
         <div className="dashboard-sidebar-header">
           <h3 style={{ margin: 0 }}>Admin Panel</h3>
+          <button
+            className="dashboard-collapse-btn"
+            onClick={() => setTabsExpanded(v => !v)}
+            title={tabsExpanded ? 'Collapse tabs down' : 'Expand tabs down'}
+          >
+            {tabsExpanded ? '\u25B2' : '\u25BC'}
+          </button>
         </div>
 
-        <div className="dashboard-tab-list">
-          <button className={`dashboard-tab-btn ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => { setActiveTab('calendar'); setMobileTabsOpen(false); }}>
-            <span className="dashboard-tab-short">📅</span>
-            <span>Calendar</span>
+        <div className="dashboard-tab-list dashboard-tab-list-vertical">
+          <button className={`dashboard-tab-btn ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
+            <span className="dashboard-tab-short">{'\u{1F4C5}'}</span>
+            <span className="dashboard-tab-label">Calendar</span>
           </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setMobileTabsOpen(false); }}>
-            <span className="dashboard-tab-short">👥</span>
-            <span>Users</span>
+          <button className={`dashboard-tab-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
+            <span className="dashboard-tab-short">{'\u{1F465}'}</span>
+            <span className="dashboard-tab-label">Users</span>
           </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'events' ? 'active' : ''}`} onClick={() => { setActiveTab('events'); setMobileTabsOpen(false); }}>
-            <span className="dashboard-tab-short">📌</span>
-            <span>Events & Bookings</span>
+          <button className={`dashboard-tab-btn ${activeTab === 'events' ? 'active' : ''}`} onClick={() => setActiveTab('events')}>
+            <span className="dashboard-tab-short">{'\u{1F4CC}'}</span>
+            <span className="dashboard-tab-label">Events & Bookings</span>
           </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => { setActiveTab('requests'); setMobileTabsOpen(false); }}>
-            <span className="dashboard-tab-short">📨</span>
-            <span>Request Panel</span>
+          <button className={`dashboard-tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => setActiveTab('requests')}>
+            <span className="dashboard-tab-short">{'\u{1F4E8}'}</span>
+            <span className="dashboard-tab-label">Request Panel</span>
           </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'records' ? 'active' : ''}`} onClick={() => { setActiveTab('records'); setMobileTabsOpen(false); }}>
-            <span className="dashboard-tab-short">🧾</span>
-            <span>Records</span>
+          <button className={`dashboard-tab-btn ${activeTab === 'records' ? 'active' : ''}`} onClick={() => setActiveTab('records')}>
+            <span className="dashboard-tab-short">{'\u{1F9FE}'}</span>
+            <span className="dashboard-tab-label">Records</span>
           </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'add_event' ? 'active' : ''}`} onClick={() => { setActiveTab('add_event'); setMobileTabsOpen(false); }}>
-            <span className="dashboard-tab-short">➕</span>
-            <span>Add Event</span>
+          <button className={`dashboard-tab-btn ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
+            <span className="dashboard-tab-short">{'\u{1F4CA}'}</span>
+            <span className="dashboard-tab-label">Reports</span>
+          </button>
+          <button className={`dashboard-tab-btn ${activeTab === 'add_event' ? 'active' : ''}`} onClick={() => setActiveTab('add_event')}>
+            <span className="dashboard-tab-short">{'\u2795'}</span>
+            <span className="dashboard-tab-label">Add Event</span>
           </button>
           <button className="dashboard-tab-btn logout" onClick={onLogout}>
-            <span className="dashboard-tab-short">🚪</span>
-            <span>Logout</span>
+            <span className="dashboard-tab-short">{'\u{1F6AA}'}</span>
+            <span className="dashboard-tab-label">Logout</span>
           </button>
         </div>
       </aside>
 
-      {mobileTabsOpen && <div className="dashboard-mobile-overlay" onClick={() => setMobileTabsOpen(false)} />}
-
       {/* ---------- MAIN CONTENT ---------- */}
-      <div className="dashboard-main">
-        <button className="dashboard-mobile-tabs-btn" onClick={() => setMobileTabsOpen(v => !v)} aria-label="Open tabs menu" title="Tabs">
-          ☰
-        </button>
+      <div className="dashboard-main dashboard-left-content">
         {/* CALENDAR */}
         {activeTab === 'calendar' && (
           <div>
@@ -332,14 +430,6 @@ export default function AdminDashboard({ user, onLogout }) {
               )}
             </div>
 
-            <CalendarViewNew
-              bookings={bookings}
-              calendarBookings={bookings}
-              events={events}
-              calendarConfig={calendarConfig}
-              user={user}
-              isAdmin
-            />
           </div>
         )}
 
@@ -347,6 +437,13 @@ export default function AdminDashboard({ user, onLogout }) {
         {activeTab === 'users' && (
           <div>
             <h2>Users</h2>
+            <input
+              type="text"
+              placeholder="Search users by id, name, email, role"
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+              style={{ width: '100%', maxWidth: 420, marginBottom: 12, padding: 10, border: '1px solid #ccc', borderRadius: 6 }}
+            />
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#eee' }}>
@@ -357,7 +454,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {filteredUsers.map(u => (
                   <tr key={u.id}>
                     <td style={td}>{u.id}</td>
                     <td style={td}>{u.name}</td>
@@ -365,6 +462,11 @@ export default function AdminDashboard({ user, onLogout }) {
                     <td style={td}>{u.role}</td>
                   </tr>
                 ))}
+                {filteredUsers.length === 0 && (
+                  <tr>
+                    <td style={td} colSpan={4}>No users match your search.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -375,6 +477,13 @@ export default function AdminDashboard({ user, onLogout }) {
           <div>
             {/* EVENTS */}
             <h2>Events</h2>
+            <input
+              type="text"
+              placeholder="Search events by id, title, date, time"
+              value={eventSearch}
+              onChange={e => setEventSearch(e.target.value)}
+              style={{ width: '100%', maxWidth: 420, marginBottom: 12, padding: 10, border: '1px solid #ccc', borderRadius: 6 }}
+            />
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 40 }}>
               <thead>
                 <tr style={{ background: '#eee' }}>
@@ -386,7 +495,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </tr>
               </thead>
               <tbody>
-                {events.map(e => (
+                {filteredEvents.map(e => (
                   <tr key={e.id}>
                     <td style={td}>{e.id}</td>
                     <td style={td}>{e.title}</td>
@@ -413,11 +522,23 @@ export default function AdminDashboard({ user, onLogout }) {
                     </td>
                   </tr>
                 ))}
+                {filteredEvents.length === 0 && (
+                  <tr>
+                    <td style={td} colSpan={5}>No events match your search.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
 
             {/* BOOKINGS */}
             <h2>Bookings</h2>
+            <input
+              type="text"
+              placeholder="Search bookings by id, user, service, date, time"
+              value={bookingSearch}
+              onChange={e => setBookingSearch(e.target.value)}
+              style={{ width: '100%', maxWidth: 460, marginBottom: 12, padding: 10, border: '1px solid #ccc', borderRadius: 6 }}
+            />
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#eee' }}>
@@ -430,7 +551,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </tr>
               </thead>
               <tbody>
-                {bookings.map(b => (
+                {filteredBookings.map(b => (
                   <tr key={b.id}>
                     <td style={td}>{b.id}</td>
                     <td style={td}>{b.name || b.email}</td>
@@ -458,6 +579,11 @@ export default function AdminDashboard({ user, onLogout }) {
                     </td>
                   </tr>
                 ))}
+                {filteredBookings.length === 0 && (
+                  <tr>
+                    <td style={td} colSpan={6}>No bookings match your search.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -470,6 +596,13 @@ export default function AdminDashboard({ user, onLogout }) {
         {activeTab === 'records' && (
           <div>
             <h2>Booking Records</h2>
+            <input
+              type="text"
+              placeholder="Search records by user, service, action, date, details"
+              value={recordSearch}
+              onChange={e => setRecordSearch(e.target.value)}
+              style={{ width: '100%', maxWidth: 500, marginBottom: 12, padding: 10, border: '1px solid #ccc', borderRadius: 6 }}
+            />
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#eee' }}>
@@ -484,7 +617,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </tr>
               </thead>
               <tbody>
-                {records.map(r => (
+                {filteredRecords.map(r => (
                   <tr key={r.id}>
                     <td style={td}>{r.id}</td>
                     <td style={td}>{r.name || r.email || '-'}</td>
@@ -503,13 +636,78 @@ export default function AdminDashboard({ user, onLogout }) {
                     <td style={td}>{r.actionAt || '-'}</td>
                   </tr>
                 ))}
-                {records.length === 0 && (
+                {filteredRecords.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={8}>No booking records yet.</td>
+                    <td style={td} colSpan={8}>No booking records match your search.</td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {activeTab === 'reports' && (
+          <div>
+            <h2>Reporting</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 16 }}>
+              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+                <div style={{ color: '#666', fontSize: 12 }}>Total Users</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{reportData.totalUsers}</div>
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+                <div style={{ color: '#666', fontSize: 12 }}>Total Events</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{reportData.totalEvents}</div>
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+                <div style={{ color: '#666', fontSize: 12 }}>Total Bookings</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{reportData.totalBookings}</div>
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+                <div style={{ color: '#666', fontSize: 12 }}>Total Records</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{reportData.totalRecords}</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
+              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+                <h4 style={{ marginTop: 0 }}>Bookings by Service</h4>
+                {Object.entries(reportData.serviceCounts).length === 0 ? (
+                  <div style={{ color: '#666' }}>No booking data.</div>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {Object.entries(reportData.serviceCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([k, v]) => <li key={k}>{k}: {v}</li>)}
+                  </ul>
+                )}
+              </div>
+
+              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+                <h4 style={{ marginTop: 0 }}>Records by Action</h4>
+                {Object.entries(reportData.actionCounts).length === 0 ? (
+                  <div style={{ color: '#666' }}>No record data.</div>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {Object.entries(reportData.actionCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([k, v]) => <li key={k}>{k}: {v}</li>)}
+                  </ul>
+                )}
+              </div>
+
+              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+                <h4 style={{ marginTop: 0 }}>Users by Role</h4>
+                {Object.entries(reportData.roleCounts).length === 0 ? (
+                  <div style={{ color: '#666' }}>No user data.</div>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {Object.entries(reportData.roleCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([k, v]) => <li key={k}>{k}: {v}</li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -601,6 +799,21 @@ export default function AdminDashboard({ user, onLogout }) {
           </div>
         )}
       </div>
+      </div>
+      <section className="dashboard-right-column">
+        <CalendarViewNew
+          bookings={bookings}
+          calendarBookings={bookings}
+          events={events}
+          calendarConfig={calendarConfig}
+          user={user}
+          isAdmin
+        />
+      </section>
+    </div>
     </div>
   );
 }
+
+
+
