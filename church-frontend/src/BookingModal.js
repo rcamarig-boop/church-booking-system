@@ -46,6 +46,15 @@ const SERVICE_FORM_FIELDS = {
 
 const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
 
+const palette = {
+  stone: '#f8f4ec',
+  ink: '#1f2a44',
+  gold: '#d6ad60',
+  accent: '#3b5b8a',
+  wine: '#b0413e',
+  mist: '#e7dfcf'
+};
+
 function defaultFormState(service) {
   const fields = SERVICE_FORM_FIELDS[service] || [];
   const state = {};
@@ -136,30 +145,51 @@ export default function BookingModal({
     }
   };
 
+  const cardShadow = '0 14px 38px rgba(0,0,0,0.18)';
+
   return (
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: 'rgba(0,0,0,0.35)',
+      background: 'radial-gradient(circle at 20% 20%, rgba(214,173,96,0.35), transparent 45%), radial-gradient(circle at 80% 30%, rgba(59,91,138,0.25), transparent 55%), rgba(0,0,0,0.35)',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      zIndex: 1000
+      zIndex: 1000,
+      padding: 12
     }}>
       <div style={{
         background: '#fff',
         padding: 24,
-        borderRadius: 12,
-        width: 'min(420px, calc(100vw - 24px))',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+        borderRadius: 16,
+        width: 'min(460px, 100%)',
+        boxShadow: cardShadow,
         maxHeight: '90vh',
-        overflowY: 'auto'
+        overflowY: 'auto',
+        border: `1px solid ${palette.mist}`
       }}>
-        <h3 style={{ marginBottom: 16 }}>{date}</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 0, color: palette.ink, display: 'flex', alignItems: 'center', gap: 8 }}>
+            ✚ Booking for {date}
+          </h3>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 20,
+              cursor: 'pointer',
+              color: '#9aa1b2'
+            }}
+            aria-label="Close booking modal"
+          >
+            ×
+          </button>
+        </div>
 
         {currentMode === 'list' && (
           <>
-            <ul style={{ paddingLeft: 20, marginBottom: 16 }}>
+            <ul style={{ paddingLeft: 16, marginBottom: 16, color: palette.ink, lineHeight: 1.5 }}>
               {events.length === 0 && <li>No events</li>}
               {events.map((e, idx) => {
                 const slotLabel = e.slot ?? e.time_slot ?? e.time ?? 'Time TBD';
@@ -169,18 +199,19 @@ export default function BookingModal({
                   (!!(e.slot ?? e.time_slot) && !!(e.service ?? e.service_type));
                 const canCancelThis = canCancel && isBooking && e._isOwner && e.id;
                 return (
-                  <li key={e.id ?? `${slotLabel}-${serviceLabel}-${idx}`}>
-                    <strong>{slotLabel}</strong> - {serviceLabel}
+                  <li key={e.id ?? `${slotLabel}-${serviceLabel}-${idx}`} style={{ marginBottom: 6 }}>
+                    <strong>{slotLabel}</strong> · {serviceLabel}
                     {canCancelThis && (
                       <button
                         style={{
                           marginLeft: 8,
-                          padding: '2px 6px',
-                          background: '#f56565',
+                          padding: '4px 8px',
+                          background: palette.wine,
                           color: '#fff',
                           border: 'none',
-                          borderRadius: 4,
-                          cursor: 'pointer'
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 10px rgba(0,0,0,0.12)'
                         }}
                         onClick={() => {
                           if (window.confirm('Cancel this booking?')) {
@@ -203,55 +234,64 @@ export default function BookingModal({
               }}
               style={{
                 width: '100%',
-                padding: 12,
-                borderRadius: 8,
+                padding: 14,
+                borderRadius: 10,
                 border: 'none',
-                background: '#667eea',
+                background: `linear-gradient(135deg, ${palette.accent}, ${palette.ink})`,
                 color: '#ffffff',
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer',
-                marginBottom: 12
+                marginBottom: 12,
+                boxShadow: cardShadow
               }}
             >
-              + Add
+              Request Booking
             </button>
           </>
         )}
 
         {currentMode === 'new' && (
           <>
-            <select
-              value={service}
-              onChange={e => setService(e.target.value)}
-              style={{
-                width: '100%',
-                padding: 12,
-                marginBottom: 12,
-                borderRadius: 6,
-                border: '1px solid #cbd5e0'
-              }}
-            >
-              {SERVICE_OPTIONS.map(option => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+            <div style={{
+              display: 'grid',
+              gap: 10,
+              marginBottom: 12
+            }}>
+              <label style={{ color: palette.ink, fontWeight: 600 }}>Service</label>
+              <select
+                value={service}
+                onChange={e => setService(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${palette.mist}`,
+                  background: '#fff'
+                }}
+              >
+                {SERVICE_OPTIONS.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
 
-            <input
-              type="time"
-              value={startTime}
-              onChange={e => setStartTime(e.target.value)}
-              step="1800"
-              style={{
-                width: '100%',
-                padding: 12,
-                marginBottom: 12,
-                borderRadius: 6,
-                border: '1px solid #cbd5e0'
-              }}
-            />
+              <label style={{ color: palette.ink, fontWeight: 600 }}>Preferred Time</label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={e => setStartTime(e.target.value)}
+                step="1800"
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${palette.mist}`,
+                  background: '#fff'
+                }}
+              />
+            </div>
 
             {error && (
-              <p style={{ color: 'red', marginBottom: 12 }}>
+              <p style={{ color: palette.wine, marginBottom: 12 }}>
                 {error}
               </p>
             )}
@@ -263,14 +303,15 @@ export default function BookingModal({
               }}
               style={{
                 width: '100%',
-                padding: 12,
-                borderRadius: 8,
+                padding: 14,
+                borderRadius: 10,
                 border: 'none',
-                background: '#4c51bf',
-                color: '#fff',
-                fontWeight: 600,
+                background: `linear-gradient(135deg, ${palette.gold}, ${palette.accent})`,
+                color: palette.ink,
+                fontWeight: 700,
                 cursor: 'pointer',
-                marginBottom: 12
+                marginBottom: 12,
+                boxShadow: cardShadow
               }}
             >
               Continue To Service Form
@@ -284,12 +325,13 @@ export default function BookingModal({
             width: '100%',
             padding: 12,
             borderRadius: 8,
-            border: '1px solid #cbd5e0',
-            background: '#fd0b0b',
+            border: `1px solid ${palette.mist}`,
+            background: '#fff',
+            color: palette.ink,
             cursor: 'pointer'
           }}
         >
-          Cancel
+          Close
         </button>
       </div>
 
@@ -301,20 +343,23 @@ export default function BookingModal({
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1001
+          zIndex: 1001,
+          padding: 12
         }}>
           <div style={{
             background: '#fff',
-            borderRadius: 12,
-            width: 'min(460px, calc(100vw - 24px))',
+            borderRadius: 14,
+            width: 'min(480px, 100%)',
             maxHeight: '90vh',
             overflowY: 'auto',
-            padding: 20
+            padding: 20,
+            boxShadow: cardShadow,
+            border: `1px solid ${palette.mist}`
           }}>
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>{service} Form</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 12, color: palette.ink }}>{service} Form</h3>
             {serviceFields.map(field => (
               <div key={field.key} style={{ marginBottom: 10 }}>
-                <label style={{ display: 'block', marginBottom: 6 }}>
+                <label style={{ display: 'block', marginBottom: 6, color: palette.ink, fontWeight: 600 }}>
                   {field.label}{field.required ? ' *' : ''}
                 </label>
                 {field.textarea ? (
@@ -322,7 +367,7 @@ export default function BookingModal({
                     value={serviceFormData[field.key] || ''}
                     onChange={e => setServiceFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
                     rows={3}
-                    style={{ width: '100%', padding: 10, border: '1px solid #cbd5e0', borderRadius: 6 }}
+                    style={{ width: '100%', padding: 10, border: `1px solid ${palette.mist}`, borderRadius: 8, background: '#fff' }}
                   />
                 ) : (
                   <input
@@ -338,26 +383,27 @@ export default function BookingModal({
                       setError(null);
                       setServiceFormData(prev => ({ ...prev, [field.key]: nextValue }));
                     }}
-                    style={{ width: '100%', padding: 10, border: '1px solid #cbd5e0', borderRadius: 6 }}
+                    style={{ width: '100%', padding: 10, border: `1px solid ${palette.mist}`, borderRadius: 8, background: '#fff' }}
                   />
                 )}
               </div>
             ))}
 
-            {error && <p style={{ color: 'red' }}>{error}</p>}
+            {error && <p style={{ color: palette.wine }}>{error}</p>}
 
             <button
               onClick={submit}
               style={{
                 width: '100%',
-                padding: 12,
-                borderRadius: 8,
+                padding: 14,
+                borderRadius: 10,
                 border: 'none',
-                background: '#667eea',
+                background: `linear-gradient(135deg, ${palette.accent}, ${palette.ink})`,
                 color: '#fff',
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer',
-                marginBottom: 10
+                marginBottom: 10,
+                boxShadow: cardShadow
               }}
             >
               Submit Request
@@ -368,8 +414,9 @@ export default function BookingModal({
                 width: '100%',
                 padding: 12,
                 borderRadius: 8,
-                border: '1px solid #cbd5e0',
-                background: '#fc0404',
+                border: `1px solid ${palette.mist}`,
+                background: palette.stone,
+                color: palette.ink,
                 cursor: 'pointer'
               }}
             >

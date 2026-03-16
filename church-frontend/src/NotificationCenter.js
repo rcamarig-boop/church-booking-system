@@ -1,5 +1,14 @@
 import React, { useMemo, useState } from 'react';
 
+const palette = {
+  gold: '#d6ad60',
+  deepGold: '#c28f3d',
+  wine: '#b0413e',
+  ink: '#1f2a44',
+  blue: '#3b5b8a',
+  stone: '#f8f4ec',
+};
+
 export default function NotificationCenter({
   items,
   onMarkRead,
@@ -15,24 +24,25 @@ export default function NotificationCenter({
 
   const getIcon = (type) => {
     const icons = {
-      new_booking: '[OK]',
-      deleted: '[X]',
-      config: '[CFG]',
-      event_soon: '[SOON]',
-      success: '[DONE]',
-      info: '[INFO]'
+      new_booking: '✚',
+      deleted: '✕',
+      config: 'ℹ',
+      event_soon: '⏰',
+      success: '✓',
+      info: '✦'
     };
-    return icons[type] || '[*]';
+    return icons[type] || '✶';
   };
 
   const getColor = (type) => {
     const colors = {
-      new_booking: '#48bb78',
-      deleted: '#f56565',
-      config: '#ed8936',
-      info: '#667eea'
+      new_booking: palette.blue,
+      deleted: palette.wine,
+      config: palette.gold,
+      info: palette.blue,
+      success: '#2f855a'
     };
-    return colors[type] || '#718096';
+    return colors[type] || '#6b7280';
   };
 
   const formatWhen = (value) => {
@@ -62,9 +72,9 @@ export default function NotificationCenter({
           height: 60,
           borderRadius: '50%',
           border: 'none',
-          background: '#667eea',
-          backgroundImage: 'linear-gradient(135deg,#667eea,#764ba2)',
-          color: '#fff',
+          background: palette.gold,
+          backgroundImage: `linear-gradient(135deg, ${palette.gold}, ${palette.deepGold})`,
+          color: palette.ink,
           fontSize: 24,
           cursor: 'pointer',
           position: 'relative',
@@ -73,6 +83,7 @@ export default function NotificationCenter({
           justifyContent: 'center',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
         }}
+        aria-label="Open parish notifications"
       >
         🔔
         {unreadCount > 0 && (
@@ -84,7 +95,7 @@ export default function NotificationCenter({
               width: 26,
               height: 26,
               borderRadius: '50%',
-              background: '#f56565',
+              background: palette.wine,
               color: '#fff',
               fontSize: 12,
               fontWeight: 600,
@@ -121,10 +132,11 @@ export default function NotificationCenter({
               fontWeight: 600,
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              color: palette.ink
             }}
           >
-            <span>Notifications ({items.length})</span>
+            <span>Parish Notifications ({items.length})</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button
                 onClick={() => onMarkAllRead?.()}
@@ -133,7 +145,7 @@ export default function NotificationCenter({
                   background: 'none',
                   cursor: 'pointer',
                   fontSize: 12,
-                  color: '#4a5568'
+                  color: palette.blue
                 }}
               >
                 Mark all read
@@ -145,7 +157,7 @@ export default function NotificationCenter({
                   background: 'none',
                   cursor: 'pointer',
                   fontSize: 12,
-                  color: '#c53030'
+                  color: palette.wine
                 }}
               >
                 Clear
@@ -160,7 +172,7 @@ export default function NotificationCenter({
                   color: '#a0aec0'
                 }}
               >
-                x
+                ×
               </button>
             </div>
           </div>
@@ -179,11 +191,11 @@ export default function NotificationCenter({
                     padding: 12,
                     borderBottom: '1px solid #e2e8f0',
                     borderLeft: `4px solid ${getColor(n.type)}`,
-                    background: n.read ? '#fff' : '#f7fafc',
+                    background: n.read ? '#fff' : palette.stone,
                     cursor: 'pointer'
                   }}
                 >
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#2d3748' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: palette.ink }}>
                     {getIcon(n.type)} {n.text}
                   </div>
                   <div

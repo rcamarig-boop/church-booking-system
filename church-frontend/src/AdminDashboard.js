@@ -4,25 +4,37 @@ import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
 import AdminRequestPanel from './AdminRequestPanel';
 
-/* ---------- shared styles ---------- */
+/* ---------- shared styles (parish palette) ---------- */
+const stone = '#f8f4ec';
+const ink = '#1f2a44';
+const gold = '#d6ad60';
+const mist = '#e7dfcf';
+const accentBlue = '#3b5b8a';
+
 const th = {
-  padding: 8,
-  border: '1px solid #ccc',
+  padding: 10,
+  border: `1px solid ${mist}`,
   textAlign: 'left',
+  background: mist,
+  color: ink,
 };
 
 const td = {
-  padding: 8,
-  border: '1px solid #ccc',
+  padding: 10,
+  border: `1px solid ${mist}`,
+  color: ink,
+  background: '#fff',
 };
 
 const dangerBtn = {
-  padding: '6px 10px',
-  background: '#f56565',
+  padding: '8px 12px',
+  background: '#b0413e',
   color: '#fff',
   border: 'none',
-  borderRadius: 4,
+  borderRadius: 6,
   cursor: 'pointer',
+  boxShadow: '0 3px 10px rgba(0,0,0,0.12)',
+  fontWeight: 600,
 };
 
 export default function AdminDashboard({ user, onLogout }) {
@@ -50,6 +62,8 @@ export default function AdminDashboard({ user, onLogout }) {
   const [eventSearch, setEventSearch] = useState('');
   const [bookingSearch, setBookingSearch] = useState('');
   const [recordSearch, setRecordSearch] = useState('');
+  const [eventFilter, setEventFilter] = useState('upcoming'); // 'upcoming' | 'past'
+  const [bookingFilter, setBookingFilter] = useState('upcoming'); // 'upcoming' | 'past'
 
   const editEvent = async (event) => {
     const title = window.prompt('Title', event.title || '');
@@ -77,7 +91,7 @@ export default function AdminDashboard({ user, onLogout }) {
     const slot = window.prompt('Time slot (HH:MM, AM, or PM)', booking.slot || '');
     if (slot === null) return;
     const detailsText = window.prompt(
-      'Details JSON',
+      'Details Information',
       JSON.stringify(booking.details || {}, null, 2)
     );
     if (detailsText === null) return;
@@ -185,6 +199,30 @@ export default function AdminDashboard({ user, onLogout }) {
     [events, eventSearchTerm]
   );
 
+  const now = useMemo(() => new Date(), []);
+  const isPastEvent = (evt) => {
+    if (!evt?.date) return false;
+    const base = evt.time ? `${evt.date}T${evt.time}` : `${evt.date}T23:59`;
+    const dt = new Date(base);
+    if (Number.isNaN(dt.getTime())) {
+      const dayOnly = new Date(`${evt.date}T23:59`);
+      return dayOnly < now;
+    }
+    return dt < now;
+  };
+
+  const filteredEventsByStatus = useMemo(() => {
+    return filteredEvents.filter(e =>
+      eventFilter === 'past' ? isPastEvent(e) : !isPastEvent(e)
+    );
+  }, [filteredEvents, eventFilter]);
+
+  const eventCounts = useMemo(() => {
+    const upcoming = filteredEvents.filter(e => !isPastEvent(e)).length;
+    const past = filteredEvents.length - upcoming;
+    return { upcoming, past };
+  }, [filteredEvents]);
+
   const filteredBookings = useMemo(
     () => bookings.filter(b => {
       if (!bookingSearchTerm) return true;
@@ -194,6 +232,31 @@ export default function AdminDashboard({ user, onLogout }) {
     }),
     [bookings, bookingSearchTerm]
   );
+
+  const isPastDateTime = (date, time) => {
+    if (!date) return false;
+    const base = time ? `${date}T${time}` : `${date}T23:59`;
+    const dt = new Date(base);
+    if (Number.isNaN(dt.getTime())) {
+      const dayOnly = new Date(`${date}T23:59`);
+      return dayOnly < now;
+    }
+    return dt < now;
+  };
+
+  const filteredBookingsByStatus = useMemo(() => {
+    return filteredBookings.filter(b =>
+      bookingFilter === 'past'
+        ? isPastDateTime(b.date, b.slot)
+        : !isPastDateTime(b.date, b.slot)
+    );
+  }, [filteredBookings, bookingFilter]);
+
+  const bookingCounts = useMemo(() => {
+    const upcoming = filteredBookings.filter(b => !isPastDateTime(b.date, b.slot)).length;
+    const past = filteredBookings.length - upcoming;
+    return { upcoming, past };
+  }, [filteredBookings]);
 
   const filteredRecords = useMemo(
     () => records.filter(r => {
@@ -238,6 +301,26 @@ export default function AdminDashboard({ user, onLogout }) {
     };
   }, [bookings, records, users, events]);
 
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayEvents = useMemo(
+    () => events.filter(e => e.date === todayStr).length,
+    [events, todayStr]
+  );
+  const todayBookings = useMemo(
+    () => bookings.filter(b => b.date === todayStr).length,
+    [bookings, todayStr]
+  );
+  const nextEvent = useMemo(() => {
+    const upcoming = events
+      .map(e => ({
+        ...e,
+        _ts: new Date(e.time ? `${e.date}T${e.time}` : `${e.date}T00:00`).getTime()
+      }))
+      .filter(e => !Number.isNaN(e._ts) && e._ts >= Date.now())
+      .sort((a, b) => a._ts - b._ts);
+    return upcoming[0] || null;
+  }, [events]);
+
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
@@ -245,18 +328,32 @@ export default function AdminDashboard({ user, onLogout }) {
       className="dashboard-page"
       style={{
         background:
-          "linear-gradient(rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.72)), url('/login-bg.jpg') center/cover no-repeat fixed"
+          "linear-gradient(135deg, rgba(248, 244, 236, 0.9), rgba(255,255,255,0.82)), url('/login-bg.jpg') center/cover no-repeat fixed"
       }}
     >
-      <div className="dashboard-brand">
-        <div className="dashboard-brand-title">CABS</div>
-        <div className="dashboard-brand-subtitle">Church Appointment & Booking System</div>
+      <div className="dashboard-brand" style={{ paddingTop: 12, paddingBottom: 8 }}>
+        <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>Parish Admin</div>
+        <div className="dashboard-brand-subtitle" style={{ color: ink }}>
+          Serving schedules, sacraments, and community care
+        </div>
+        <div style={{
+          marginTop: 10,
+          background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.25), rgba(176,65,62,0.18))',
+          borderRadius: 10,
+          padding: '10px 16px',
+          color: ink,
+          fontSize: 13,
+          boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+          display: 'inline-block'
+        }}>
+          “Let all that you do be done in love.” — 1 Corinthians 16:14
+        </div>
       </div>
     <div className="dashboard-layout dashboard-two-col">
       <div className="dashboard-left-column">
-      <aside className={`dashboard-sidebar dashboard-left-panel ${tabsExpanded ? 'expanded' : 'collapsed'}`}>
-        <div className="dashboard-sidebar-header">
-          <h3 style={{ margin: 0 }}>Admin Panel</h3>
+      <aside className={`dashboard-sidebar dashboard-left-panel ${tabsExpanded ? 'expanded' : 'collapsed'}`} style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
+        <div className="dashboard-sidebar-header" style={{ paddingBottom: 6 }}>
+          <h3 style={{ margin: 0, color: ink }}>Admin Panel</h3>
           <button
             className="dashboard-collapse-btn"
             onClick={() => setTabsExpanded(v => !v)}
@@ -268,42 +365,61 @@ export default function AdminDashboard({ user, onLogout }) {
 
         <div className="dashboard-tab-list dashboard-tab-list-vertical">
           <button className={`dashboard-tab-btn ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
-            <span className="dashboard-tab-short">{'\u{1F4C5}'}</span>
-            <span className="dashboard-tab-label">Calendar</span>
+            <span className="dashboard-tab-short">⛪</span>
+            <span className="dashboard-tab-label">Parish Calendar</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
-            <span className="dashboard-tab-short">{'\u{1F465}'}</span>
-            <span className="dashboard-tab-label">Users</span>
+            <span className="dashboard-tab-short">👥</span>
+            <span className="dashboard-tab-label">Parishioners</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'events' ? 'active' : ''}`} onClick={() => setActiveTab('events')}>
-            <span className="dashboard-tab-short">{'\u{1F4CC}'}</span>
+            <span className="dashboard-tab-short">🕯</span>
             <span className="dashboard-tab-label">Events & Bookings</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => setActiveTab('requests')}>
-            <span className="dashboard-tab-short">{'\u{1F4E8}'}</span>
+            <span className="dashboard-tab-short">📜</span>
             <span className="dashboard-tab-label">Request Panel</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'records' ? 'active' : ''}`} onClick={() => setActiveTab('records')}>
-            <span className="dashboard-tab-short">{'\u{1F9FE}'}</span>
+            <span className="dashboard-tab-short">📖</span>
             <span className="dashboard-tab-label">Records</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
-            <span className="dashboard-tab-short">{'\u{1F4CA}'}</span>
+            <span className="dashboard-tab-short">🕊</span>
             <span className="dashboard-tab-label">Reports</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'add_event' ? 'active' : ''}`} onClick={() => setActiveTab('add_event')}>
-            <span className="dashboard-tab-short">{'\u2795'}</span>
+            <span className="dashboard-tab-short">✚</span>
             <span className="dashboard-tab-label">Add Event</span>
           </button>
           <button className="dashboard-tab-btn logout" onClick={onLogout}>
-            <span className="dashboard-tab-short">{'\u{1F6AA}'}</span>
+            <span className="dashboard-tab-short">🚪</span>
             <span className="dashboard-tab-label">Logout</span>
           </button>
         </div>
       </aside>
 
       {/* ---------- MAIN CONTENT ---------- */}
-      <div className="dashboard-main dashboard-left-content">
+      <div className="dashboard-main dashboard-left-content" style={{ background: '#fff', borderRadius: 16, boxShadow: '0 18px 40px rgba(0,0,0,0.1)', border: `1px solid ${mist}`, padding: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 12 }}>
+          <div style={{ background: 'linear-gradient(135deg, rgba(59,91,138,0.1), rgba(59,91,138,0.18))', borderRadius: 12, padding: 12, color: ink, border: `1px solid ${mist}`, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
+            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 }}>Today</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{todayBookings}</div>
+            <div style={{ fontSize: 12, color: '#4a5568' }}>Bookings on {todayStr}</div>
+          </div>
+          <div style={{ background: 'linear-gradient(135deg, rgba(214,173,96,0.12), rgba(214,173,96,0.22))', borderRadius: 12, padding: 12, color: ink, border: `1px solid ${mist}`, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
+            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 }}>Today</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{todayEvents}</div>
+            <div style={{ fontSize: 12, color: '#4a5568' }}>Events happening</div>
+          </div>
+          <div style={{ background: 'linear-gradient(135deg, rgba(176,65,62,0.12), rgba(176,65,62,0.2))', borderRadius: 12, padding: 12, color: ink, border: `1px solid ${mist}`, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
+            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 }}>Next Event</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>
+              {nextEvent ? `${nextEvent.title || 'Event'} · ${nextEvent.date} ${nextEvent.time || ''}` : 'No upcoming event'}
+            </div>
+            <div style={{ fontSize: 12, color: '#4a5568' }}>Soonest on calendar</div>
+          </div>
+        </div>
         {/* CALENDAR */}
         {activeTab === 'calendar' && (
           <div>
@@ -313,7 +429,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 background: '#fff',
                 padding: 12,
                 borderRadius: 8,
-                border: '1px solid #ddd',
+                border: `1px solid ${mist}`,
                 display: 'flex',
                 gap: 8,
                 alignItems: 'center',
@@ -325,7 +441,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 type="date"
                 value={bookingControlDate}
                 onChange={e => setBookingControlDate(e.target.value)}
-                style={{ padding: 8, borderRadius: 6, border: '1px solid #ccc' }}
+                style={{ padding: 8, borderRadius: 6, border: `1px solid ${mist}` }}
               />
               <input
                 type="number"
@@ -333,7 +449,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 value={bookingMaxSlots}
                 onChange={e => setBookingMaxSlots(e.target.value)}
                 placeholder="Max bookings"
-                style={{ width: 140, padding: 8, borderRadius: 6, border: '1px solid #ccc' }}
+                style={{ width: 140, padding: 8, borderRadius: 6, border: `1px solid ${mist}` }}
               />
               <button
                 disabled={!bookingControlDate || bookingControlBusy}
@@ -359,8 +475,8 @@ export default function AdminDashboard({ user, onLogout }) {
                   padding: '8px 12px',
                   border: 'none',
                   borderRadius: 6,
-                  background: '#2b6cb0',
-                  color: '#fff',
+                  background: accentBlue,
+                  color: '#fdfbf5',
                   cursor: 'pointer'
                 }}
               >
@@ -385,7 +501,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   padding: '8px 12px',
                   border: 'none',
                   borderRadius: 6,
-                  background: '#e53e3e',
+                  background: '#b0413e',
                   color: '#fff',
                   cursor: 'pointer'
                 }}
@@ -418,8 +534,8 @@ export default function AdminDashboard({ user, onLogout }) {
                   padding: '8px 12px',
                   border: 'none',
                   borderRadius: 6,
-                  background: '#38a169',
-                  color: '#fff',
+                  background: gold,
+                  color: '#1f1a12',
                   cursor: 'pointer'
                 }}
               >
@@ -442,11 +558,11 @@ export default function AdminDashboard({ user, onLogout }) {
               placeholder="Search users by id, name, email, role"
               value={userSearch}
               onChange={e => setUserSearch(e.target.value)}
-              style={{ width: '100%', maxWidth: 420, marginBottom: 12, padding: 10, border: '1px solid #ccc', borderRadius: 6 }}
+              style={{ width: '100%', maxWidth: 420, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
             />
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#eee' }}>
+                <tr>
                   <th style={th}>ID</th>
                   <th style={th}>Name</th>
                   <th style={th}>Email</th>
@@ -482,28 +598,62 @@ export default function AdminDashboard({ user, onLogout }) {
               placeholder="Search events by id, title, date, time"
               value={eventSearch}
               onChange={e => setEventSearch(e.target.value)}
-              style={{ width: '100%', maxWidth: 420, marginBottom: 12, padding: 10, border: '1px solid #ccc', borderRadius: 6 }}
+              style={{ width: '100%', maxWidth: 420, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
             />
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <button
+                onClick={() => setEventFilter('upcoming')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: eventFilter === 'upcoming' ? `2px solid ${accentBlue}` : `1px solid ${mist}`,
+                  background: eventFilter === 'upcoming' ? '#eef3fb' : '#fff',
+                  color: accentBlue,
+                  cursor: 'pointer'
+                }}
+              >
+                Upcoming ({eventCounts.upcoming})
+              </button>
+              <button
+                onClick={() => setEventFilter('past')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: eventFilter === 'past' ? `2px solid ${gold}` : `1px solid ${mist}`,
+                  background: eventFilter === 'past' ? '#faf4e6' : '#fff',
+                  color: '#7c6230',
+                  cursor: 'pointer'
+                }}
+              >
+                Passed ({eventCounts.past})
+              </button>
+            </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 40 }}>
               <thead>
-                <tr style={{ background: '#eee' }}>
+                <tr>
                   <th style={th}>ID</th>
                   <th style={th}>Title</th>
                   <th style={th}>Date</th>
                   <th style={th}>Time</th>
+                  <th style={th}>Status</th>
                   <th style={th}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredEvents.map(e => (
+                {filteredEventsByStatus.map(e => {
+                  const past = isPastEvent(e);
+                  return (
                   <tr key={e.id}>
                     <td style={td}>{e.id}</td>
                     <td style={td}>{e.title}</td>
                     <td style={td}>{e.date}</td>
                     <td style={td}>{e.time || '-'}</td>
+                    <td style={{ ...td, color: past ? '#b0413e' : '#2f855a', fontWeight: 600 }}>
+                      {past ? 'Passed' : 'Upcoming'}
+                    </td>
                     <td style={td}>
                       <button
-                        style={{ ...dangerBtn, background: '#3182ce', marginRight: 8 }}
+                        style={{ ...dangerBtn, background: accentBlue, marginRight: 8 }}
                         onClick={() => editEvent(e)}
                       >
                         Edit
@@ -521,10 +671,11 @@ export default function AdminDashboard({ user, onLogout }) {
                       </button>
                     </td>
                   </tr>
-                ))}
-                {filteredEvents.length === 0 && (
+                  );
+                })}
+                {filteredEventsByStatus.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={5}>No events match your search.</td>
+                    <td style={td} colSpan={6}>No events match your search.</td>
                   </tr>
                 )}
               </tbody>
@@ -537,51 +688,86 @@ export default function AdminDashboard({ user, onLogout }) {
               placeholder="Search bookings by id, user, service, date, time"
               value={bookingSearch}
               onChange={e => setBookingSearch(e.target.value)}
-              style={{ width: '100%', maxWidth: 460, marginBottom: 12, padding: 10, border: '1px solid #ccc', borderRadius: 6 }}
+              style={{ width: '100%', maxWidth: 460, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
             />
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <button
+                onClick={() => setBookingFilter('upcoming')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: bookingFilter === 'upcoming' ? `2px solid ${accentBlue}` : `1px solid ${mist}`,
+                  background: bookingFilter === 'upcoming' ? '#eef3fb' : '#fff',
+                  color: accentBlue,
+                  cursor: 'pointer'
+                }}
+              >
+                Upcoming ({bookingCounts.upcoming})
+              </button>
+              <button
+                onClick={() => setBookingFilter('past')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: bookingFilter === 'past' ? `2px solid ${gold}` : `1px solid ${mist}`,
+                  background: bookingFilter === 'past' ? '#faf4e6' : '#fff',
+                  color: '#7c6230',
+                  cursor: 'pointer'
+                }}
+              >
+                Passed ({bookingCounts.past})
+              </button>
+            </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#eee' }}>
+                <tr>
                   <th style={th}>ID</th>
                   <th style={th}>User</th>
                   <th style={th}>Service</th>
                   <th style={th}>Date</th>
                   <th style={th}>Time</th>
+                  <th style={th}>Status</th>
                   <th style={th}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredBookings.map(b => (
-                  <tr key={b.id}>
-                    <td style={td}>{b.id}</td>
-                    <td style={td}>{b.name || b.email}</td>
-                    <td style={td}>{b.service}</td>
-                    <td style={td}>{b.date}</td>
-                    <td style={td}>{b.slot}</td>
-                    <td style={td}>
-                      <button
-                        style={{ ...dangerBtn, background: '#3182ce', marginRight: 8 }}
-                        onClick={() => editAcceptedBooking(b)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        style={dangerBtn}
-                        onClick={async () => {
-                          if (window.confirm('Cancel this booking?')) {
-                            await api.bookings.remove(b.id);
-                            loadData();
-                          }
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredBookings.length === 0 && (
+                {filteredBookingsByStatus.map(b => {
+                  const past = isPastDateTime(b.date, b.slot);
+                  return (
+                    <tr key={b.id}>
+                      <td style={td}>{b.id}</td>
+                      <td style={td}>{b.name || b.email}</td>
+                      <td style={td}>{b.service}</td>
+                      <td style={td}>{b.date}</td>
+                      <td style={td}>{b.slot}</td>
+                      <td style={{ ...td, color: past ? '#b0413e' : '#2f855a', fontWeight: 600 }}>
+                        {past ? 'Passed' : 'Upcoming'}
+                      </td>
+                      <td style={td}>
+                        <button
+                          style={{ ...dangerBtn, background: accentBlue, marginRight: 8 }}
+                          onClick={() => editAcceptedBooking(b)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          style={dangerBtn}
+                          onClick={async () => {
+                            if (window.confirm('Cancel this booking?')) {
+                              await api.bookings.remove(b.id);
+                              loadData();
+                            }
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredBookingsByStatus.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={6}>No bookings match your search.</td>
+                    <td style={td} colSpan={7}>No bookings match your search.</td>
                   </tr>
                 )}
               </tbody>
@@ -601,11 +787,11 @@ export default function AdminDashboard({ user, onLogout }) {
               placeholder="Search records by user, service, action, date, details"
               value={recordSearch}
               onChange={e => setRecordSearch(e.target.value)}
-              style={{ width: '100%', maxWidth: 500, marginBottom: 12, padding: 10, border: '1px solid #ccc', borderRadius: 6 }}
+              style={{ width: '100%', maxWidth: 500, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
             />
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#eee' }}>
+                <tr>
                   <th style={th}>ID</th>
                   <th style={th}>User</th>
                   <th style={th}>Service</th>
@@ -650,26 +836,26 @@ export default function AdminDashboard({ user, onLogout }) {
           <div>
             <h2>Reporting</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 16 }}>
-              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
-                <div style={{ color: '#666', fontSize: 12 }}>Total Users</div>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>{reportData.totalUsers}</div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Total Parishioners</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalUsers}</div>
               </div>
-              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
-                <div style={{ color: '#666', fontSize: 12 }}>Total Events</div>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>{reportData.totalEvents}</div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Total Liturgies & Events</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalEvents}</div>
               </div>
-              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
-                <div style={{ color: '#666', fontSize: 12 }}>Total Bookings</div>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>{reportData.totalBookings}</div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Sacrament Bookings</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalBookings}</div>
               </div>
-              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
-                <div style={{ color: '#666', fontSize: 12 }}>Total Records</div>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>{reportData.totalRecords}</div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>History Logged</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalRecords}</div>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
-              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12 }}>
                 <h4 style={{ marginTop: 0 }}>Bookings by Service</h4>
                 {Object.entries(reportData.serviceCounts).length === 0 ? (
                   <div style={{ color: '#666' }}>No booking data.</div>
@@ -682,7 +868,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 )}
               </div>
 
-              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12 }}>
                 <h4 style={{ marginTop: 0 }}>Records by Action</h4>
                 {Object.entries(reportData.actionCounts).length === 0 ? (
                   <div style={{ color: '#666' }}>No record data.</div>
@@ -695,7 +881,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 )}
               </div>
 
-              <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12 }}>
                 <h4 style={{ marginTop: 0 }}>Users by Role</h4>
                 {Object.entries(reportData.roleCounts).length === 0 ? (
                   <div style={{ color: '#666' }}>No user data.</div>
@@ -722,7 +908,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 value={eventTitle}
                 onChange={e => setEventTitle(e.target.value)}
                 placeholder="Event title"
-                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: `1px solid ${mist}`, background: '#fff' }}
               />
             </div>
             <div style={{ marginBottom: 12 }}>
@@ -731,7 +917,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 type="date"
                 value={eventDate}
                 onChange={e => setEventDate(e.target.value)}
-                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: `1px solid ${mist}`, background: '#fff' }}
               />
             </div>
             <div style={{ marginBottom: 12 }}>
@@ -741,7 +927,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 value={eventTime}
                 onChange={e => setEventTime(e.target.value)}
                 step="60"
-                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: `1px solid ${mist}`, background: '#fff' }}
               />
             </div>
             <div style={{ marginBottom: 12 }}>
@@ -751,7 +937,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 onChange={e => setEventDescription(e.target.value)}
                 placeholder="Notes about the event"
                 rows={4}
-                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: `1px solid ${mist}`, background: '#fff' }}
               />
             </div>
             {eventError && (
@@ -787,8 +973,8 @@ export default function AdminDashboard({ user, onLogout }) {
               }}
               style={{
                 padding: '10px 14px',
-                background: '#667eea',
-                color: '#fff',
+                background: gold,
+                color: ink,
                 border: 'none',
                 borderRadius: 6,
                 cursor: 'pointer'
@@ -800,7 +986,11 @@ export default function AdminDashboard({ user, onLogout }) {
         )}
       </div>
       </div>
-      <section className="dashboard-right-column">
+      <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 18, border: `1px solid ${mist}`, boxShadow: '0 18px 36px rgba(0,0,0,0.1)', padding: 10 }}>
+        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.12))', borderRadius: 10, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>🗓 Parish Calendar</span>
+          <span style={{ fontSize: 12, color: '#4a5568' }}>Tap a date to view or add bookings</span>
+        </div>
         <CalendarViewNew
           bookings={bookings}
           calendarBookings={bookings}
@@ -814,6 +1004,3 @@ export default function AdminDashboard({ user, onLogout }) {
     </div>
   );
 }
-
-
-

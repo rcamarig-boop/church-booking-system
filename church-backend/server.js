@@ -756,9 +756,13 @@ app.put('/api/bookings/:id', auth, admin, (req, res) => {
       `).run(date, maxSlots);
     }
 
+    const serviceCol = bookingServiceCol || 'service';
+    const slotCol = bookingSlotCol || 'slot';
+    const detailsCol = bookingDetailsCol || 'details';
+
     db.prepare(`
       UPDATE bookings
-      SET date=?, service=?, slot=?, details=?
+      SET date=?, ${serviceCol}=?, ${slotCol}=?, ${detailsCol}=?
       WHERE id=?
     `).run(date, service, slot, JSON.stringify(details), bookingId);
 

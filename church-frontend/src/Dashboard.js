@@ -1,7 +1,31 @@
-﻿import React, { useEffect, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
 import api from './api';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
+
+const palette = {
+  stone: '#f8f4ec',
+  ink: '#1f2a44',
+  gold: '#d6ad60',
+  mist: '#e7dfcf',
+  accent: '#3b5b8a',
+  wine: '#b0413e'
+};
+
+const th = {
+  padding: 10,
+  border: `1px solid ${palette.mist}`,
+  textAlign: 'left',
+  background: palette.mist,
+  color: palette.ink,
+};
+
+const td = {
+  padding: 10,
+  border: `1px solid ${palette.mist}`,
+  color: palette.ink,
+  background: '#fff',
+};
 
 export default function Dashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
@@ -79,18 +103,20 @@ export default function Dashboard({ user, onLogout }) {
       className="dashboard-page"
       style={{
         background:
-          "linear-gradient(rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.72)), url('/login-bg.jpg') center/cover no-repeat fixed"
+          "linear-gradient(rgba(248, 244, 236, 0.9), rgba(248, 244, 236, 0.9)), url('/login-bg.jpg') center/cover no-repeat fixed"
       }}
     >
       <div className="dashboard-brand">
-        <div className="dashboard-brand-title">CABS</div>
-        <div className="dashboard-brand-subtitle">Church Appointment & Booking System</div>
+        <div className="dashboard-brand-title" style={{ color: palette.ink }}>Parish Portal</div>
+        <div className="dashboard-brand-subtitle" style={{ color: palette.ink }}>
+          Stay close to parish life and sacraments
+        </div>
       </div>
     <div className="dashboard-layout dashboard-two-col">
       <div className="dashboard-left-column">
       <aside className={`dashboard-sidebar dashboard-left-panel ${tabsExpanded ? 'expanded' : 'collapsed'}`}>
         <div className="dashboard-sidebar-header">
-          <h3 style={{ margin: 0 }}>Dashboard</h3>
+          <h3 style={{ margin: 0, color: palette.ink }}>My Parish Desk</h3>
           <button
             className="dashboard-collapse-btn"
             onClick={() => setTabsExpanded(v => !v)}
@@ -102,15 +128,15 @@ export default function Dashboard({ user, onLogout }) {
 
         <div className="dashboard-tab-list dashboard-tab-list-vertical">
           <button className={`dashboard-tab-btn ${activeTab === 'events' ? 'active' : ''}`} onClick={() => setActiveTab('events')}>
-            <span className="dashboard-tab-short">{'\u{1F4CC}'}</span>
+            <span className="dashboard-tab-short">🕯</span>
             <span className="dashboard-tab-label">Events</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'bookings' ? 'active' : ''}`} onClick={() => setActiveTab('bookings')}>
-            <span className="dashboard-tab-short">{'\u{1F4D6}'}</span>
+            <span className="dashboard-tab-short">✚</span>
             <span className="dashboard-tab-label">My Bookings</span>
           </button>
           <button className={`dashboard-tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => setActiveTab('requests')}>
-            <span className="dashboard-tab-short">{'\u{1F4E8}'}</span>
+            <span className="dashboard-tab-short">📜</span>
             <span className="dashboard-tab-label">My Requests</span>
           </button>
           <button className="dashboard-tab-btn logout" onClick={onLogout}>
@@ -122,25 +148,41 @@ export default function Dashboard({ user, onLogout }) {
       </aside>
 
       <div className="dashboard-main dashboard-left-content">
+          <div style={{
+            background: '#fff',
+            borderRadius: 14,
+            padding: 16,
+            border: `1px solid ${palette.mist}`,
+            boxShadow: '0 8px 18px rgba(0,0,0,0.08)',
+            marginBottom: 14,
+            color: palette.ink
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
+              Welcome, {user?.name || 'Parishioner'}
+            </div>
+            <div style={{ fontSize: 13, color: '#6b7280' }}>
+              Keep track of upcoming liturgies and your sacrament requests in one place.
+            </div>
+          </div>
           {activeTab === 'events' && (
             <div>
               <h2>Events</h2>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#eee' }}>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>ID</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Title</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Date</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Time</th>
+                  <tr>
+                    <th style={th}>ID</th>
+                    <th style={th}>Title</th>
+                    <th style={th}>Date</th>
+                    <th style={th}>Time</th>
                   </tr>
                 </thead>
                 <tbody>
                   {events.map(e => (
                     <tr key={e.id}>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{e.id}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{e.title}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{e.date}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{e.time || '-'}</td>
+                      <td style={td}>{e.id}</td>
+                      <td style={td}>{e.title}</td>
+                      <td style={td}>{e.date}</td>
+                      <td style={td}>{e.time || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -153,28 +195,29 @@ export default function Dashboard({ user, onLogout }) {
               <h2>My Bookings</h2>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#eee' }}>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Service</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Date</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Time</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Actions</th>
+                  <tr>
+                    <th style={th}>Service</th>
+                    <th style={th}>Date</th>
+                    <th style={th}>Time</th>
+                    <th style={th}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bookings.map(b => (
                     <tr key={b.id}>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{b.service}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{b.date}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{b.slot}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>
+                      <td style={td}>{b.service}</td>
+                      <td style={td}>{b.date}</td>
+                      <td style={td}>{b.slot}</td>
+                      <td style={td}>
                         <button
                           style={{
                             padding: '6px 10px',
-                            background: '#f56565',
+                            background: palette.wine,
                             color: '#fff',
                             border: 'none',
-                            borderRadius: 4,
-                            cursor: 'pointer'
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            boxShadow: '0 3px 10px rgba(0,0,0,0.12)'
                           }}
                           onClick={async () => {
                             if (!b.id) {
@@ -204,7 +247,7 @@ export default function Dashboard({ user, onLogout }) {
                   ))}
                   {bookings.length === 0 && (
                     <tr>
-                      <td colSpan={4} style={{ padding: 8, border: '1px solid #ccc' }}>
+                      <td colSpan={4} style={td}>
                         No bookings yet.
                       </td>
                     </tr>
@@ -219,27 +262,27 @@ export default function Dashboard({ user, onLogout }) {
               <h2>My Requests</h2>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#eee' }}>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Service</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Date</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Slot</th>
-                    <th style={{ padding: 8, border: '1px solid #ccc' }}>Status</th>
+                  <tr>
+                    <th style={th}>Service</th>
+                    <th style={th}>Date</th>
+                    <th style={th}>Slot</th>
+                    <th style={th}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bookingRequests.map(r => (
                     <tr key={r.id}>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{r.service}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{r.date}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc' }}>{r.slot}</td>
-                      <td style={{ padding: 8, border: '1px solid #ccc', textTransform: 'capitalize' }}>
+                      <td style={td}>{r.service}</td>
+                      <td style={td}>{r.date}</td>
+                      <td style={td}>{r.slot}</td>
+                      <td style={{ ...td, textTransform: 'capitalize' }}>
                         {r.status || 'pending'}
                       </td>
                     </tr>
                   ))}
                   {bookingRequests.length === 0 && (
                     <tr>
-                      <td colSpan={4} style={{ padding: 8, border: '1px solid #ccc' }}>
+                      <td colSpan={4} style={td}>
                         No booking requests yet.
                       </td>
                     </tr>
@@ -264,4 +307,3 @@ export default function Dashboard({ user, onLogout }) {
     </div>
   );
 }
-
