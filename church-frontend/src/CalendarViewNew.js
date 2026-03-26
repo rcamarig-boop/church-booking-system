@@ -189,12 +189,14 @@ export default function CalendarViewNew({
   return (
     <div style={{
       background: 'rgba(255,255,255,0.6)',
-      padding: 20,
+      padding: 10,
       borderRadius: 14,
       width: '100%',
-      maxWidth: 820,
+      maxWidth: '100%',
       marginLeft: 'auto',
-    }}>
+      transition: 'max-width 0.25s ease, width 0.25s ease',
+      overflow: 'hidden'
+      }}>
       {!compact && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
           <button onClick={() => setCurrentDate(new Date(year, month - 1))}>{'\u25C0'}</button>
@@ -203,7 +205,14 @@ export default function CalendarViewNew({
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, minmax(72px, 1fr))',
+          gap: 4,
+          width: '100%'
+        }}
+      >
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
           <div key={d} style={{ fontWeight: 700, textAlign: 'center' }}>{d}</div>
         ))}
@@ -224,12 +233,12 @@ export default function CalendarViewNew({
               key={dateStr}
               onClick={() => isSelectable && !compact && openModal(dateStr)}
               style={{
-                padding: 10,
-                minHeight: 80,
+                padding: 6,
+                minHeight: 'clamp(60px, 9vw, 95px)',
                 cursor: isSelectable ? 'pointer' : 'not-allowed',
                 background: palette.bg,
                 border: `2px solid ${palette.border}`,
-                borderRadius: 10,
+                borderRadius: 8,
                 opacity: isSelectable ? 1 : 0.4,
               }}
             >

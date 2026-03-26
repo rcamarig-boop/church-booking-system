@@ -37,7 +37,6 @@ export default function Dashboard({ user, onLogout }) {
   const [calendarConfig, setCalendarConfig] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('events'); // events | bookings | requests
-  const [tabsExpanded, setTabsExpanded] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -98,95 +97,96 @@ export default function Dashboard({ user, onLogout }) {
 
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
+  const activeTabLabel = {
+    events: 'Events',
+    bookings: 'My Bookings',
+    requests: 'My Requests'
+  }[activeTab] || 'Events';
+
   return (
-    <div
-      className="dashboard-page"
-      style={{
-        background:
-          "linear-gradient(rgba(248, 244, 236, 0.9), rgba(248, 244, 236, 0.9)), url('/login-bg.jpg') center/cover no-repeat fixed"
-      }}
-    >
-      <div className="dashboard-brand">
-        <div className="dashboard-brand-title" style={{ color: palette.ink }}>Parish Portal</div>
-        <div className="dashboard-brand-subtitle" style={{ color: palette.ink }}>
-          Stay close to parish life and sacraments
+    <div className="dash-shell">
+      <div className="dash-header-card" style={{ marginBottom: 14 }}>
+        <div className="dash-header-avatar">
+          <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontWeight: 700, color: '#2d3748' }}>
+            {(user?.name || 'U')[0]}
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, color: palette.ink, fontSize: 18 }}>{user?.name || 'Member'}</div>
+          <div style={{ color: '#718096', fontSize: 13 }}>{user?.email}</div>
+        </div>
+        <div style={{
+          background: '#fff5f5',
+          color: '#b0413e',
+          borderRadius: 14,
+          padding: '6px 10px',
+          fontWeight: 700,
+          border: '1px solid #ffd7d7'
+        }}>
+          Member
         </div>
       </div>
-    <div className="dashboard-layout dashboard-two-col">
-      <div className="dashboard-left-column">
-      <aside className={`dashboard-sidebar dashboard-left-panel ${tabsExpanded ? 'expanded' : 'collapsed'}`}>
-        <div className="dashboard-sidebar-header">
-          <h3 style={{ margin: 0, color: palette.ink }}>My Parish Desk</h3>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        gap: 12,
+        marginBottom: 14
+      }}>
+        {[
+          { key: 'events', label: 'Events', icon: '🗓️' },
+          { key: 'bookings', label: 'My Bookings', icon: '✅' },
+          { key: 'requests', label: 'My Requests', icon: '📄' },
+          { key: 'calendar', label: 'Calendar', icon: '📅' },
+        ].map(tab => (
           <button
-            className="dashboard-collapse-btn"
-            onClick={() => setTabsExpanded(v => !v)}
-            title={tabsExpanded ? 'Collapse tabs down' : 'Expand tabs down'}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              background: '#fff',
+              borderRadius: 16,
+              border: `1px solid ${activeTab === tab.key ? palette.accent : palette.mist}`,
+              boxShadow: activeTab === tab.key ? '0 10px 24px rgba(0,0,0,0.12)' : '0 6px 16px rgba(0,0,0,0.08)',
+              padding: '14px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              fontWeight: 700,
+              color: palette.ink
+            }}
           >
-            {tabsExpanded ? '\u25B2' : '\u25BC'}
+            <span style={{ fontSize: 22 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
           </button>
-        </div>
+        ))}
+      </div>
 
-        <div className="dashboard-tab-list dashboard-tab-list-vertical">
-          <button className={`dashboard-tab-btn ${activeTab === 'events' ? 'active' : ''}`} onClick={() => setActiveTab('events')}>
-            <span className="dashboard-tab-short">🕯</span>
-            <span className="dashboard-tab-label">Events</span>
-          </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'bookings' ? 'active' : ''}`} onClick={() => setActiveTab('bookings')}>
-            <span className="dashboard-tab-short">✚</span>
-            <span className="dashboard-tab-label">My Bookings</span>
-          </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => setActiveTab('requests')}>
-            <span className="dashboard-tab-short">📜</span>
-            <span className="dashboard-tab-label">My Requests</span>
-          </button>
-          <button className="dashboard-tab-btn logout" onClick={onLogout}>
-            <span className="dashboard-tab-short">{'\u{1F6AA}'}</span>
-            <span className="dashboard-tab-label">Logout</span>
-          </button>
-        </div>
-
-      </aside>
-
-      <div className="dashboard-main dashboard-left-content">
-          <div style={{
-            background: '#fff',
-            borderRadius: 14,
-            padding: 16,
-            border: `1px solid ${palette.mist}`,
-            boxShadow: '0 8px 18px rgba(0,0,0,0.08)',
-            marginBottom: 14,
-            color: palette.ink
-          }}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
-              Welcome, {user?.name || 'Parishioner'}
-            </div>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>
-              Keep track of upcoming liturgies and your sacrament requests in one place.
-            </div>
-          </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
+        <div className="dashboard-card" style={{ border: `1px solid ${palette.mist}`, boxShadow: '0 12px 28px rgba(0,0,0,0.08)' }}>
           {activeTab === 'events' && (
             <div>
               <h2>Events</h2>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <th style={th}>ID</th>
-                    <th style={th}>Title</th>
-                    <th style={th}>Date</th>
-                    <th style={th}>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {events.map(e => (
-                    <tr key={e.id}>
-                      <td style={td}>{e.id}</td>
-                      <td style={td}>{e.title}</td>
-                      <td style={td}>{e.date}</td>
-                      <td style={td}>{e.time || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {events.map((event) => (
+                  <div key={event.id} style={{
+                    padding: 12,
+                    border: `1px solid ${palette.mist}`,
+                    borderRadius: 10,
+                    background: '#fff'
+                  }}>
+                    <div style={{ fontWeight: 700 }}>{event.title}</div>
+                    <div style={{ color: '#4a5568', fontSize: 14 }}>
+                      {event.date} {event.time ? `• ${event.time}` : ''}
+                    </div>
+                    {event.description && (
+                      <div style={{ color: '#718096', marginTop: 6 }}>{event.description}</div>
+                    )}
+                  </div>
+                ))}
+                {events.length === 0 && <div style={{ color: '#718096' }}>No events yet.</div>}
+              </div>
             </div>
           )}
 
@@ -291,19 +291,21 @@ export default function Dashboard({ user, onLogout }) {
               </table>
             </div>
           )}
-      </div>
-      </div>
+        </div>
 
-      <section className="dashboard-right-column">
-        <CalendarViewNew
-          bookings={bookings}
-          calendarBookings={calendarBookings}
-          events={events}
-          calendarConfig={calendarConfig}
-          user={user}
-        />
-      </section>
-    </div>
+        <section className="dashboard-right-column">
+          <CalendarViewNew
+            bookings={bookings}
+            calendarBookings={calendarBookings}
+            events={events}
+            calendarConfig={calendarConfig}
+            user={user}
+          />
+          <div style={{ marginTop: 10, textAlign: 'center', color: '#4a5568', fontWeight: 600 }}>
+            Viewing tab: {activeTabLabel}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

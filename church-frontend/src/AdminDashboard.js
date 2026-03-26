@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState, useContext, useMemo } from 'react';
 import api from './api';
+import { useCallback } from 'react';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
 import AdminRequestPanel from './AdminRequestPanel';
@@ -41,7 +42,6 @@ export default function AdminDashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
 
   const [activeTab, setActiveTab] = useState('calendar');
-  const [tabsExpanded, setTabsExpanded] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [records, setRecords] = useState([]);
   const [events, setEvents] = useState([]);
@@ -64,6 +64,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const [recordSearch, setRecordSearch] = useState('');
   const [eventFilter, setEventFilter] = useState('upcoming'); // 'upcoming' | 'past'
   const [bookingFilter, setBookingFilter] = useState('upcoming'); // 'upcoming' | 'past'
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const editEvent = async (event) => {
     const title = window.prompt('Title', event.title || '');
@@ -310,6 +311,56 @@ export default function AdminDashboard({ user, onLogout }) {
     () => bookings.filter(b => b.date === todayStr).length,
     [bookings, todayStr]
   );
+
+  const activeTabLabel = useMemo(() => {
+    const map = {
+      calendar: 'Parish Calendar',
+      users: 'Parishioners',
+      events: 'Events',
+      bookings: 'Bookings',
+      requests: 'Request Panel',
+      records: 'Records',
+      reports: 'Reports',
+      add_event: 'Add Event'
+    };
+    return map[activeTab] || '';
+  }, [activeTab]);
+
+  const activeTabIcon = useMemo(() => {
+    const map = {
+      calendar: '⛪',
+      users: '👥',
+      events: '🕯',
+      bookings: '📅',
+      requests: '📜',
+      records: '📖',
+      reports: '🕊',
+      add_event: '✚'
+    };
+    return map[activeTab] || '';
+  }, [activeTab]);
+
+  const buildPie = useCallback((dataObj) => {
+    const entries = Object.entries(dataObj || {}).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((sum, [, v]) => sum + v, 0) || 1;
+    let acc = 0;
+    const colors = ['#667eea', '#38a169', '#ed8936', '#b0413e', '#3182ce', '#d6ad60'];
+    const segments = entries.map(([label, count], idx) => {
+      const start = (acc / total) * 360;
+      acc += count;
+      const end = (acc / total) * 360;
+      return `${colors[idx % colors.length]} ${start}deg ${end}deg`;
+    });
+    return {
+      gradient: `conic-gradient(${segments.join(', ')})`,
+      entries,
+      colors
+    };
+  }, []);
+
+  const servicePie = useMemo(() => buildPie(reportData.serviceCounts), [reportData.serviceCounts, buildPie]);
+  const actionPie = useMemo(() => buildPie(reportData.actionCounts), [reportData.actionCounts, buildPie]);
+  const rolePie = useMemo(() => buildPie(reportData.roleCounts), [reportData.roleCounts, buildPie]);
   const nextEvent = useMemo(() => {
     const upcoming = events
       .map(e => ({
@@ -349,78 +400,116 @@ export default function AdminDashboard({ user, onLogout }) {
           “Let all that you do be done in love.” — 1 Corinthians 16:14
         </div>
       </div>
-    <div className="dashboard-layout dashboard-two-col">
+    <div className={`dashboard-layout dashboard-two-col ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+      <button
+        className="sidebar-toggle-btn"
+        aria-label={sidebarOpen ? 'Hide navigation panel' : 'Show navigation panel'}
+        onClick={() => setSidebarOpen(v => !v)}
+      >
+        {sidebarOpen ? '\u2715' : '\u2630'}
+      </button>
       <div className="dashboard-left-column">
-      <aside className={`dashboard-sidebar dashboard-left-panel ${tabsExpanded ? 'expanded' : 'collapsed'}`} style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
+      <aside className="dashboard-sidebar dashboard-left-panel" style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
         <div className="dashboard-sidebar-header" style={{ paddingBottom: 6 }}>
           <h3 style={{ margin: 0, color: ink }}>Admin Panel</h3>
-          <button
-            className="dashboard-collapse-btn"
-            onClick={() => setTabsExpanded(v => !v)}
-            title={tabsExpanded ? 'Collapse tabs down' : 'Expand tabs down'}
-          >
-            {tabsExpanded ? '\u25B2' : '\u25BC'}
-          </button>
         </div>
+        {/* Tab buttons on expandable sidebar */}
+        <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 18,
+            padding: '12px 14px',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            border: `1px solid ${mist}`
+          }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: 14,
+              background: '#cbd5e0',
+              overflow: 'hidden',
+              display: 'grid', placeItems: 'center',
+              fontWeight: 800, color: ink
+            }}>
+              {(user?.name || 'U')[0]}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 17, color: ink }}>
+                {user?.name || 'Admin User'}
+              </div>
+              <div style={{ color: '#6b7280', fontSize: 13 }}>
+                {user?.email || 'admin@parish.local'}
+              </div>
+            </div>
+            <div style={{
+              background: '#fff5f5',
+              color: '#b0413e',
+              borderRadius: 14,
+              padding: '6px 10px',
+              fontWeight: 700,
+              border: '1px solid #ffd7d7'
+            }}>
+              Admin
+            </div>
+          </div>
 
-        <div className="dashboard-tab-list dashboard-tab-list-vertical">
-          <button className={`dashboard-tab-btn ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
-            <span className="dashboard-tab-short">⛪</span>
-            <span className="dashboard-tab-label">Parish Calendar</span>
-          </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
-            <span className="dashboard-tab-short">👥</span>
-            <span className="dashboard-tab-label">Parishioners</span>
-          </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'events' ? 'active' : ''}`} onClick={() => setActiveTab('events')}>
-            <span className="dashboard-tab-short">🕯</span>
-            <span className="dashboard-tab-label">Events & Bookings</span>
-          </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => setActiveTab('requests')}>
-            <span className="dashboard-tab-short">📜</span>
-            <span className="dashboard-tab-label">Request Panel</span>
-          </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'records' ? 'active' : ''}`} onClick={() => setActiveTab('records')}>
-            <span className="dashboard-tab-short">📖</span>
-            <span className="dashboard-tab-label">Records</span>
-          </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
-            <span className="dashboard-tab-short">🕊</span>
-            <span className="dashboard-tab-label">Reports</span>
-          </button>
-          <button className={`dashboard-tab-btn ${activeTab === 'add_event' ? 'active' : ''}`} onClick={() => setActiveTab('add_event')}>
-            <span className="dashboard-tab-short">✚</span>
-            <span className="dashboard-tab-label">Add Event</span>
-          </button>
-          <button className="dashboard-tab-btn logout" onClick={onLogout}>
-            <span className="dashboard-tab-short">🚪</span>
-            <span className="dashboard-tab-label">Logout</span>
-          </button>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: 12
+          }}>
+            {[
+              { key: 'calendar', label: 'Calendar', icon: '📅' },
+              { key: 'requests', label: 'Requests', icon: '📜' },
+              { key: 'bookings', label: 'Bookings', icon: '✅' },
+              { key: 'events', label: 'Events', icon: '🕯' },
+              { key: 'users', label: 'Parishioners', icon: '👥' },
+              { key: 'records', label: 'Records', icon: '📖' },
+              { key: 'reports', label: 'Reports', icon: '🕊' },
+              { key: 'add_event', label: 'Add Event', icon: '✚' },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  background: '#fff',
+                  borderRadius: 16,
+                  border: `1px solid ${activeTab === tab.key ? accentBlue : mist}`,
+                  padding: '12px 10px',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                  boxShadow: activeTab === tab.key ? `0 4px 12px ${accentBlue}30` : 'none'
+                }}
+              >
+                <div style={{ fontSize: 20, marginBottom: 4 }}>{tab.icon}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: ink }}>{tab.label}</div>
+              </button>
+            ))}
+          </div>
         </div>
       </aside>
+      </div>
 
       {/* ---------- MAIN CONTENT ---------- */}
-      <div className="dashboard-main dashboard-left-content" style={{ background: '#fff', borderRadius: 16, boxShadow: '0 18px 40px rgba(0,0,0,0.1)', border: `1px solid ${mist}`, padding: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 12 }}>
-          <div style={{ background: 'linear-gradient(135deg, rgba(59,91,138,0.1), rgba(59,91,138,0.18))', borderRadius: 12, padding: 12, color: ink, border: `1px solid ${mist}`, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
-            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 }}>Today</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{todayBookings}</div>
-            <div style={{ fontSize: 12, color: '#4a5568' }}>Bookings on {todayStr}</div>
-          </div>
-          <div style={{ background: 'linear-gradient(135deg, rgba(214,173,96,0.12), rgba(214,173,96,0.22))', borderRadius: 12, padding: 12, color: ink, border: `1px solid ${mist}`, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
-            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 }}>Today</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{todayEvents}</div>
-            <div style={{ fontSize: 12, color: '#4a5568' }}>Events happening</div>
-          </div>
-          <div style={{ background: 'linear-gradient(135deg, rgba(176,65,62,0.12), rgba(176,65,62,0.2))', borderRadius: 12, padding: 12, color: ink, border: `1px solid ${mist}`, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
-            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 }}>Next Event</div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>
-              {nextEvent ? `${nextEvent.title || 'Event'} · ${nextEvent.date} ${nextEvent.time || ''}` : 'No upcoming event'}
-            </div>
-            <div style={{ fontSize: 12, color: '#4a5568' }}>Soonest on calendar</div>
-          </div>
+      <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 18, border: `1px solid ${mist}`, boxShadow: '0 18px 36px rgba(0,0,0,0.1)', padding: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.12))', borderRadius: 10, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>🗓 Parish Calendar</span>
+          <span style={{ fontSize: 12, color: '#4a5568' }}>Tap a date to view or add bookings</span>
         </div>
-        {/* CALENDAR */}
+        <CalendarViewNew
+          bookings={bookings}
+          calendarBookings={bookings}
+          events={events}
+          calendarConfig={calendarConfig}
+          user={user}
+          isAdmin
+        />
+
+      <div className="dashboard-main dashboard-left-content" style={{ background: '#fff', borderRadius: 16, boxShadow: '0 18px 40px rgba(0,0,0,0.1)', border: `1px solid ${mist}`, padding: 16 }}>
+        {/* TAB CONTENT */}
         {activeTab === 'calendar' && (
           <div>
             <div
@@ -588,61 +677,60 @@ export default function AdminDashboard({ user, onLogout }) {
           </div>
         )}
 
-        {/* EVENTS + BOOKINGS (SAME TAB) */}
+        {/* EVENTS */}
         {activeTab === 'events' && (
           <div>
-            {/* EVENTS */}
             <h2>Events</h2>
             <input
-              type="text"
-              placeholder="Search events by id, title, date, time"
-              value={eventSearch}
-              onChange={e => setEventSearch(e.target.value)}
-              style={{ width: '100%', maxWidth: 420, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
-            />
-            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-              <button
-                onClick={() => setEventFilter('upcoming')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: eventFilter === 'upcoming' ? `2px solid ${accentBlue}` : `1px solid ${mist}`,
-                  background: eventFilter === 'upcoming' ? '#eef3fb' : '#fff',
-                  color: accentBlue,
-                  cursor: 'pointer'
-                }}
-              >
-                Upcoming ({eventCounts.upcoming})
-              </button>
-              <button
-                onClick={() => setEventFilter('past')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: eventFilter === 'past' ? `2px solid ${gold}` : `1px solid ${mist}`,
-                  background: eventFilter === 'past' ? '#faf4e6' : '#fff',
-                  color: '#7c6230',
-                  cursor: 'pointer'
-                }}
-              >
-                Passed ({eventCounts.past})
-              </button>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 40 }}>
-              <thead>
-                <tr>
-                  <th style={th}>ID</th>
-                  <th style={th}>Title</th>
-                  <th style={th}>Date</th>
-                  <th style={th}>Time</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEventsByStatus.map(e => {
-                  const past = isPastEvent(e);
-                  return (
+            type="text"
+            placeholder="Search events by id, title, date, time"
+            value={eventSearch}
+            onChange={e => setEventSearch(e.target.value)}
+            style={{ width: '100%', maxWidth: 420, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
+          />
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+            <button
+              onClick={() => setEventFilter('upcoming')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: eventFilter === 'upcoming' ? `2px solid ${accentBlue}` : `1px solid ${mist}`,
+                background: eventFilter === 'upcoming' ? '#eef3fb' : '#fff',
+                color: accentBlue,
+                cursor: 'pointer'
+              }}
+            >
+              Upcoming ({eventCounts.upcoming})
+            </button>
+            <button
+              onClick={() => setEventFilter('past')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: eventFilter === 'past' ? `2px solid ${gold}` : `1px solid ${mist}`,
+                background: eventFilter === 'past' ? '#faf4e6' : '#fff',
+                color: '#7c6230',
+                cursor: 'pointer'
+              }}
+            >
+              History ({eventCounts.past})
+            </button>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 40 }}>
+            <thead>
+              <tr>
+                <th style={th}>ID</th>
+                <th style={th}>Title</th>
+                <th style={th}>Date</th>
+                <th style={th}>Time</th>
+                <th style={th}>Status</th>
+                <th style={th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredEventsByStatus.map(e => {
+                const past = isPastEvent(e);
+                return (
                   <tr key={e.id}>
                     <td style={td}>{e.id}</td>
                     <td style={td}>{e.title}</td>
@@ -671,109 +759,113 @@ export default function AdminDashboard({ user, onLogout }) {
                       </button>
                     </td>
                   </tr>
-                  );
-                })}
-                {filteredEventsByStatus.length === 0 && (
-                  <tr>
-                    <td style={td} colSpan={6}>No events match your search.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
-            {/* BOOKINGS */}
-            <h2>Bookings</h2>
-            <input
-              type="text"
-              placeholder="Search bookings by id, user, service, date, time"
-              value={bookingSearch}
-              onChange={e => setBookingSearch(e.target.value)}
-              style={{ width: '100%', maxWidth: 460, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
-            />
-            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-              <button
-                onClick={() => setBookingFilter('upcoming')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: bookingFilter === 'upcoming' ? `2px solid ${accentBlue}` : `1px solid ${mist}`,
-                  background: bookingFilter === 'upcoming' ? '#eef3fb' : '#fff',
-                  color: accentBlue,
-                  cursor: 'pointer'
-                }}
-              >
-                Upcoming ({bookingCounts.upcoming})
-              </button>
-              <button
-                onClick={() => setBookingFilter('past')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: bookingFilter === 'past' ? `2px solid ${gold}` : `1px solid ${mist}`,
-                  background: bookingFilter === 'past' ? '#faf4e6' : '#fff',
-                  color: '#7c6230',
-                  cursor: 'pointer'
-                }}
-              >
-                Passed ({bookingCounts.past})
-              </button>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
+                );
+              })}
+              {filteredEventsByStatus.length === 0 && (
                 <tr>
-                  <th style={th}>ID</th>
-                  <th style={th}>User</th>
-                  <th style={th}>Service</th>
-                  <th style={th}>Date</th>
-                  <th style={th}>Time</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Actions</th>
+                  <td style={td} colSpan={6}>No events match your search.</td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredBookingsByStatus.map(b => {
-                  const past = isPastDateTime(b.date, b.slot);
-                  return (
-                    <tr key={b.id}>
-                      <td style={td}>{b.id}</td>
-                      <td style={td}>{b.name || b.email}</td>
-                      <td style={td}>{b.service}</td>
-                      <td style={td}>{b.date}</td>
-                      <td style={td}>{b.slot}</td>
-                      <td style={{ ...td, color: past ? '#b0413e' : '#2f855a', fontWeight: 600 }}>
-                        {past ? 'Passed' : 'Upcoming'}
-                      </td>
-                      <td style={td}>
-                        <button
-                          style={{ ...dangerBtn, background: accentBlue, marginRight: 8 }}
-                          onClick={() => editAcceptedBooking(b)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          style={dangerBtn}
-                          onClick={async () => {
-                            if (window.confirm('Cancel this booking?')) {
-                              await api.bookings.remove(b.id);
-                              loadData();
-                            }
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredBookingsByStatus.length === 0 && (
-                  <tr>
-                    <td style={td} colSpan={7}>No bookings match your search.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* BOOKINGS */}
+      {activeTab === 'bookings' && (
+        <div>
+          <h2>Bookings</h2>
+          <input
+            type="text"
+            placeholder="Search bookings by id, user, service, date, time"
+            value={bookingSearch}
+            onChange={e => setBookingSearch(e.target.value)}
+            style={{ width: '100%', maxWidth: 460, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
+          />
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+            <button
+              onClick={() => setBookingFilter('upcoming')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: bookingFilter === 'upcoming' ? `2px solid ${accentBlue}` : `1px solid ${mist}`,
+                background: bookingFilter === 'upcoming' ? '#eef3fb' : '#fff',
+                color: accentBlue,
+                cursor: 'pointer'
+              }}
+            >
+              Upcoming ({bookingCounts.upcoming})
+            </button>
+            <button
+              onClick={() => setBookingFilter('past')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: bookingFilter === 'past' ? `2px solid ${gold}` : `1px solid ${mist}`,
+                background: bookingFilter === 'past' ? '#faf4e6' : '#fff',
+                color: '#7c6230',
+                cursor: 'pointer'
+              }}
+            >
+              History ({bookingCounts.past})
+            </button>
           </div>
-        )}
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={th}>ID</th>
+                <th style={th}>User</th>
+                <th style={th}>Service</th>
+                <th style={th}>Date</th>
+                <th style={th}>Time</th>
+                <th style={th}>Status</th>
+                <th style={th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBookingsByStatus.map(b => {
+                const past = isPastDateTime(b.date, b.slot);
+                return (
+                  <tr key={b.id}>
+                    <td style={td}>{b.id}</td>
+                    <td style={td}>{b.name || b.email}</td>
+                    <td style={td}>{b.service}</td>
+                    <td style={td}>{b.date}</td>
+                    <td style={td}>{b.slot}</td>
+                    <td style={{ ...td, color: past ? '#b0413e' : '#2f855a', fontWeight: 600 }}>
+                      {past ? 'Passed' : 'Upcoming'}
+                    </td>
+                    <td style={td}>
+                      <button
+                        style={{ ...dangerBtn, background: accentBlue, marginRight: 8 }}
+                        onClick={() => editAcceptedBooking(b)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        style={dangerBtn}
+                        onClick={async () => {
+                          if (window.confirm('Cancel this booking?')) {
+                            await api.bookings.remove(b.id);
+                            loadData();
+                          }
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredBookingsByStatus.length === 0 && (
+                <tr>
+                  <td style={td} colSpan={7}>No bookings match your search.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
         {activeTab === 'requests' && (
           <AdminRequestPanel onDecision={loadData} />
@@ -854,48 +946,78 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
-              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12 }}>
-                <h4 style={{ marginTop: 0 }}>Bookings by Service</h4>
-                {Object.entries(reportData.serviceCounts).length === 0 ? (
-                  <div style={{ color: '#666' }}>No booking data.</div>
-                ) : (
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {Object.entries(reportData.serviceCounts)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([k, v]) => <li key={k}>{k}: {v}</li>)}
-                  </ul>
-                )}
-              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
+                <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                  <div style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: '50%',
+                    background: servicePie.gradient,
+                    border: `2px solid ${mist}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }} aria-label="Bookings by service distribution" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <h4 style={{ margin: 0 }}>Bookings by Service</h4>
+                    {servicePie.entries.length === 0 ? (
+                      <div style={{ color: '#666' }}>No booking data.</div>
+                    ) : servicePie.entries.map(([label, value], idx) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: servicePie.colors[idx % servicePie.colors.length] }} />
+                        <span style={{ flex: 1 }}>{label}</span>
+                        <span style={{ fontWeight: 700 }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12 }}>
-                <h4 style={{ marginTop: 0 }}>Records by Action</h4>
-                {Object.entries(reportData.actionCounts).length === 0 ? (
-                  <div style={{ color: '#666' }}>No record data.</div>
-                ) : (
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {Object.entries(reportData.actionCounts)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([k, v]) => <li key={k}>{k}: {v}</li>)}
-                  </ul>
-                )}
-              </div>
+                <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                  <div style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: '50%',
+                    background: actionPie.gradient,
+                    border: `2px solid ${mist}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }} aria-label="Records by action distribution" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <h4 style={{ margin: 0 }}>Records by Action</h4>
+                    {actionPie.entries.length === 0 ? (
+                      <div style={{ color: '#666' }}>No record data.</div>
+                    ) : actionPie.entries.map(([label, value], idx) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: actionPie.colors[idx % actionPie.colors.length] }} />
+                        <span style={{ flex: 1 }}>{label}</span>
+                        <span style={{ fontWeight: 700 }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12 }}>
-                <h4 style={{ marginTop: 0 }}>Users by Role</h4>
-                {Object.entries(reportData.roleCounts).length === 0 ? (
-                  <div style={{ color: '#666' }}>No user data.</div>
-                ) : (
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {Object.entries(reportData.roleCounts)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([k, v]) => <li key={k}>{k}: {v}</li>)}
-                  </ul>
-                )}
+                <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                  <div style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: '50%',
+                    background: rolePie.gradient,
+                    border: `2px solid ${mist}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }} aria-label="Users by role distribution" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <h4 style={{ margin: 0 }}>Users by Role</h4>
+                    {rolePie.entries.length === 0 ? (
+                      <div style={{ color: '#666' }}>No user data.</div>
+                    ) : rolePie.entries.map(([label, value], idx) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: rolePie.colors[idx % rolePie.colors.length] }} />
+                        <span style={{ flex: 1 }}>{label}</span>
+                        <span style={{ fontWeight: 700 }}>{value}</span>
+                      </div>
+                    ))}
+                </div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* ADD EVENT */}
         {activeTab === 'add_event' && (
@@ -985,22 +1107,8 @@ export default function AdminDashboard({ user, onLogout }) {
           </div>
         )}
       </div>
-      </div>
-      <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 18, border: `1px solid ${mist}`, boxShadow: '0 18px 36px rgba(0,0,0,0.1)', padding: 10 }}>
-        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.12))', borderRadius: 10, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>🗓 Parish Calendar</span>
-          <span style={{ fontSize: 12, color: '#4a5568' }}>Tap a date to view or add bookings</span>
-        </div>
-        <CalendarViewNew
-          bookings={bookings}
-          calendarBookings={bookings}
-          events={events}
-          calendarConfig={calendarConfig}
-          user={user}
-          isAdmin
-        />
-      </section>
-    </div>
-    </div>
+    </section>
+  </div>
+</div>
   );
 }

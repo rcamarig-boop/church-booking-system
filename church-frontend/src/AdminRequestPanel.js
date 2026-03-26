@@ -13,6 +13,9 @@ const td = {
   border: '1px solid #ccc',
 };
 
+const actionsColStyle = {
+  width: 820
+};
 const iconBtn = {
   width: 32,
   height: 32,
@@ -145,7 +148,7 @@ export default function AdminRequestPanel({ onDecision }) {
             <th style={th}>Date</th>
             <th style={th}>Slot</th>
             <th style={th}>Details</th>
-            <th style={th}>Actions</th>
+            <th style={{ ...th, ...actionsColStyle }}>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -165,7 +168,7 @@ export default function AdminRequestPanel({ onDecision }) {
                       .join(' | ')
                   : '-'}
               </td>
-              <td style={td}>
+              <td style={{ ...td, ...actionsColStyle }}>
                 <div style={actionWrap}>
                   <button
                     title="Edit request"

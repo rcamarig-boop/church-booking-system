@@ -5,7 +5,8 @@ const bcrypt = require('bcryptjs');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-const Database = require('better-sqlite3');
+const db = require('./db');
+const { usePg, DEFAULT_MAX_SLOTS, ensurePgSchema, prepare, exec, transaction } = db;
 
 const app = express();
 const server = http.createServer(app);
@@ -20,116 +21,116 @@ const ADMIN_NAME = process.env.ADMIN_NAME || 'Admin User';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@church.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 
-/* ===================== SQLITE ===================== */
-const DEFAULT_MAX_SLOTS = 5;
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'church.db');
-const db = new Database(DB_PATH);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT,
-  email TEXT UNIQUE,
-  password TEXT,
-  role TEXT DEFAULT 'member'
-);
-
-CREATE TABLE IF NOT EXISTS bookings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  userId INTEGER,
-  name TEXT,
-  email TEXT,
-  date TEXT,
-  slot TEXT,
-  service TEXT,
-  details TEXT
-);
-
-CREATE TABLE IF NOT EXISTS booking_requests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  userId INTEGER,
-  name TEXT,
-  email TEXT,
-  date TEXT,
-  slot TEXT,
-  service TEXT,
-  details TEXT,
-  status TEXT DEFAULT 'pending',
-  created_at TEXT DEFAULT (datetime('now')),
-  reviewed_by INTEGER,
-  reviewed_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS booking_records (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  request_id INTEGER,
-  booking_id INTEGER,
-  userId INTEGER,
-  name TEXT,
-  email TEXT,
-  service TEXT,
-  date TEXT,
-  slot TEXT,
-  details TEXT,
-  action TEXT,
-  note TEXT,
-  action_by INTEGER,
-  action_at TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT,
-  date TEXT,
-  description TEXT
-);
-
-CREATE TABLE IF NOT EXISTS calendar (
-  date TEXT PRIMARY KEY,
-  max_slots INTEGER DEFAULT 5,
-  booked INTEGER DEFAULT 0
-);
-`);
-
-const eventColumns = db.prepare('PRAGMA table_info(events)').all().map(c => c.name);
-const eventTimeCol =
-  eventColumns.includes('time') ? 'time' :
-  eventColumns.includes('time_slot') ? 'time_slot' : null;
-const eventTitleCol = eventColumns.includes('title') ? 'title' : null;
-const eventDateCol = eventColumns.includes('date') ? 'date' : null;
-const eventDescCol = eventColumns.includes('description') ? 'description' : null;
-
-if (!eventTimeCol) {
-  // Add a time column only if neither exists.
-  db.exec('ALTER TABLE events ADD COLUMN time TEXT');
+async function initDatabase() {
+  if (usePg) {
+    await ensurePgSchema();
+  } else {
+    exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      email TEXT UNIQUE,
+      password TEXT,
+      role TEXT DEFAULT 'member'
+    );
+    
+    CREATE TABLE IF NOT EXISTS bookings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER,
+      name TEXT,
+      email TEXT,
+      date TEXT,
+      slot TEXT,
+      service TEXT,
+      details TEXT
+    );
+    
+    CREATE TABLE IF NOT EXISTS booking_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER,
+      name TEXT,
+      email TEXT,
+      date TEXT,
+      slot TEXT,
+      service TEXT,
+      details TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      reviewed_by INTEGER,
+      reviewed_at TEXT
+    );
+    
+    CREATE TABLE IF NOT EXISTS booking_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_id INTEGER,
+      booking_id INTEGER,
+      userId INTEGER,
+      name TEXT,
+      email TEXT,
+      service TEXT,
+      date TEXT,
+      slot TEXT,
+      details TEXT,
+      action TEXT,
+      note TEXT,
+      action_by INTEGER,
+      action_at TEXT DEFAULT (datetime('now'))
+    );
+    
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT,
+      date TEXT,
+      description TEXT
+    );
+    
+    CREATE TABLE IF NOT EXISTS calendar (
+      date TEXT PRIMARY KEY,
+      max_slots INTEGER DEFAULT 5,
+      booked INTEGER DEFAULT 0
+    );
+    `);
+  }
 }
+
+const dbGet = async (sql, ...params) => {
+  const stmt = prepare(sql);
+  return await stmt.get(...params);
+};
+
+const dbAll = async (sql, ...params) => {
+  const stmt = prepare(sql);
+  return await stmt.all(...params);
+};
+
+const dbRun = async (sql, ...params) => {
+  const stmt = prepare(sql);
+  return await stmt.run(...params);
+};
+
+const passwordColumn = 'password';
+const hasPhoneColumn = false;
+const eventTitleCol = 'title';
+const eventDateCol = 'date';
+const eventTimeCol = 'time';
+const eventDescCol = 'description';
 
 const normalizeEvent = (e) => ({
   id: e.id,
   title: e.title,
   date: e.date,
-  time: e.time ?? e.time_slot ?? '',
+  time: e.time ?? '',
   description: e.description || ''
 });
 
-const userColumns = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
-const passwordColumn =
-  userColumns.includes('password') ? 'password' :
-  userColumns.includes('password_hash') ? 'password_hash' : null;
-const hasPhoneColumn = userColumns.includes('phone');
-
-if (!passwordColumn) {
-  throw new Error('Users table missing password/password_hash column.');
-}
-
-function ensureAdminUser() {
+async function ensureAdminUser() {
   if (!AUTO_SEED_ADMIN) return;
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) return;
 
-  const existing = db.prepare('SELECT id FROM users WHERE email=?').get(ADMIN_EMAIL);
+  const existing = await dbGet('SELECT id FROM users WHERE email=?', ADMIN_EMAIL);
   if (existing) return;
 
-  const hash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
+  const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
   const columns = hasPhoneColumn
     ? `name, email, ${passwordColumn}, phone, role`
     : `name, email, ${passwordColumn}, role`;
@@ -137,70 +138,27 @@ function ensureAdminUser() {
     ? [ADMIN_NAME, ADMIN_EMAIL, hash, '', 'admin']
     : [ADMIN_NAME, ADMIN_EMAIL, hash, 'admin'];
 
-  db.prepare(
-    `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')})`
-  ).run(...values);
+  await dbRun(
+    `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')})`,
+    ...values
+  );
   console.log(`Seeded admin user: ${ADMIN_EMAIL}`);
 }
 
-ensureAdminUser();
+const bookingUserIdCol = 'userId';
+const bookingNameCol = 'name';
+const bookingEmailCol = 'email';
+const bookingServiceCol = 'service';
+const bookingSlotCol = 'slot';
+const bookingDetailsCol = 'details';
 
-const bookingColumns = db.prepare('PRAGMA table_info(bookings)').all().map(c => c.name);
-if (!bookingColumns.includes('details')) {
-  db.exec('ALTER TABLE bookings ADD COLUMN details TEXT');
-}
-const bookingColumnsUpdated = db.prepare('PRAGMA table_info(bookings)').all().map(c => c.name);
-const bookingUserIdCol =
-  bookingColumnsUpdated.includes('userId') ? 'userId' :
-  bookingColumnsUpdated.includes('user_id') ? 'user_id' : null;
-const bookingNameCol =
-  bookingColumnsUpdated.includes('name') ? 'name' :
-  bookingColumnsUpdated.includes('user_name') ? 'user_name' : null;
-const bookingEmailCol =
-  bookingColumnsUpdated.includes('email') ? 'email' :
-  bookingColumnsUpdated.includes('user_email') ? 'user_email' : null;
-const bookingServiceCol =
-  bookingColumnsUpdated.includes('service') ? 'service' :
-  bookingColumnsUpdated.includes('service_type') ? 'service_type' : null;
-const bookingSlotCol =
-  bookingColumnsUpdated.includes('slot') ? 'slot' :
-  bookingColumnsUpdated.includes('time_slot') ? 'time_slot' : null;
-const bookingDetailsCol = bookingColumnsUpdated.includes('details') ? 'details' : null;
-
-let requestColumns = db.prepare('PRAGMA table_info(booking_requests)').all().map(c => c.name);
-if (!requestColumns.includes('details')) {
-  db.exec('ALTER TABLE booking_requests ADD COLUMN details TEXT');
-}
-if (!requestColumns.includes('status')) {
-  db.exec("ALTER TABLE booking_requests ADD COLUMN status TEXT DEFAULT 'pending'");
-}
-if (!requestColumns.includes('created_at')) {
-  db.exec("ALTER TABLE booking_requests ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP");
-}
-if (!requestColumns.includes('reviewed_by')) {
-  db.exec('ALTER TABLE booking_requests ADD COLUMN reviewed_by INTEGER');
-}
-if (!requestColumns.includes('reviewed_at')) {
-  db.exec('ALTER TABLE booking_requests ADD COLUMN reviewed_at TEXT');
-}
-requestColumns = db.prepare('PRAGMA table_info(booking_requests)').all().map(c => c.name);
-const requestUserIdCol =
-  requestColumns.includes('userId') ? 'userId' :
-  requestColumns.includes('user_id') ? 'user_id' : null;
-const requestNameCol =
-  requestColumns.includes('name') ? 'name' :
-  requestColumns.includes('user_name') ? 'user_name' : null;
-const requestEmailCol =
-  requestColumns.includes('email') ? 'email' :
-  requestColumns.includes('user_email') ? 'user_email' : null;
-const requestServiceCol =
-  requestColumns.includes('service') ? 'service' :
-  requestColumns.includes('service_type') ? 'service_type' : null;
-const requestSlotCol =
-  requestColumns.includes('slot') ? 'slot' :
-  requestColumns.includes('time_slot') ? 'time_slot' : null;
-const requestStatusCol = requestColumns.includes('status') ? 'status' : null;
-const requestDetailsCol = requestColumns.includes('details') ? 'details' : null;
+const requestUserIdCol = 'userId';
+const requestNameCol = 'name';
+const requestEmailCol = 'email';
+const requestServiceCol = 'service';
+const requestSlotCol = 'slot';
+const requestStatusCol = 'status';
+const requestDetailsCol = 'details';
 
 const normalizeBooking = (b) => ({
   id: b.id,
@@ -300,7 +258,7 @@ function normalizeDetailsPayload(details) {
   return {};
 }
 
-function addBookingRecord({
+async function addBookingRecord({
   requestId = null,
   bookingId = null,
   userId = null,
@@ -313,24 +271,25 @@ function addBookingRecord({
   action,
   note = null,
   actionBy = null
-}) {
-  db.prepare(`
+}, conn = null) {
+  const runner = conn ? conn.prepare.bind(conn) : prepare;
+  await runner(`
     INSERT INTO booking_records (
       request_id, booking_id, userId, name, email, service, date, slot, details, action, note, action_by
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    requestId,
-    bookingId,
-    userId,
-    name,
-    email,
-    service,
-    date,
-    slot,
-    details ? JSON.stringify(details) : null,
-    action,
-    note,
-    actionBy
+  requestId,
+  bookingId,
+  userId,
+  name,
+  email,
+  service,
+  date,
+  slot,
+  details ? JSON.stringify(details) : null,
+  action,
+  note,
+  actionBy
   );
 }
 
@@ -363,11 +322,13 @@ app.post('/api/auth/register', async (req, res) => {
     const values = hasPhoneColumn
       ? [name, email, hashed, '', role || 'member']
       : [name, email, hashed, role || 'member'];
-    const result = db.prepare(
-      `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')})`
-    ).run(...values);
+    const result = await dbRun(
+      `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')}) RETURNING id`,
+      ...values
+    );
 
-    const user = { id: result.lastInsertRowid, name, email, role: role || 'member' };
+    const userId = result.lastInsertRowid || result?.id || result?.rows?.[0]?.id;
+    const user = { id: userId, name, email, role: role || 'member' };
     const token = jwt.sign(user, JWT_SECRET);
 
     res.json({ token, user });
@@ -377,9 +338,10 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const user = db.prepare(
-    'SELECT * FROM users WHERE email=?'
-  ).get(req.body.email);
+  const user = await dbGet(
+    'SELECT * FROM users WHERE email=?',
+    req.body.email
+  );
 
   if (!user)
     return res.status(401).json({ error: 'Invalid credentials' });
@@ -395,7 +357,7 @@ app.post('/api/auth/login', async (req, res) => {
     passwordOk = req.body.password === storedPassword;
     if (passwordOk) {
       const hashed = await bcrypt.hash(req.body.password, 10);
-      db.prepare(`UPDATE users SET ${passwordColumn}=? WHERE id=?`).run(hashed, user.id);
+      await dbRun(`UPDATE users SET ${passwordColumn}=? WHERE id=?`, hashed, user.id);
     }
   }
 
@@ -414,26 +376,26 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 /* ===================== BOOKINGS ===================== */
-app.get('/api/bookings', auth, (req, res) => {
+app.get('/api/bookings', auth, async (req, res) => {
   const rows = req.user.role === 'admin'
-    ? db.prepare('SELECT * FROM bookings').all()
+    ? await dbAll('SELECT * FROM bookings')
     : bookingUserIdCol
-      ? db.prepare(`SELECT * FROM bookings WHERE ${bookingUserIdCol}=?`).all(req.user.id)
+      ? await dbAll(`SELECT * FROM bookings WHERE ${bookingUserIdCol}=?`, req.user.id)
       : [];
 
   res.json(rows.map(normalizeBooking));
 });
 
 // Public booking slots (date + slot only) for calendar availability
-app.get('/api/bookings/slots', auth, (_, res) => {
+app.get('/api/bookings/slots', auth, async (_, res) => {
   if (!bookingSlotCol) return res.json([]);
-  const rows = db.prepare(
+  const rows = await dbAll(
     `SELECT date, ${bookingSlotCol} AS slot FROM bookings`
-  ).all();
+  );
   res.json(rows);
 });
 
-app.post('/api/bookings', auth, (req, res) => {
+app.post('/api/bookings', auth, async (req, res) => {
   const { date, service } = req.body;
   const slot = normalizeSlot(req.body.slot);
   const details = req.body.details;
@@ -445,7 +407,7 @@ app.post('/api/bookings', auth, (req, res) => {
     if (!isValidSlot(slot)) {
       return res.status(400).json({ error: 'Booking slot must be AM/PM or HH:MM in 30-minute intervals' });
     }
-    const cal = db.prepare('SELECT max_slots FROM calendar WHERE date=?').get(date);
+    const cal = await dbGet('SELECT max_slots FROM calendar WHERE date=?', date);
     if ((cal?.max_slots ?? DEFAULT_MAX_SLOTS) <= 0) {
       return res.status(409).json({ error: 'This date is closed for bookings' });
     }
@@ -465,13 +427,16 @@ app.post('/api/bookings', auth, (req, res) => {
     cols.push('date'); vals.push(date);
     if (requestStatusCol) { cols.push(requestStatusCol); vals.push('pending'); }
 
-    const insertResult = db.prepare(`
+    const insertResult = await dbRun(`
       INSERT INTO booking_requests (${cols.join(', ')})
       VALUES (${cols.map(() => '?').join(', ')})
-    `).run(...vals);
+      RETURNING id
+    `, ...vals);
 
-    addBookingRecord({
-      requestId: insertResult.lastInsertRowid,
+    const requestId = insertResult.lastInsertRowid || insertResult?.id || insertResult?.rows?.[0]?.id;
+
+    await addBookingRecord({
+      requestId,
       userId: req.user.id,
       name: req.user.name,
       email: req.user.email || null,
@@ -490,24 +455,26 @@ app.post('/api/bookings', auth, (req, res) => {
   res.json({ success: true, message: 'Booking request submitted for admin verification' });
 });
 
-app.get('/api/booking-requests', auth, admin, (_, res) => {
-  const rows = db.prepare(
-    'SELECT * FROM booking_requests WHERE status = ? ORDER BY created_at ASC, id ASC'
-  ).all('pending');
+app.get('/api/booking-requests', auth, admin, async (_, res) => {
+  const rows = await dbAll(
+    'SELECT * FROM booking_requests WHERE status = ? ORDER BY created_at ASC, id ASC',
+    'pending'
+  );
   res.json(rows.map(normalizeBookingRequest));
 });
 
-app.get('/api/booking-requests/my', auth, (req, res) => {
+app.get('/api/booking-requests/my', auth, async (req, res) => {
   if (!requestUserIdCol) return res.json([]);
-  const rows = db.prepare(
-    `SELECT * FROM booking_requests WHERE ${requestUserIdCol} = ? ORDER BY id DESC`
-  ).all(req.user.id);
+  const rows = await dbAll(
+    `SELECT * FROM booking_requests WHERE ${requestUserIdCol} = ? ORDER BY id DESC`,
+    req.user.id
+  );
   res.json(rows.map(normalizeBookingRequest));
 });
 
-app.put('/api/booking-requests/:id', auth, admin, (req, res) => {
+app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
   const requestId = Number(req.params.id);
-  const row = db.prepare('SELECT * FROM booking_requests WHERE id=?').get(requestId);
+  const row = await dbGet('SELECT * FROM booking_requests WHERE id=?', requestId);
   if (!row) return res.status(404).json({ error: 'Request not found' });
   if ((row.status || 'pending') !== 'pending') {
     return res.status(409).json({ error: 'Only pending requests can be edited' });
@@ -532,13 +499,13 @@ app.put('/api/booking-requests/:id', auth, admin, (req, res) => {
     return res.status(400).json({ error: detailsValidation.reason });
   }
 
-  db.prepare(`
+  await dbRun(`
     UPDATE booking_requests
     SET date=?, service=?, slot=?, details=?
     WHERE id=?
-  `).run(date, service, slot, JSON.stringify(details), requestId);
+  `, date, service, slot, JSON.stringify(details), requestId);
 
-  addBookingRecord({
+  await addBookingRecord({
     requestId,
     userId: current.userId,
     name: current.name,
@@ -555,9 +522,9 @@ app.put('/api/booking-requests/:id', auth, admin, (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/booking-requests/:id/approve', auth, admin, (req, res) => {
+app.post('/api/booking-requests/:id/approve', auth, admin, async (req, res) => {
   const requestId = Number(req.params.id);
-  const row = db.prepare('SELECT * FROM booking_requests WHERE id=?').get(requestId);
+  const row = await dbGet('SELECT * FROM booking_requests WHERE id=?', requestId);
 
   if (!row) return res.status(404).json({ error: 'Request not found' });
   if ((row.status || 'pending') !== 'pending') {
@@ -570,8 +537,8 @@ app.post('/api/booking-requests/:id/approve', auth, admin, (req, res) => {
     return res.status(400).json({ error: 'Request has invalid slot' });
   }
 
-  const approveTxn = db.transaction(() => {
-    const cal = db.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(request.date);
+  const approveTxn = await transaction(async (conn) => {
+    const cal = await conn.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(request.date);
     const maxSlots = cal?.max_slots ?? DEFAULT_MAX_SLOTS;
     const booked = cal?.booked ?? 0;
 
@@ -580,7 +547,7 @@ app.post('/api/booking-requests/:id/approve', auth, admin, (req, res) => {
     }
 
     if (isExclusiveService(request.service) && bookingSlotCol) {
-      const existing = db.prepare(
+      const existing = await conn.prepare(
         `SELECT 1 FROM bookings WHERE date=? AND ${bookingSlotCol}=? LIMIT 1`
       ).get(request.date, slot);
       if (existing) {
@@ -598,27 +565,30 @@ app.post('/api/booking-requests/:id/approve', auth, admin, (req, res) => {
     if (bookingDetailsCol) { cols.push(bookingDetailsCol); vals.push(request.details ? JSON.stringify(request.details) : null); }
     cols.push('date'); vals.push(request.date);
 
-    const insertResult = db.prepare(`
+    const insertResult = await conn.prepare(`
       INSERT INTO bookings (${cols.join(', ')})
       VALUES (${cols.map(() => '?').join(', ')})
+      RETURNING id
     `).run(...vals);
 
-    db.prepare(`
+    const bookingId = insertResult.lastInsertRowid || insertResult?.id || insertResult?.rows?.[0]?.id;
+
+    await conn.prepare(`
       INSERT INTO calendar (date, max_slots, booked)
       VALUES (?, ?, 1)
-      ON CONFLICT(date) DO UPDATE SET booked = booked + 1
+      ON CONFLICT(date) DO UPDATE SET booked = calendar.booked + 1
     `).run(request.date, maxSlots);
 
-    db.prepare(`
+    await conn.prepare(`
       UPDATE booking_requests
-      SET status='approved', reviewed_by=?, reviewed_at=datetime('now')
+      SET status='approved', reviewed_by=?, reviewed_at=CURRENT_TIMESTAMP
       WHERE id=?
     `).run(req.user.id, requestId);
 
-    addBookingRecord({
-      requestId: request.id,
-      bookingId: insertResult.lastInsertRowid,
-      userId: request.userId,
+      await addBookingRecord({
+        requestId: request.id,
+        bookingId,
+        userId: request.userId,
       name: request.name,
       email: request.email,
       service: request.service,
@@ -626,13 +596,13 @@ app.post('/api/booking-requests/:id/approve', auth, admin, (req, res) => {
       slot,
       details: request.details || null,
       action: 'approved',
-      actionBy: req.user.id
-    });
+        actionBy: req.user.id
+      }, conn);
 
-    return { ok: true, bookingId: insertResult.lastInsertRowid };
+    return { ok: true, bookingId };
   });
 
-  const result = approveTxn();
+  const result = approveTxn;
   if (!result.ok) {
     return res.status(409).json({ error: result.reason });
   }
@@ -648,22 +618,22 @@ app.post('/api/booking-requests/:id/approve', auth, admin, (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/booking-requests/:id/reject', auth, admin, (req, res) => {
+app.post('/api/booking-requests/:id/reject', auth, admin, async (req, res) => {
   const requestId = Number(req.params.id);
-  const row = db.prepare('SELECT * FROM booking_requests WHERE id=?').get(requestId);
+  const row = await dbGet('SELECT * FROM booking_requests WHERE id=?', requestId);
   if (!row) return res.status(404).json({ error: 'Request not found' });
   if ((row.status || 'pending') !== 'pending') {
     return res.status(409).json({ error: 'Request already processed' });
   }
 
-  db.prepare(`
+  await dbRun(`
     UPDATE booking_requests
-    SET status='rejected', reviewed_by=?, reviewed_at=datetime('now')
+    SET status='rejected', reviewed_by=?, reviewed_at=CURRENT_TIMESTAMP
     WHERE id=?
-  `).run(req.user.id, requestId);
+  `, req.user.id, requestId);
 
   const request = normalizeBookingRequest(row);
-  addBookingRecord({
+  await addBookingRecord({
     requestId: request.id,
     userId: request.userId,
     name: request.name,
@@ -680,12 +650,12 @@ app.post('/api/booking-requests/:id/reject', auth, admin, (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/booking-records', auth, admin, (_, res) => {
-  const rows = db.prepare(`
+app.get('/api/booking-records', auth, admin, async (_, res) => {
+  const rows = await dbAll(`
     SELECT id, request_id, booking_id, userId, name, email, service, date, slot, details, action, note, action_by, action_at
     FROM booking_records
     ORDER BY id DESC
-  `).all();
+  `);
   res.json(rows.map(r => ({
     id: r.id,
     requestId: r.request_id,
@@ -704,9 +674,9 @@ app.get('/api/booking-records', auth, admin, (_, res) => {
   })));
 });
 
-app.put('/api/bookings/:id', auth, admin, (req, res) => {
+app.put('/api/bookings/:id', auth, admin, async (req, res) => {
   const bookingId = Number(req.params.id);
-  const row = db.prepare('SELECT * FROM bookings WHERE id=?').get(bookingId);
+  const row = await dbGet('SELECT * FROM bookings WHERE id=?', bookingId);
   if (!row) return res.status(404).json({ error: 'Booking not found' });
 
   const current = normalizeBooking(row);
@@ -728,9 +698,9 @@ app.put('/api/bookings/:id', auth, admin, (req, res) => {
     return res.status(400).json({ error: detailsValidation.reason });
   }
 
-  const editTxn = db.transaction(() => {
+  const result = await transaction(async (conn) => {
     if (isExclusiveService(service) && bookingSlotCol) {
-      const conflict = db.prepare(
+      const conflict = await conn.prepare(
         `SELECT 1 FROM bookings WHERE id<>? AND date=? AND ${bookingSlotCol}=? LIMIT 1`
       ).get(bookingId, date, slot);
       if (conflict) {
@@ -739,17 +709,17 @@ app.put('/api/bookings/:id', auth, admin, (req, res) => {
     }
 
     if (date !== current.date) {
-      const cal = db.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(date);
+      const cal = await conn.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(date);
       const maxSlots = cal?.max_slots ?? DEFAULT_MAX_SLOTS;
       const booked = cal?.booked ?? 0;
       if (booked >= maxSlots) {
         return { ok: false, reason: 'Target date is fully booked' };
       }
 
-      db.prepare(
+      await conn.prepare(
         'UPDATE calendar SET booked = CASE WHEN booked > 0 THEN booked - 1 ELSE 0 END WHERE date=?'
       ).run(current.date);
-      db.prepare(`
+      await conn.prepare(`
         INSERT INTO calendar (date, max_slots, booked)
         VALUES (?, ?, 1)
         ON CONFLICT(date) DO UPDATE SET booked = booked + 1
@@ -760,13 +730,13 @@ app.put('/api/bookings/:id', auth, admin, (req, res) => {
     const slotCol = bookingSlotCol || 'slot';
     const detailsCol = bookingDetailsCol || 'details';
 
-    db.prepare(`
+    await conn.prepare(`
       UPDATE bookings
       SET date=?, ${serviceCol}=?, ${slotCol}=?, ${detailsCol}=?
       WHERE id=?
     `).run(date, service, slot, JSON.stringify(details), bookingId);
 
-    addBookingRecord({
+    await addBookingRecord({
       bookingId,
       userId: current.userId,
       name: current.name,
@@ -777,22 +747,21 @@ app.put('/api/bookings/:id', auth, admin, (req, res) => {
       details,
       action: 'booking_edited',
       actionBy: req.user.id
-    });
+    }, conn);
 
     return { ok: true };
   });
-
-  const result = editTxn();
   if (!result.ok) return res.status(409).json({ error: result.reason });
 
   io.emit('booking_updated', { id: bookingId, date, slot, service });
   res.json({ success: true });
 });
 
-app.delete('/api/bookings/:id', auth, (req, res) => {
-  const booking = db.prepare(
-    'SELECT * FROM bookings WHERE id=?'
-  ).get(req.params.id);
+app.delete('/api/bookings/:id', auth, async (req, res) => {
+  const booking = await dbGet(
+    'SELECT * FROM bookings WHERE id=?',
+    req.params.id
+  );
 
   if (!booking) return res.status(404).json({ error: 'Not found' });
 
@@ -803,12 +772,13 @@ app.delete('/api/bookings/:id', auth, (req, res) => {
   if (!isAdmin && !isOwner)
     return res.status(403).json({ error: 'Forbidden' });
 
-  db.prepare('DELETE FROM bookings WHERE id=?').run(req.params.id);
-  db.prepare(
-    'UPDATE calendar SET booked = CASE WHEN booked > 0 THEN booked - 1 ELSE 0 END WHERE date=?'
-  ).run(booking.date);
+  await dbRun('DELETE FROM bookings WHERE id=?', req.params.id);
+  await dbRun(
+    'UPDATE calendar SET booked = CASE WHEN booked > 0 THEN booked - 1 ELSE 0 END WHERE date=?',
+    booking.date
+  );
 
-  addBookingRecord({
+  await addBookingRecord({
     bookingId: normalized.id,
     userId: normalized.userId,
     name: normalized.name,
@@ -826,20 +796,20 @@ app.delete('/api/bookings/:id', auth, (req, res) => {
 });
 
 /* ===================== EVENTS ===================== */
-app.get('/api/events', auth, (_, res) => {
-  const rows = db.prepare('SELECT * FROM events').all();
+app.get('/api/events', auth, async (_, res) => {
+  const rows = await dbAll('SELECT * FROM events');
   res.json(rows.map(normalizeEvent));
 });
 
-app.post('/api/events', auth, admin, (req, res) => {
-  db.prepare(
+app.post('/api/events', auth, admin, async (req, res) => {
+  await dbRun(
     `INSERT INTO events (${[
       eventTitleCol || 'title',
       eventDateCol || 'date',
       eventTimeCol || 'time',
       eventDescCol || 'description'
     ].join(', ')}) VALUES (?, ?, ?, ?)`
-  ).run(
+  ,
     req.body.title,
     req.body.date,
     req.body.time || '',
@@ -850,8 +820,8 @@ app.post('/api/events', auth, admin, (req, res) => {
   res.json({ success: true });
 });
 
-app.put('/api/events/:id', auth, admin, (req, res) => {
-  const event = db.prepare('SELECT * FROM events WHERE id=?').get(req.params.id);
+app.put('/api/events/:id', auth, admin, async (req, res) => {
+  const event = await dbGet('SELECT * FROM events WHERE id=?', req.params.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
   const title = String(req.body.title ?? '').trim();
@@ -863,51 +833,50 @@ app.put('/api/events/:id', auth, admin, (req, res) => {
     return res.status(400).json({ error: 'Title and date are required' });
   }
 
-  db.prepare(
+  await dbRun(
     `UPDATE events
      SET ${eventTitleCol || 'title'}=?,
          ${eventDateCol || 'date'}=?,
          ${eventTimeCol || 'time'}=?,
          ${eventDescCol || 'description'}=?
      WHERE id=?`
-  ).run(title, date, time, description, req.params.id);
+  , title, date, time, description, req.params.id);
 
   io.emit('event_updated', { id: Number(req.params.id) });
   res.json({ success: true });
 });
 
-app.delete('/api/events/:id', auth, admin, (req, res) => {
-  db.prepare('DELETE FROM events WHERE id=?').run(req.params.id);
+app.delete('/api/events/:id', auth, admin, async (req, res) => {
+  await dbRun('DELETE FROM events WHERE id=?', req.params.id);
   io.emit('event_deleted');
   res.json({ success: true });
 });
 
 /* ===================== CALENDAR ===================== */
-app.get('/api/calendar', auth, (_, res) => {
-  const rows = db.prepare('SELECT * FROM calendar').all();
+app.get('/api/calendar', auth, async (_, res) => {
+  const rows = await dbAll('SELECT * FROM calendar');
   const map = {};
   rows.forEach(r => map[r.date] = r);
   res.json(map);
 });
 
-app.post('/api/calendar', auth, admin, (req, res) => {
+app.post('/api/calendar', auth, admin, async (req, res) => {
   const { date, max_slots } = req.body;
 
-  db.prepare(`
+  await dbRun(`
     INSERT INTO calendar (date, max_slots)
     VALUES (?, ?)
     ON CONFLICT(date) DO UPDATE SET max_slots=excluded.max_slots
-  `).run(date, max_slots);
+  `, date, max_slots);
 
   io.emit('calendar_config_updated', { date });
   res.json({ success: true });
 });
 
 /* ===================== USERS ===================== */
-app.get('/api/users', auth, admin, (_, res) => {
-  res.json(
-    db.prepare('SELECT id,name,email,role FROM users').all()
-  );
+app.get('/api/users', auth, admin, async (_, res) => {
+  const rows = await dbAll('SELECT id,name,email,role FROM users');
+  res.json(rows);
 });
 
 /* ===================== SOCKET ===================== */
@@ -917,7 +886,15 @@ io.on('connection', () => {
 
 /* ===================== START SERVER ===================== */
 const PORT = Number(process.env.PORT) || 4000;
-server.listen(PORT, () => {
-  console.log(`SQLite server running on port ${PORT}`);
+
+(async () => {
+  await initDatabase();
+  await ensureAdminUser();
+  server.listen(PORT, () => {
+    console.log(`${usePg ? 'PostgreSQL' : 'SQLite'} server running on port ${PORT}`);
+  });
+})().catch(err => {
+  console.error('Failed to start server', err);
+  process.exit(1);
 });
 
