@@ -1,9 +1,11 @@
 import axios from 'axios';
 
-const DEFAULT_API_BASE = 'http://localhost:4000/api';
+const DEFAULT_API_BASE = 'http://localhost:5000/api';
 const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL ||
-  (process.env.NODE_ENV === 'production' ? '/api' : DEFAULT_API_BASE);
+  (process.env.NODE_ENV === 'production' 
+    ? 'https://church-booking-api.railway.app/api'  // Update this to your deployed backend URL
+    : DEFAULT_API_BASE);
 
 const api = axios.create({
   baseURL: API_BASE_URL
