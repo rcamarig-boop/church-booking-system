@@ -10,20 +10,23 @@ import api from './api';
 
 export const SocketContext = createContext();
 const DEFAULT_SOCKET_URL = 'http://localhost:4000';
-const socketBaseFromApi = process.env.REACT_APP_API_BASE_URL
-  ? process.env.REACT_APP_API_BASE_URL.replace(/\/api\/?$/, '')
+const rawApiBase = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL;
+const socketBaseFromApi = rawApiBase
+  ? rawApiBase.replace(/\/api\/?$/, '')
   : null;
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
   socketBaseFromApi ||
   (process.env.NODE_ENV === 'production' ? window.location.origin : DEFAULT_SOCKET_URL);
 const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
-const MAX_NOTIFICATIONS = 50;
+const MAX_NOTIFICATIONS = 30;
+const NOTIFICATION_PAGE_SIZE = 10;
 const NOTIFICATION_DEDUPE_WINDOW_MS = 15000;
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('landing');
   const [notifications, setNotifications] = useState([]);
+  const [notificationsHasMore, setNotificationsHasMore] = useState(false);
   const [eventsForNotify, setEventsForNotify] = useState([]);
   const notifiedEventIdsRef = useRef(new Set());
   const userRef = useRef(null);
@@ -32,6 +35,33 @@ export default function App() {
 
   useEffect(() => {
     userRef.current = user;
+  }, [user]);
+
+  const getNotificationsKey = (u) => (u?.id ? `church_notifications_${u.id}` : null);
+
+  useEffect(() => {
+    if (!user) {
+      setNotifications([]);
+      setNotificationsHasMore(false);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await api.notifications.list({ limit: NOTIFICATION_PAGE_SIZE, offset: 0 });
+        const rows = res.data || [];
+        setNotifications(rows.map(n => ({
+          id: n.id,
+          type: n.type,
+          text: n.text,
+          createdAt: n.created_at,
+          read: !!n.read
+        })));
+        setNotificationsHasMore(rows.length === NOTIFICATION_PAGE_SIZE);
+      } catch {
+        setNotifications([]);
+        setNotificationsHasMore(false);
+      }
+    })();
   }, [user]);
 
   const addNotification = useCallback((incoming) => {
@@ -51,16 +81,38 @@ export default function App() {
       }
     }
 
-    setNotifications(prev => [
-      {
-        id: incoming?.id || `${now}-${Math.random().toString(36).slice(2, 8)}`,
-        type,
-        text,
-        createdAt: incoming?.createdAt || new Date(now).toISOString(),
-        read: false
-      },
-      ...prev
-    ].slice(0, MAX_NOTIFICATIONS));
+    api.notifications.create({ type, text }).then((res) => {
+      const row = res?.data;
+      if (!row?.id) return;
+      setNotifications(prev => [
+        {
+          id: row.id,
+          type: row.type,
+          text: row.text,
+          createdAt: row.created_at,
+          read: !!row.read
+        },
+        ...prev
+      ].slice(0, MAX_NOTIFICATIONS));
+    }).catch(() => {});
+  }, []);
+
+  const refreshNotifications = useCallback(async () => {
+    if (!userRef.current) return;
+    try {
+      const res = await api.notifications.list({ limit: NOTIFICATION_PAGE_SIZE, offset: 0 });
+      const rows = res.data || [];
+      setNotifications(rows.map(n => ({
+        id: n.id,
+        type: n.type,
+        text: n.text,
+        createdAt: n.created_at,
+        read: !!n.read
+      })));
+      setNotificationsHasMore(rows.length === NOTIFICATION_PAGE_SIZE);
+    } catch {
+      // ignore
+    }
   }, []);
 
   const scheduleEventRefresh = useCallback(() => {
@@ -89,51 +141,40 @@ export default function App() {
     socket.on('connect', () => console.log('[Socket] Connected'));
     socket.on('disconnect', () => console.log('[Socket] Disconnected'));
 
-    const onNewBooking = (b) => {
-      if (userRef.current && b.userId === userRef.current.id) {
-        addNotification({
-          type: 'new_booking',
-          text: `Booking confirmed: ${b.service} on ${b.date} (${b.slot})`,
-          dedupeKey: `new_booking:${b.id || `${b.date}:${b.slot}:${b.service}`}`
-        });
-      }
-    };
-    const onBookingDeleted = (b) => {
-      addNotification({
-        type: 'deleted',
-        text: `Booking cancelled for ${b.date}`,
-        dedupeKey: `deleted:${b.id || b.date}`
-      });
-    };
-    const onCalendarConfigUpdated = (b) => {
-      addNotification({
-        type: 'config',
-        text: `Calendar updated for ${b.date}`,
-        dedupeKey: `config:${b.date}`
-      });
-    };
+    const onNewBooking = () => refreshNotifications();
+    const onBookingRequestCreated = () => refreshNotifications();
+    const onBookingDeleted = () => refreshNotifications();
+    const onCalendarConfigUpdated = () => refreshNotifications();
     const onEventChanged = () => scheduleEventRefresh();
+    const onConcernCreated = () => refreshNotifications();
+    const onConcernUpdated = () => refreshNotifications();
 
     socket.on('new_booking', onNewBooking);
+    socket.on('booking_request_created', onBookingRequestCreated);
     socket.on('booking_deleted', onBookingDeleted);
     socket.on('calendar_config_updated', onCalendarConfigUpdated);
     socket.on('event_created', onEventChanged);
     socket.on('event_updated', onEventChanged);
     socket.on('event_deleted', onEventChanged);
+    socket.on('concern_created', onConcernCreated);
+    socket.on('concern_updated', onConcernUpdated);
 
     return () => {
       socket.off('new_booking', onNewBooking);
+      socket.off('booking_request_created', onBookingRequestCreated);
       socket.off('booking_deleted', onBookingDeleted);
       socket.off('calendar_config_updated', onCalendarConfigUpdated);
       socket.off('event_created', onEventChanged);
       socket.off('event_updated', onEventChanged);
-      socket.off('event_deleted', onEventChanged);
+    socket.off('event_deleted', onEventChanged);
+    socket.off('concern_created', onConcernCreated);
+    socket.off('concern_updated', onConcernUpdated);
       if (eventRefreshTimerRef.current) {
         clearTimeout(eventRefreshTimerRef.current);
         eventRefreshTimerRef.current = null;
       }
     };
-  }, [addNotification, scheduleEventRefresh]);
+  }, [addNotification, scheduleEventRefresh, refreshNotifications]);
 
   useEffect(() => {
     if (!user) return;
@@ -180,15 +221,53 @@ export default function App() {
     setNotifications(prev =>
       prev.map(n => (n.id === id ? { ...n, read: true } : n))
     );
+    api.notifications.markRead([id]).catch(() => {});
   }, []);
 
   const markAllNotificationsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => (n.read ? n : { ...n, read: true })));
+    setNotifications(prev => {
+      const ids = prev.filter(n => !n.read).map(n => n.id);
+      if (ids.length) api.notifications.markRead(ids).catch(() => {});
+      return prev.map(n => (n.read ? n : { ...n, read: true }));
+    });
+  }, []);
+
+  const deleteNotification = useCallback((id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    api.notifications.delete(id).catch(() => {});
   }, []);
 
   const clearNotifications = useCallback(() => {
     setNotifications([]);
+    api.notifications.clear().catch(() => {});
   }, []);
+
+  const loadMoreNotifications = useCallback(async () => {
+    try {
+      const res = await api.notifications.list({
+        limit: NOTIFICATION_PAGE_SIZE,
+        offset: notifications.length
+      });
+      const rows = res.data || [];
+      if (!rows.length) {
+        setNotificationsHasMore(false);
+        return;
+      }
+      setNotifications(prev => [
+        ...prev,
+        ...rows.map(n => ({
+          id: n.id,
+          type: n.type,
+          text: n.text,
+          createdAt: n.created_at,
+          read: !!n.read
+        }))
+      ].slice(0, MAX_NOTIFICATIONS));
+      setNotificationsHasMore(rows.length === NOTIFICATION_PAGE_SIZE);
+    } catch {
+      setNotificationsHasMore(false);
+    }
+  }, [notifications.length]);
 
   const handleLogin = ({ token, user }) => {
     const u = { ...user, token };
@@ -197,6 +276,13 @@ export default function App() {
     notifiedEventIdsRef.current = new Set();
     setUser(u);
     setCurrentPage('dashboard');
+  };
+
+  const handleUserUpdate = ({ token, user }) => {
+    const u = { ...user, token };
+    localStorage.setItem('church_user', JSON.stringify(u));
+    api.setToken(token);
+    setUser(u);
   };
 
   const handleLogout = () => {
@@ -228,15 +314,18 @@ export default function App() {
       {currentPage === 'dashboard' && user && (
         <>
           {user.role === 'admin' ? (
-            <AdminDashboard user={user} onLogout={handleLogout} />
+            <AdminDashboard user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
           ) : (
-            <Dashboard user={user} onLogout={handleLogout} />
+            <Dashboard user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
           )}
           <NotificationCenter
             items={notifications}
             onMarkRead={markNotificationRead}
             onMarkAllRead={markAllNotificationsRead}
             onClearAll={clearNotifications}
+            onDelete={deleteNotification}
+            onLoadMore={loadMoreNotifications}
+            hasMore={notificationsHasMore}
           />
         </>
       )}

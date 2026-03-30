@@ -27,6 +27,8 @@ const td = {
   background: '#fff',
 };
 
+const PAGE_SIZE = 10;
+
 const dangerBtn = {
   padding: '8px 12px',
   background: '#b0413e',
@@ -38,6 +40,17 @@ const dangerBtn = {
   fontWeight: 600,
 };
 
+const SERVICE_FIELDS = {
+  counseling: ['fullName', 'phone', 'concern'],
+  baptism: ['childName', 'birthDate', 'parentNames'],
+  wedding: ['groomName', 'brideName', 'contactNumber'],
+  blessing: ['personName', 'blessingType'],
+  funeral: ['deceasedName', 'deceasedBirthDate', 'dateOfDeath', 'familyContact'],
+  christening: ['childName', 'guardianName', 'contactNumber']
+};
+
+const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
+
 export default function AdminDashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
 
@@ -47,6 +60,14 @@ export default function AdminDashboard({ user, onLogout }) {
   const [events, setEvents] = useState([]);
   const [calendarConfig, setCalendarConfig] = useState({});
   const [users, setUsers] = useState([]);
+  const [concerns, setConcerns] = useState([]);
+  const [concernReplyOpen, setConcernReplyOpen] = useState(false);
+  const [replyConcern, setReplyConcern] = useState(null);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [replyStatus, setReplyStatus] = useState('open');
+  const [replyResolutionNote, setReplyResolutionNote] = useState('');
+  const [replySaving, setReplySaving] = useState(false);
+  const [replyError, setReplyError] = useState('');
   const [loading, setLoading] = useState(true);
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -65,6 +86,62 @@ export default function AdminDashboard({ user, onLogout }) {
   const [eventFilter, setEventFilter] = useState('upcoming'); // 'upcoming' | 'past'
   const [bookingFilter, setBookingFilter] = useState('upcoming'); // 'upcoming' | 'past'
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [openConcernsCount, setOpenConcernsCount] = useState(0);
+  const [bookingPage, setBookingPage] = useState(1);
+  const [eventPage, setEventPage] = useState(1);
+  const [userPage, setUserPage] = useState(1);
+  const [recordPage, setRecordPage] = useState(1);
+  const [concernPage, setConcernPage] = useState(1);
+  const [bookingHasMore, setBookingHasMore] = useState(false);
+  const [eventHasMore, setEventHasMore] = useState(false);
+  const [userHasMore, setUserHasMore] = useState(false);
+  const [recordHasMore, setRecordHasMore] = useState(false);
+  const [concernHasMore, setConcernHasMore] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [profileName, setProfileName] = useState(user?.name || '');
+  const [profileEmail, setProfileEmail] = useState(user?.email || '');
+  const [profilePassword, setProfilePassword] = useState('');
+  const [profileConfirm, setProfileConfirm] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [bookingEditorOpen, setBookingEditorOpen] = useState(false);
+  const [bookingSaving, setBookingSaving] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+  const [editingBooking, setEditingBooking] = useState(null);
+  const [bookingForm, setBookingForm] = useState({
+    service: '',
+    date: '',
+    slot: '',
+    details: ''
+  });
+  const [bookingDetailsFields, setBookingDetailsFields] = useState({});
+  const [bookingDetailsExtra, setBookingDetailsExtra] = useState('');
+  const [timeTrigger, setTimeTrigger] = useState(0);
+
+  const buildDetailsState = (service, detailsObj) => {
+    const key = String(service || '').trim().toLowerCase();
+    const fields = SERVICE_FIELDS[key] || [];
+    const fieldValues = {};
+    fields.forEach(f => {
+      fieldValues[f] = detailsObj?.[f] ?? '';
+    });
+    const extras = {};
+    if (detailsObj && typeof detailsObj === 'object') {
+      Object.keys(detailsObj).forEach(k => {
+        if (!fields.includes(k)) extras[k] = detailsObj[k];
+      });
+    }
+    return { fieldValues, extrasText: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : '' };
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileName(user.name || '');
+    setProfileEmail(user.email || '');
+  }, [user]);
 
   const editEvent = async (event) => {
     const title = window.prompt('Title', event.title || '');
@@ -84,51 +161,34 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   };
 
-  const editAcceptedBooking = async (booking) => {
-    const service = window.prompt('Service', booking.service || '');
-    if (service === null) return;
-    const date = window.prompt('Date (YYYY-MM-DD)', booking.date || '');
-    if (date === null) return;
-    const slot = window.prompt('Time slot (HH:MM, AM, or PM)', booking.slot || '');
-    if (slot === null) return;
-    const detailsText = window.prompt(
-      'Details Information',
-      JSON.stringify(booking.details || {}, null, 2)
-    );
-    if (detailsText === null) return;
-
-    let details = {};
-    try {
-      details = detailsText.trim() ? JSON.parse(detailsText) : {};
-    } catch {
-      window.alert('Invalid details JSON.');
-      return;
-    }
-
-    try {
-      await api.bookings.update(booking.id, { service, date, slot, details });
-      await loadData();
-    } catch (err) {
-      window.alert(err.response?.data?.error || 'Failed to edit booking.');
-    }
+  const editAcceptedBooking = (booking) => {
+    const detailsObj = booking.details && typeof booking.details === 'object' ? booking.details : {};
+    const { fieldValues, extrasText } = buildDetailsState(booking.service, detailsObj);
+    setEditingBooking(booking);
+    setBookingForm({
+      service: booking.service || '',
+      date: booking.date || '',
+      slot: booking.slot || '',
+      details: JSON.stringify(booking.details || {}, null, 2)
+    });
+    setBookingDetailsFields(fieldValues);
+    setBookingDetailsExtra(extrasText);
+    setBookingError('');
+    setBookingEditorOpen(true);
   };
 
   /* ---------- load all admin data ---------- */
   const loadData = async () => {
     try {
-      const [b, r, e, c, u] = await Promise.all([
-        api.bookings.list(),
-        api.bookingRecords.list(),
-        api.events.list(),
+      const [c, reqCount, conCount] = await Promise.all([
         api.calendar.get(),
-        api.users.list(),
+        api.bookingRequests.count({ status: 'pending' }),
+        api.concerns.count({ status: 'open' })
       ]);
-
-      setBookings(b.data || []);
-      setRecords(r.data || []);
-      setEvents(e.data || []);
       setCalendarConfig(c.data || {});
-      setUsers(u.data || []);
+      setPendingRequestsCount(reqCount.data?.count || 0);
+      setOpenConcernsCount(conCount.data?.count || 0);
+      setRefreshKey(k => k + 1);
     } catch (err) {
       console.error('Admin load failed', err);
     } finally {
@@ -147,6 +207,8 @@ export default function AdminDashboard({ user, onLogout }) {
     socket.on('booking_deleted', refresh);
     socket.on('booking_request_created', refresh);
     socket.on('booking_request_updated', refresh);
+    socket.on('concern_created', refresh);
+    socket.on('concern_updated', refresh);
     socket.on('event_created', refresh);
     socket.on('event_updated', refresh);
     socket.on('event_deleted', refresh);
@@ -156,14 +218,127 @@ export default function AdminDashboard({ user, onLogout }) {
       socket.off('new_booking', refresh);
       socket.off('booking_updated', refresh);
       socket.off('booking_deleted', refresh);
-      socket.off('booking_request_created', refresh);
-      socket.off('booking_request_updated', refresh);
+    socket.off('booking_request_created', refresh);
+    socket.off('booking_request_updated', refresh);
+    socket.off('concern_created', refresh);
+    socket.off('concern_updated', refresh);
       socket.off('event_created', refresh);
       socket.off('event_updated', refresh);
       socket.off('event_deleted', refresh);
       socket.off('calendar_config_updated', refresh);
     };
   }, [socket]);
+
+  // Update every second to refresh time-based calculations
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setTimeTrigger(t => t + 1);
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Define search terms before useEffects that depend on them
+  const userSearchTerm = userSearch.trim().toLowerCase();
+  const eventSearchTerm = eventSearch.trim().toLowerCase();
+  const bookingSearchTerm = bookingSearch.trim().toLowerCase();
+  const recordSearchTerm = recordSearch.trim().toLowerCase();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.bookings.list({
+          limit: PAGE_SIZE,
+          offset: (bookingPage - 1) * PAGE_SIZE,
+          q: bookingSearchTerm,
+          filter: bookingFilter
+        });
+        const rows = res.data || [];
+        setBookings(rows);
+        setBookingHasMore(rows.length === PAGE_SIZE);
+      } catch {
+        setBookings([]);
+        setBookingHasMore(false);
+      }
+    })();
+  }, [bookingPage, refreshKey, bookingSearchTerm, bookingFilter]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.events.list({
+          limit: PAGE_SIZE,
+          offset: (eventPage - 1) * PAGE_SIZE,
+          q: eventSearchTerm,
+          filter: eventFilter
+        });
+        const rows = res.data || [];
+        setEvents(rows);
+        setEventHasMore(rows.length === PAGE_SIZE);
+      } catch {
+        setEvents([]);
+        setEventHasMore(false);
+      }
+    })();
+  }, [eventPage, refreshKey, eventSearchTerm, eventFilter]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.users.list({
+          limit: PAGE_SIZE,
+          offset: (userPage - 1) * PAGE_SIZE,
+          q: userSearchTerm
+        });
+        const rows = res.data || [];
+        setUsers(rows);
+        setUserHasMore(rows.length === PAGE_SIZE);
+      } catch {
+        setUsers([]);
+        setUserHasMore(false);
+      }
+    })();
+  }, [userPage, refreshKey, userSearchTerm]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.bookingRecords.list({
+          limit: PAGE_SIZE,
+          offset: (recordPage - 1) * PAGE_SIZE,
+          q: recordSearchTerm
+        });
+        const rows = res.data || [];
+        setRecords(rows);
+        setRecordHasMore(rows.length === PAGE_SIZE);
+      } catch {
+        setRecords([]);
+        setRecordHasMore(false);
+      }
+    })();
+  }, [recordPage, refreshKey, recordSearchTerm]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.concerns.list({
+          limit: PAGE_SIZE,
+          offset: (concernPage - 1) * PAGE_SIZE,
+          q: ''
+        });
+        const rows = res.data || [];
+        setConcerns(rows);
+        setConcernHasMore(rows.length === PAGE_SIZE);
+      } catch {
+        setConcerns([]);
+        setConcernHasMore(false);
+      }
+    })();
+  }, [concernPage, refreshKey]);
+
+  useEffect(() => { setBookingPage(1); }, [bookingSearchTerm, bookingFilter]);
+  useEffect(() => { setEventPage(1); }, [eventSearchTerm, eventFilter]);
+  useEffect(() => { setUserPage(1); }, [userSearchTerm]);
+  useEffect(() => { setRecordPage(1); }, [recordSearchTerm]);
 
   useEffect(() => {
     if (!bookingControlDate) return;
@@ -175,30 +350,8 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }, [bookingControlDate, calendarConfig]);
 
-  const userSearchTerm = userSearch.trim().toLowerCase();
-  const eventSearchTerm = eventSearch.trim().toLowerCase();
-  const bookingSearchTerm = bookingSearch.trim().toLowerCase();
-  const recordSearchTerm = recordSearch.trim().toLowerCase();
-
-  const filteredUsers = useMemo(
-    () => users.filter(u => {
-      if (!userSearchTerm) return true;
-      return [u.id, u.name, u.email, u.role]
-        .map(v => String(v || '').toLowerCase())
-        .some(v => v.includes(userSearchTerm));
-    }),
-    [users, userSearchTerm]
-  );
-
-  const filteredEvents = useMemo(
-    () => events.filter(e => {
-      if (!eventSearchTerm) return true;
-      return [e.id, e.title, e.date, e.time]
-        .map(v => String(v || '').toLowerCase())
-        .some(v => v.includes(eventSearchTerm));
-    }),
-    [events, eventSearchTerm]
-  );
+  const filteredUsers = useMemo(() => users, [users]);
+  const filteredEvents = useMemo(() => events, [events]);
 
   const now = useMemo(() => new Date(), []);
   const isPastEvent = (evt) => {
@@ -212,11 +365,7 @@ export default function AdminDashboard({ user, onLogout }) {
     return dt < now;
   };
 
-  const filteredEventsByStatus = useMemo(() => {
-    return filteredEvents.filter(e =>
-      eventFilter === 'past' ? isPastEvent(e) : !isPastEvent(e)
-    );
-  }, [filteredEvents, eventFilter]);
+  const filteredEventsByStatus = useMemo(() => events, [events]);
 
   const eventCounts = useMemo(() => {
     const upcoming = filteredEvents.filter(e => !isPastEvent(e)).length;
@@ -224,15 +373,7 @@ export default function AdminDashboard({ user, onLogout }) {
     return { upcoming, past };
   }, [filteredEvents]);
 
-  const filteredBookings = useMemo(
-    () => bookings.filter(b => {
-      if (!bookingSearchTerm) return true;
-      return [b.id, b.name, b.email, b.service, b.date, b.slot]
-        .map(v => String(v || '').toLowerCase())
-        .some(v => v.includes(bookingSearchTerm));
-    }),
-    [bookings, bookingSearchTerm]
-  );
+  const filteredBookings = useMemo(() => bookings, [bookings]);
 
   const isPastDateTime = (date, time) => {
     if (!date) return false;
@@ -245,13 +386,7 @@ export default function AdminDashboard({ user, onLogout }) {
     return dt < now;
   };
 
-  const filteredBookingsByStatus = useMemo(() => {
-    return filteredBookings.filter(b =>
-      bookingFilter === 'past'
-        ? isPastDateTime(b.date, b.slot)
-        : !isPastDateTime(b.date, b.slot)
-    );
-  }, [filteredBookings, bookingFilter]);
+  const filteredBookingsByStatus = useMemo(() => bookings, [bookings]);
 
   const bookingCounts = useMemo(() => {
     const upcoming = filteredBookings.filter(b => !isPastDateTime(b.date, b.slot)).length;
@@ -259,18 +394,8 @@ export default function AdminDashboard({ user, onLogout }) {
     return { upcoming, past };
   }, [filteredBookings]);
 
-  const filteredRecords = useMemo(
-    () => records.filter(r => {
-      if (!recordSearchTerm) return true;
-      const detailsText = r.details && typeof r.details === 'object'
-        ? JSON.stringify(r.details)
-        : String(r.details || '');
-      return [r.id, r.name, r.email, r.service, r.date, r.slot, r.action, r.actionAt, detailsText]
-        .map(v => String(v || '').toLowerCase())
-        .some(v => v.includes(recordSearchTerm));
-    }),
-    [records, recordSearchTerm]
-  );
+
+  const filteredRecords = useMemo(() => records, [records]);
 
   const reportData = useMemo(() => {
     const serviceCounts = bookings.reduce((acc, b) => {
@@ -312,31 +437,127 @@ export default function AdminDashboard({ user, onLogout }) {
     [bookings, todayStr]
   );
 
+  const normalizeSlotToTime = (slot) => {
+    const raw = String(slot || '').trim();
+    if (!raw) return null;
+    
+    const upper = raw.toUpperCase();
+    if (upper === 'AM') return '09:00';
+    if (upper === 'PM') return '15:00';
+    
+    // Try HH:MM format
+    let m = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) {
+      const hh = String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2, '0');
+      const mm = String(Math.min(59, Math.max(0, Number(m[2])))).padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+    
+    // Try HH:MM:SS format
+    m = raw.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+    if (m) {
+      const hh = String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2, '0');
+      const mm = String(Math.min(59, Math.max(0, Number(m[2])))).padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+    
+    // Try just hours (like "14" = 2 PM)
+    m = raw.match(/^(\d{1,2})$/);
+    if (m) {
+      const hh = String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2, '0');
+      return `${hh}:00`;
+    }
+    
+    // Try time with AM/PM suffix (like "2:30 PM")
+    m = raw.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+    if (m) {
+      let hh = Number(m[1]);
+      const mm = String(Math.min(59, Math.max(0, Number(m[2])))).padStart(2, '0');
+      const isPM = m[3].toUpperCase() === 'PM';
+      
+      if (isPM && hh !== 12) hh += 12;
+      if (!isPM && hh === 12) hh = 0;
+      
+      hh = Math.min(23, Math.max(0, hh));
+      return `${String(hh).padStart(2, '0')}:${mm}`;
+    }
+    
+    return null;
+  };
+
+  const upcomingWithinHour = useMemo(() => {
+    const now = new Date();
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const windowMs = endOfDay.getTime() - Date.now();
+    const nowMs = Date.now();
+    const upcoming = [];
+
+    events.forEach(e => {
+      if (!e.date || !e.time) return;
+      const dt = new Date(`${e.date}T${e.time}`);
+      const diff = dt.getTime() - nowMs;
+      if (Number.isNaN(dt.getTime()) || diff < 0 || diff > windowMs) return;
+      upcoming.push({
+        type: 'event',
+        id: `event-${e.id}`,
+        title: e.title,
+        date: e.date,
+        time: e.time
+      });
+    });
+
+    bookings.forEach(b => {
+      if (!b.date) return;
+      const time = normalizeSlotToTime(b.slot);
+      if (!time) return;
+      const dt = new Date(`${b.date}T${time}`);
+      const diff = dt.getTime() - nowMs;
+      if (Number.isNaN(dt.getTime()) || diff < 0 || diff > windowMs) return;
+      upcoming.push({
+        type: 'booking',
+        id: `booking-${b.id || `${b.date}-${b.slot}`}`,
+        title: b.service || 'Booking',
+        date: b.date,
+        time
+      });
+    });
+
+    return upcoming.sort((a, b) => {
+      const at = new Date(`${a.date}T${a.time}`).getTime();
+      const bt = new Date(`${b.date}T${b.time}`).getTime();
+      return at - bt;
+    });
+  }, [events, bookings, timeTrigger]);
+
   const activeTabLabel = useMemo(() => {
-    const map = {
-      calendar: 'Parish Calendar',
-      users: 'Parishioners',
-      events: 'Events',
-      bookings: 'Bookings',
-      requests: 'Request Panel',
-      records: 'Records',
-      reports: 'Reports',
-      add_event: 'Add Event'
-    };
+      const map = {
+        calendar: 'Parish Calendar',
+        users: 'Parishioners',
+        events: 'Events',
+        bookings: 'Bookings',
+        requests: 'Request Panel',
+        concerns: 'Concerns',
+        records: 'Records',
+        reports: 'Reports',
+        tracking: 'Action Tracking',
+        add_event: 'Add Event'
+      };
     return map[activeTab] || '';
   }, [activeTab]);
 
   const activeTabIcon = useMemo(() => {
-    const map = {
-      calendar: '⛪',
-      users: '👥',
-      events: '🕯',
-      bookings: '📅',
-      requests: '📜',
-      records: '📖',
-      reports: '🕊',
-      add_event: '✚'
-    };
+      const map = {
+        calendar: '⛪',
+        users: '👥',
+        events: '🕯',
+        bookings: '📅',
+        requests: '📜',
+        concerns: '📣',
+        records: '📖',
+        reports: '🕊',
+        tracking: '📊',
+        add_event: '✚'
+      };
     return map[activeTab] || '';
   }, [activeTab]);
 
@@ -400,31 +621,606 @@ export default function AdminDashboard({ user, onLogout }) {
           “Let all that you do be done in love.” — 1 Corinthians 16:14
         </div>
       </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 12,
+        margin: '8px 0 14px'
+      }}>
+        <div style={{
+          background: '#fff',
+          borderRadius: 16,
+          padding: '12px 14px',
+          border: `1px solid ${mist}`,
+          boxShadow: '0 8px 20px rgba(0,0,0,0.08)'
+        }}>
+          <div style={{ color: '#718096', fontSize: 12 }}>Events Today</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: ink }}>{todayEvents}</div>
+          <div style={{ color: '#718096', fontSize: 12 }}>{todayStr}</div>
+        </div>
+        <div style={{
+          background: '#fff',
+          borderRadius: 16,
+          padding: '12px 14px',
+          border: `1px solid ${mist}`,
+          boxShadow: '0 8px 20px rgba(0,0,0,0.08)'
+        }}>
+          <div style={{ color: '#718096', fontSize: 12 }}>Bookings Today</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: ink }}>{todayBookings}</div>
+          <div style={{ color: '#718096', fontSize: 12 }}>{todayStr}</div>
+        </div>
+        <div style={{
+          background: '#fff',
+          borderRadius: 16,
+          padding: '12px 14px',
+          border: `1px solid ${mist}`,
+          boxShadow: '0 8px 20px rgba(0,0,0,0.08)'
+        }}>
+          <div style={{ color: '#718096', fontSize: 12 }}>Upcoming Today</div>
+          {upcomingWithinHour.length === 0 ? (
+            <div style={{ color: '#718096', fontSize: 14, marginTop: 6 }}>No upcoming events or bookings.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 6, marginTop: 6 }}>
+              {upcomingWithinHour.map(item => (
+                <div key={item.id} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  fontSize: 13,
+                  color: ink
+                }}>
+                  <div style={{ fontWeight: 700 }}>
+                    {item.type === 'event' ? 'Event' : 'Booking'}: {item.title}
+                  </div>
+                  <div style={{ color: '#4a5568' }}>{item.date} {item.time}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      {profileEditorOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 20,
+            padding: 16
+          }}
+          onClick={() => {
+            if (!profileSaving) {
+              setProfileEditorOpen(false);
+              setProfileError('');
+              setProfilePassword('');
+              setProfileConfirm('');
+            }
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: '#fff',
+              borderRadius: 16,
+              padding: 20,
+              border: `1px solid ${mist}`,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.18)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: ink }}>Edit Profile</h3>
+              <button
+                onClick={() => {
+                  if (profileSaving) return;
+                  setProfileEditorOpen(false);
+                  setProfileError('');
+                  setProfilePassword('');
+                  setProfileConfirm('');
+                }}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  fontWeight: 700,
+                  padding: '4px 8px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Name</label>
+                <input
+                  type="text"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Email</label>
+                <input
+                  type="email"
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>New Password (optional)</label>
+                <input
+                  type="password"
+                  value={profilePassword}
+                  onChange={(e) => setProfilePassword(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Confirm New Password</label>
+                <input
+                  type="password"
+                  value={profileConfirm}
+                  onChange={(e) => setProfileConfirm(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                />
+              </div>
+              {profileError && (
+                <div style={{ color: '#b0413e', fontWeight: 600 }}>{profileError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    if (profileSaving) return;
+                    setProfileEditorOpen(false);
+                    setProfileError('');
+                    setProfilePassword('');
+                    setProfileConfirm('');
+                  }}
+                  style={{
+                    background: '#e2e8f0',
+                    color: '#1f2937',
+                    borderRadius: 10,
+                    padding: '8px 12px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={profileSaving}
+                  onClick={async () => {
+                    setProfileError('');
+                    if (profilePassword && profilePassword !== profileConfirm) {
+                      setProfileError('Passwords do not match.');
+                      return;
+                    }
+                    if (!profileName.trim() || !profileEmail.trim()) {
+                      setProfileError('Name and email are required.');
+                      return;
+                    }
+                    try {
+                      setProfileSaving(true);
+                      const res = await api.users.updateMe({
+                        name: profileName.trim(),
+                        email: profileEmail.trim(),
+                        password: profilePassword ? profilePassword : undefined
+                      });
+                      onUserUpdate?.(res.data);
+                      setProfileEditorOpen(false);
+                      setProfilePassword('');
+                      setProfileConfirm('');
+                    } catch (err) {
+                      setProfileError(err.response?.data?.error || 'Failed to update profile.');
+                    } finally {
+                      setProfileSaving(false);
+                    }
+                  }}
+                  style={{
+                    background: '#1f2a44',
+                    color: '#fff',
+                    borderRadius: 10,
+                    padding: '8px 12px'
+                  }}
+                >
+                  {profileSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {bookingEditorOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 20,
+            padding: 16
+          }}
+          onClick={() => {
+            if (!bookingSaving) {
+              setBookingEditorOpen(false);
+              setEditingBooking(null);
+              setBookingError('');
+            }
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 620,
+              background: '#fff',
+              borderRadius: 16,
+              padding: 20,
+              border: `1px solid ${mist}`,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.18)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: ink }}>Edit Booking</h3>
+              <button
+                onClick={() => {
+                  if (bookingSaving) return;
+                  setBookingEditorOpen(false);
+                  setEditingBooking(null);
+                  setBookingError('');
+                }}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  fontWeight: 700,
+                  padding: '4px 8px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Service</label>
+                <input
+                  type="text"
+                  value={bookingForm.service}
+                  onChange={(e) => setBookingForm(f => ({ ...f, service: e.target.value }))}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6 }}>Date</label>
+                  <input
+                    type="date"
+                    value={bookingForm.date}
+                    onChange={(e) => setBookingForm(f => ({ ...f, date: e.target.value }))}
+                    style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6 }}>Preferred Time</label>
+                  <input
+                    type="time"
+                    value={bookingForm.slot}
+                    onChange={(e) => setBookingForm(f => ({ ...f, slot: e.target.value }))}
+                    step="1800"
+                    style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Service Details</label>
+                {(() => {
+                  const key = String(bookingForm.service || '').trim().toLowerCase();
+                  const fields = SERVICE_FIELDS[key] || [];
+                  if (!fields.length) {
+                    return <div style={{ color: '#718096' }}>No structured fields for this service.</div>;
+                  }
+                  return (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      {fields.map(field => (
+                        <div key={field}>
+                          <label style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
+                            {field}
+                          </label>
+                          <input
+                            type="text"
+                            value={bookingDetailsFields[field] || ''}
+                            onChange={(e) => setBookingDetailsFields(prev => ({ ...prev, [field]: e.target.value }))}
+                            style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Additional Details (optional JSON)</label>
+                <textarea
+                  rows={4}
+                  value={bookingDetailsExtra}
+                  onChange={(e) => setBookingDetailsExtra(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                />
+              </div>
+              {bookingError && (
+                <div style={{ color: '#b0413e', fontWeight: 600 }}>{bookingError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    if (bookingSaving) return;
+                    setBookingEditorOpen(false);
+                    setEditingBooking(null);
+                    setBookingError('');
+                  }}
+                  style={{
+                    background: '#e2e8f0',
+                    color: '#1f2937',
+                    borderRadius: 10,
+                    padding: '8px 12px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={bookingSaving}
+                  onClick={async () => {
+                    if (!editingBooking?.id) {
+                      setBookingError('Missing booking id.');
+                      return;
+                    }
+                    const key = String(bookingForm.service || '').trim().toLowerCase();
+                    const fields = SERVICE_FIELDS[key] || [];
+                    for (const f of fields) {
+                      const val = String(bookingDetailsFields[f] || '').trim();
+                      if (!val) {
+                        setBookingError(`Missing required field: ${f}`);
+                        return;
+                      }
+                      if (NUMERIC_ONLY_FIELDS.has(f) && !/^\d+$/.test(val)) {
+                        setBookingError(`${f} must contain numbers only.`);
+                        return;
+                      }
+                    }
+                    let extra = {};
+                    try {
+                      extra = bookingDetailsExtra.trim() ? JSON.parse(bookingDetailsExtra) : {};
+                    } catch {
+                      setBookingError('Additional details must be valid JSON.');
+                      return;
+                    }
+                    const details = { ...extra, ...bookingDetailsFields };
+                    try {
+                      setBookingSaving(true);
+                      setBookingError('');
+                      await api.bookings.update(editingBooking.id, {
+                        service: bookingForm.service,
+                        date: bookingForm.date,
+                        slot: bookingForm.slot,
+                        details
+                      });
+                      setBookingEditorOpen(false);
+                      setEditingBooking(null);
+                      setBookingDetailsExtra('');
+                      setBookingDetailsFields({});
+                      await loadData();
+                    } catch (err) {
+                      setBookingError(err.response?.data?.error || 'Failed to edit booking.');
+                    } finally {
+                      setBookingSaving(false);
+                    }
+                  }}
+                  style={{
+                    background: accentBlue,
+                    color: '#fff',
+                    borderRadius: 10,
+                    padding: '8px 12px'
+                  }}
+                >
+                  {bookingSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {concernReplyOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 20,
+            padding: 16
+          }}
+          onClick={() => {
+            if (!replySaving) {
+              setConcernReplyOpen(false);
+              setReplyConcern(null);
+              setReplyMessage('');
+              setReplyError('');
+            }
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 560,
+              background: '#fff',
+              borderRadius: 16,
+              padding: 20,
+              border: `1px solid ${mist}`,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.18)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: ink }}>Reply to Concern</h3>
+              <button
+                onClick={() => {
+                  if (replySaving) return;
+                  setConcernReplyOpen(false);
+                  setReplyConcern(null);
+                  setReplyMessage('');
+                  setReplyError('');
+                }}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  fontWeight: 700,
+                  padding: '4px 8px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ color: '#4a5568', fontSize: 13 }}>
+                {replyConcern?.subject || 'Concern'}
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Status</label>
+                <select
+                  value={replyStatus}
+                  onChange={(e) => setReplyStatus(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                >
+                  <option value="open">Open</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              </div>
+              {replyStatus === 'resolved' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6 }}>Resolution Note (optional)</label>
+                  <input
+                    type="text"
+                    value={replyResolutionNote}
+                    onChange={(e) => setReplyResolutionNote(e.target.value)}
+                    style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  />
+                </div>
+              )}
+              <textarea
+                rows={5}
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                placeholder="Type your reply..."
+                style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+              />
+              {replyError && (
+                <div style={{ color: '#b0413e', fontWeight: 600 }}>{replyError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    if (replySaving) return;
+                    setConcernReplyOpen(false);
+                    setReplyConcern(null);
+                    setReplyMessage('');
+                    setReplyError('');
+                  }}
+                  style={{
+                    background: '#e2e8f0',
+                    color: '#1f2937',
+                    borderRadius: 10,
+                    padding: '8px 12px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={replySaving}
+                  onClick={async () => {
+                    if (!replyConcern?.id) {
+                      setReplyError('Missing concern id.');
+                      return;
+                    }
+                    const msg = replyMessage.trim();
+                    if (!msg) {
+                      setReplyError('Reply message is required.');
+                      return;
+                    }
+                    try {
+                      setReplySaving(true);
+                      setReplyError('');
+                      await api.concerns.update(replyConcern.id, {
+                        reply_message: msg,
+                        status: replyStatus,
+                        resolution_note: replyStatus === 'resolved' ? replyResolutionNote : ''
+                      });
+                      setConcernReplyOpen(false);
+                      setReplyConcern(null);
+                      setReplyMessage('');
+                      setReplyResolutionNote('');
+                      setReplyStatus('open');
+                      await loadData();
+                    } catch (err) {
+                      setReplyError(err.response?.data?.error || 'Failed to send reply.');
+                    } finally {
+                      setReplySaving(false);
+                    }
+                  }}
+                  style={{
+                    background: accentBlue,
+                    color: '#fff',
+                    borderRadius: 10,
+                    padding: '8px 12px'
+                  }}
+                >
+                  {replySaving ? 'Sending...' : 'Send Reply'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     <div className={`dashboard-layout dashboard-two-col ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
       <button
         className="sidebar-toggle-btn"
         aria-label={sidebarOpen ? 'Hide navigation panel' : 'Show navigation panel'}
         onClick={() => setSidebarOpen(v => !v)}
       >
-        {sidebarOpen ? '\u2715' : '\u2630'}
+        {sidebarOpen ? '\u2261' : '\u2261'}
       </button>
       <div className="dashboard-left-column">
       <aside className="dashboard-sidebar dashboard-left-panel" style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
-        <div className="dashboard-sidebar-header" style={{ paddingBottom: 6 }}>
-          <h3 style={{ margin: 0, color: ink }}>Admin Panel</h3>
+        <div className="dashboard-sidebar-header" style={{ paddingBottom: 12, borderBottom: `2px solid ${gold}`, position: 'relative' }}>
+          <h3 style={{ margin: '8px 0 0 0', color: ink, textAlign: 'center', fontSize: 17, fontWeight: 800 }}>✦ Admin Panel ✦</h3>
+          <div style={{ fontSize: 12, textAlign: 'center', color: gold, marginTop: 4 }}>Parish Management</div>
         </div>
         {/* Tab buttons on expandable sidebar */}
         <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{
-            background: '#fff',
-            borderRadius: 18,
-            padding: '12px 14px',
-            boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            border: `1px solid ${mist}`
-          }}>
+              background: '#fff',
+              borderRadius: 18,
+              padding: '12px 14px',
+              boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              border: `2px solid ${gold}`,
+              position: 'relative',
+              borderLeft: `4px solid ${gold}`
+            }}>
             <div style={{
               width: 48, height: 48, borderRadius: 14,
               background: '#cbd5e0',
@@ -452,6 +1248,73 @@ export default function AdminDashboard({ user, onLogout }) {
             }}>
               Admin
             </div>
+            <button
+              onClick={() => setProfileMenuOpen(v => !v)}
+              aria-label="Open profile menu"
+              style={{
+                marginLeft: 'auto',
+                background: '#f1f5f9',
+                border: `1px solid ${mist}`,
+                borderRadius: 10,
+                padding: '6px 10px',
+                fontWeight: 700,
+                color: ink,
+                cursor: 'pointer'
+              }}
+            >
+              ⋮
+            </button>
+            {profileMenuOpen && (
+              <div style={{
+                position: 'absolute',
+                right: 12,
+                top: '100%',
+                marginTop: 8,
+                background: '#fff',
+                border: `1px solid ${mist}`,
+                borderRadius: 12,
+                boxShadow: '0 12px 26px rgba(0,0,0,0.12)',
+                overflow: 'hidden',
+                zIndex: 5,
+                minWidth: 180
+              }}>
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    setProfileEditorOpen(true);
+                  }}
+                  style={{
+                    all: 'unset',
+                    display: 'block',
+                    width: '100%',
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    color: ink
+                  }}
+                >
+                  View Profile
+                </button>
+                <div style={{ height: 1, background: mist }} />
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    onLogout();
+                  }}
+                  style={{
+                    all: 'unset',
+                    display: 'block',
+                    width: '100%',
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    color: '#b0413e'
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
 
           <div style={{
@@ -461,12 +1324,14 @@ export default function AdminDashboard({ user, onLogout }) {
           }}>
             {[
               { key: 'calendar', label: 'Calendar', icon: '📅' },
-              { key: 'requests', label: 'Requests', icon: '📜' },
+              { key: 'requests', label: 'Requests', icon: '📜', count: pendingRequestsCount },
               { key: 'bookings', label: 'Bookings', icon: '✅' },
               { key: 'events', label: 'Events', icon: '🕯' },
               { key: 'users', label: 'Parishioners', icon: '👥' },
+              { key: 'concerns', label: 'Concerns', icon: '📣', count: openConcernsCount },
               { key: 'records', label: 'Records', icon: '📖' },
               { key: 'reports', label: 'Reports', icon: '🕊' },
+              { key: 'tracking', label: 'Actions', icon: '📊' },
               { key: 'add_event', label: 'Add Event', icon: '✚' },
             ].map(tab => (
               <button
@@ -475,19 +1340,85 @@ export default function AdminDashboard({ user, onLogout }) {
                 style={{
                   all: 'unset',
                   cursor: 'pointer',
-                  background: '#fff',
+                  background: activeTab === tab.key ? `linear-gradient(135deg, ${accentBlue}, ${accentBlue}dd)` : '#fff',
                   borderRadius: 16,
-                  border: `1px solid ${activeTab === tab.key ? accentBlue : mist}`,
+                  border: `2px solid ${activeTab === tab.key ? gold : mist}`,
                   padding: '12px 10px',
                   textAlign: 'center',
                   transition: 'all 0.2s ease',
-                  boxShadow: activeTab === tab.key ? `0 4px 12px ${accentBlue}30` : 'none'
+                  boxShadow: activeTab === tab.key ? `0 6px 16px ${accentBlue}40` : '0 2px 8px rgba(0,0,0,0.05)'
                 }}
               >
                 <div style={{ fontSize: 20, marginBottom: 4 }}>{tab.icon}</div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: ink }}>{tab.label}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: activeTab === tab.key ? '#fff' : ink }}>{tab.label}</div>
+                  {tab.count > 0 && (
+                    <span style={{
+                      background: '#b0413e',
+                      color: '#fff',
+                      borderRadius: 999,
+                      padding: '2px 7px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      lineHeight: 1
+                    }}>
+                      {tab.count}
+                    </span>
+                  )}
+                </div>
               </button>
             ))}
+          </div>
+
+          {/* Church-themed footer decoration with expandable space */}
+          <div style={{
+            marginTop: 'auto',
+            paddingTop: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16
+          }}>
+            <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
+            
+            <div style={{
+              padding: '24px 16px',
+              background: `linear-gradient(135deg, ${stone}80, ${mist}60)`,
+              borderRadius: 14,
+              borderTop: `4px solid ${gold}`,
+              borderLeft: `4px solid ${gold}`,
+              textAlign: 'center',
+              color: ink,
+              fontSize: 13,
+              fontWeight: 600,
+              lineHeight: 1.8,
+              boxShadow: `inset 0 0 20px ${gold}15`
+            }}>
+              <div style={{ fontSize: 28, marginBottom: 12, letterSpacing: 4 }}>✦</div>
+              <div style={{ color: '#4a5568', fontSize: 13, fontStyle: 'italic', marginBottom: 12, fontWeight: 500 }}>
+                "In God, we trust"
+              </div>
+              <div style={{ fontSize: 12, color: '#6b7280', borderTop: `2px solid ${gold}40`, paddingTop: 12, lineHeight: 1.7 }}>
+                May this parish be a beacon of love, faith, and community
+              </div>
+              <div style={{ fontSize: 11, color: '#4a5568', marginTop: 12, paddingTop: 12, borderTop: `1px solid ${gold}40`, fontWeight: 600 }}>
+                ☎️ Contact: +639##-###-#### |
+              </div>
+            </div>
+
+            <div style={{
+              padding: '12px 16px',
+              background: `${mist}40`,
+              borderRadius: 10,
+              borderLeft: `4px solid ${gold}`,
+              fontSize: 11,
+              color: '#6b7280',
+              textAlign: 'center',
+              fontStyle: 'italic'
+            }}>
+              "Let us gather in fellowship and serve with compassion"
+            </div>
+
+            <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
           </div>
         </div>
       </aside>
@@ -508,7 +1439,7 @@ export default function AdminDashboard({ user, onLogout }) {
           isAdmin
         />
 
-      <div className="dashboard-main dashboard-left-content" style={{ background: '#fff', borderRadius: 16, boxShadow: '0 18px 40px rgba(0,0,0,0.1)', border: `1px solid ${mist}`, padding: 16 }}>
+      <div className="dashboard-main dashboard-left-content" style={{ background: '#fff', borderRadius: 16, boxShadow: '0 18px 40px rgba(0,0,0,0.1)', border: `2px solid ${gold}`, padding: 16, borderTop: `4px solid ${gold}` }}>
         {/* TAB CONTENT */}
         {activeTab === 'calendar' && (
           <div>
@@ -641,7 +1572,7 @@ export default function AdminDashboard({ user, onLogout }) {
         {/* USERS */}
         {activeTab === 'users' && (
           <div>
-            <h2>Users</h2>
+            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Parishioners</h2>
             <input
               type="text"
               placeholder="Search users by id, name, email, role"
@@ -659,7 +1590,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map(u => (
+                {users.map(u => (
                   <tr key={u.id}>
                     <td style={td}>{u.id}</td>
                     <td style={td}>{u.name}</td>
@@ -667,20 +1598,39 @@ export default function AdminDashboard({ user, onLogout }) {
                     <td style={td}>{u.role}</td>
                   </tr>
                 ))}
-                {filteredUsers.length === 0 && (
+                {users.length === 0 && (
                   <tr>
                     <td style={td} colSpan={4}>No users match your search.</td>
                   </tr>
                 )}
               </tbody>
             </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
+              <button
+                onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                disabled={userPage <= 1}
+                style={{ ...dangerBtn, background: '#94a3b8' }}
+              >
+                Prev
+              </button>
+              <div style={{ color: '#4a5568', fontWeight: 600 }}>
+                Page {userPage}
+              </div>
+              <button
+                onClick={() => setUserPage(p => p + 1)}
+                disabled={!userHasMore}
+                style={{ ...dangerBtn, background: accentBlue }}
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
 
         {/* EVENTS */}
         {activeTab === 'events' && (
           <div>
-            <h2>Events</h2>
+            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Events</h2>
             <input
             type="text"
             placeholder="Search events by id, title, date, time"
@@ -728,7 +1678,7 @@ export default function AdminDashboard({ user, onLogout }) {
               </tr>
             </thead>
             <tbody>
-              {filteredEventsByStatus.map(e => {
+              {events.map(e => {
                 const past = isPastEvent(e);
                 return (
                   <tr key={e.id}>
@@ -761,20 +1711,39 @@ export default function AdminDashboard({ user, onLogout }) {
                   </tr>
                 );
               })}
-              {filteredEventsByStatus.length === 0 && (
+              {events.length === 0 && (
                 <tr>
                   <td style={td} colSpan={6}>No events match your search.</td>
                 </tr>
               )}
             </tbody>
           </table>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
+            <button
+              onClick={() => setEventPage(p => Math.max(1, p - 1))}
+              disabled={eventPage <= 1}
+              style={{ ...dangerBtn, background: '#94a3b8' }}
+            >
+              Prev
+            </button>
+            <div style={{ color: '#4a5568', fontWeight: 600 }}>
+              Page {eventPage}
+            </div>
+            <button
+              onClick={() => setEventPage(p => p + 1)}
+              disabled={!eventHasMore}
+              style={{ ...dangerBtn, background: accentBlue }}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 
       {/* BOOKINGS */}
       {activeTab === 'bookings' && (
         <div>
-          <h2>Bookings</h2>
+          <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Bookings</h2>
           <input
             type="text"
             placeholder="Search bookings by id, user, service, date, time"
@@ -823,7 +1792,7 @@ export default function AdminDashboard({ user, onLogout }) {
               </tr>
             </thead>
             <tbody>
-              {filteredBookingsByStatus.map(b => {
+              {bookings.map(b => {
                 const past = isPastDateTime(b.date, b.slot);
                 return (
                   <tr key={b.id}>
@@ -857,13 +1826,32 @@ export default function AdminDashboard({ user, onLogout }) {
                   </tr>
                 );
               })}
-              {filteredBookingsByStatus.length === 0 && (
+              {bookings.length === 0 && (
                 <tr>
                   <td style={td} colSpan={7}>No bookings match your search.</td>
                 </tr>
               )}
             </tbody>
           </table>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
+            <button
+              onClick={() => setBookingPage(p => Math.max(1, p - 1))}
+              disabled={bookingPage <= 1}
+              style={{ ...dangerBtn, background: '#94a3b8' }}
+            >
+              Prev
+            </button>
+            <div style={{ color: '#4a5568', fontWeight: 600 }}>
+              Page {bookingPage}
+            </div>
+            <button
+              onClick={() => setBookingPage(p => p + 1)}
+              disabled={!bookingHasMore}
+              style={{ ...dangerBtn, background: accentBlue }}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 
@@ -871,9 +1859,190 @@ export default function AdminDashboard({ user, onLogout }) {
           <AdminRequestPanel onDecision={loadData} />
         )}
 
+        {activeTab === 'concerns' && (
+          <div>
+            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Concerns</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={th}>ID</th>
+                  <th style={th}>User</th>
+                  <th style={th}>Email</th>
+                  <th style={th}>Subject</th>
+                  <th style={th}>Message</th>
+                  <th style={th}>Status</th>
+                  <th style={th}>Reply</th>
+                  <th style={th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {concerns.map(c => {
+                  const statusLower = String(c.status || 'open').toLowerCase();
+                  const isResolved = statusLower === 'resolved';
+                  const isPending = statusLower === 'pending';
+                  const isUpdating = statusLower === 'updating';
+                  
+                  let statusColor = '#b0413e';
+                  let statusBg = '#fff5f5';
+                  let statusIcon = '⏳';
+                  
+                  if (isResolved) {
+                    statusColor = '#2f855a';
+                    statusBg = '#f0fdf4';
+                    statusIcon = '✓';
+                  } else if (isPending) {
+                    statusColor = '#d97706';
+                    statusBg = '#fffbeb';
+                    statusIcon = '⏱';
+                  } else if (isUpdating) {
+                    statusColor = '#0284c7';
+                    statusBg = '#f0f9ff';
+                    statusIcon = '↻';
+                  }
+                  
+                  return (
+                    <tr key={c.id}>
+                      <td style={td}>{c.id}</td>
+                      <td style={td}>{c.name || '-'}</td>
+                      <td style={td}>{c.email || '-'}</td>
+                      <td style={td}>{c.subject || '-'}</td>
+                      <td style={td}>{c.message || '-'}</td>
+                      <td style={{ ...td, fontWeight: 600 }}>
+                        <div style={{
+                          display: 'inline-block',
+                          padding: '4px 10px',
+                          borderRadius: 12,
+                          background: statusBg,
+                          color: statusColor,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          textTransform: 'capitalize',
+                          border: `1px solid ${statusColor}30`
+                        }}>
+                          {statusIcon} {c.status || 'open'}
+                        </div>
+                      </td>
+                      <td style={td}>{c.reply_message || '-'}</td>
+                      <td style={td}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => {
+                              setReplyConcern(c);
+                              setReplyMessage(c.reply_message || '');
+                              setReplyStatus(String(c.status || 'open').toLowerCase() === 'resolved' ? 'resolved' : 'open');
+                              setReplyResolutionNote(c.resolution_note || '');
+                              setReplyError('');
+                              setConcernReplyOpen(true);
+                            }}
+                            style={{
+                              padding: '6px 10px',
+                              background: accentBlue,
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = '#2d4a6f'}
+                            onMouseLeave={(e) => e.target.style.background = accentBlue}
+                          >
+                            ✉️ Reply
+                          </button>
+                          <button
+                            disabled={isResolved}
+                            onClick={async () => {
+                              const note = window.prompt('Resolution note (optional):', '');
+                              try {
+                                await api.concerns.update(c.id, { status: 'resolved', resolution_note: note || '' });
+                                loadData();
+                              } catch (err) {
+                                window.alert(err.response?.data?.error || 'Failed to resolve concern.');
+                              }
+                            }}
+                            style={{
+                              padding: '6px 10px',
+                              background: isResolved ? '#cbd5e0' : '#2f855a',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 6,
+                              cursor: isResolved ? 'not-allowed' : 'pointer',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => !isResolved && (e.target.style.background = '#1e5c3a')}
+                            onMouseLeave={(e) => !isResolved && (e.target.style.background = '#2f855a')}
+                          >
+                            {isResolved ? '✓ Resolved' : '✓ Resolve'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm('Delete this concern?')) return;
+                              try {
+                                await api.concerns.delete(c.id);
+                                loadData();
+                              } catch (err) {
+                                window.alert(err.response?.data?.error || 'Failed to delete concern.');
+                              }
+                            }}
+                            style={{
+                              padding: '6px 10px',
+                              background: '#b0413e',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = '#8b2e2a'}
+                            onMouseLeave={(e) => e.target.style.background = '#b0413e'}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {concerns.length === 0 && (
+                  <tr>
+                    <td style={td} colSpan={8}>No concerns submitted yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
+              <button
+                onClick={() => setConcernPage(p => Math.max(1, p - 1))}
+                disabled={concernPage <= 1}
+                style={{ ...dangerBtn, background: '#94a3b8' }}
+              >
+                Prev
+              </button>
+              <div style={{ color: '#4a5568', fontWeight: 600 }}>
+                Page {concernPage}
+              </div>
+              <button
+                onClick={() => setConcernPage(p => p + 1)}
+                disabled={!concernHasMore}
+                style={{ ...dangerBtn, background: accentBlue }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'records' && (
           <div>
-            <h2>Booking Records</h2>
+            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Booking Records</h2>
             <input
               type="text"
               placeholder="Search records by user, service, action, date, details"
@@ -895,7 +2064,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredRecords.map(r => (
+                {records.map(r => (
                   <tr key={r.id}>
                     <td style={td}>{r.id}</td>
                     <td style={td}>{r.name || r.email || '-'}</td>
@@ -914,21 +2083,40 @@ export default function AdminDashboard({ user, onLogout }) {
                     <td style={td}>{r.actionAt || '-'}</td>
                   </tr>
                 ))}
-                {filteredRecords.length === 0 && (
+                {records.length === 0 && (
                   <tr>
                     <td style={td} colSpan={8}>No booking records match your search.</td>
                   </tr>
                 )}
               </tbody>
             </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
+              <button
+                onClick={() => setRecordPage(p => Math.max(1, p - 1))}
+                disabled={recordPage <= 1}
+                style={{ ...dangerBtn, background: '#94a3b8' }}
+              >
+                Prev
+              </button>
+              <div style={{ color: '#4a5568', fontWeight: 600 }}>
+                Page {recordPage}
+              </div>
+              <button
+                onClick={() => setRecordPage(p => p + 1)}
+                disabled={!recordHasMore}
+                style={{ ...dangerBtn, background: accentBlue }}
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
 
         {activeTab === 'reports' && (
           <div>
-            <h2>Reporting</h2>
+            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Reporting</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 16 }}>
-              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+              <div style={{ background: '#fff', border: `2px solid ${gold}`, borderTop: `4px solid ${gold}`, borderRadius: 8, padding: 12, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
                 <div style={{ color: '#6b7280', fontSize: 12 }}>Total Parishioners</div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalUsers}</div>
               </div>
@@ -1104,6 +2292,112 @@ export default function AdminDashboard({ user, onLogout }) {
             >
               {eventSaving ? 'Saving...' : 'Create Event'}
             </button>
+          </div>
+        )}
+
+        {activeTab === 'tracking' && (
+          <div>
+            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>📊 Admin Action Log</h2>
+            <div style={{
+              display: 'grid',
+              gap: 12
+            }}>
+              <div style={{
+                padding: '16px',
+                background: `linear-gradient(135deg, ${stone}40, ${mist}40)`,
+                borderRadius: 12,
+                border: `2px solid ${gold}`,
+                color: ink
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16 }}>📈 System Activity Overview</div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+                  <div style={{
+                    background: '#fff',
+                    padding: '12px',
+                    borderRadius: 10,
+                    border: `1px solid ${mist}`,
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: 24, marginBottom: 4 }}>📣</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>Open Concerns</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{openConcernsCount}</div>
+                  </div>
+                  <div style={{
+                    background: '#fff',
+                    padding: '12px',
+                    borderRadius: 10,
+                    border: `1px solid ${mist}`,
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: 24, marginBottom: 4 }}>📜</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>Pending Requests</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{pendingRequestsCount}</div>
+                  </div>
+                  <div style={{
+                    background: '#fff',
+                    padding: '12px',
+                    borderRadius: 10,
+                    border: `1px solid ${mist}`,
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: 24, marginBottom: 4 }}>📅</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>Total Bookings</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{bookings.length}</div>
+                  </div>
+                  <div style={{
+                    background: '#fff',
+                    padding: '12px',
+                    borderRadius: 10,
+                    border: `1px solid ${mist}`,
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: 24, marginBottom: 4 }}>🕯</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>Total Events</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{events.length}</div>
+                  </div>
+                </div>
+
+                <div style={{
+                  borderTop: `2px solid ${mist}`,
+                  paddingTop: 16,
+                  marginTop: 16
+                }}>
+                  <div style={{ fontWeight: 700, marginBottom: 12 }}>Recent Concerns</div>
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    {concerns.slice(0, 5).length > 0 ? (
+                      concerns.slice(0, 5).map(c => {
+                        const statusLower = String(c.status || 'open').toLowerCase();
+                        let statusIcon = '📬';
+                        if (statusLower === 'resolved') statusIcon = '✅';
+                        else if (statusLower === 'pending') statusIcon = '⏱';
+                        else if (statusLower === 'updating') statusIcon = '🔄';
+                        
+                        return (
+                          <div key={c.id} style={{
+                            padding: '10px',
+                            background: '#fff',
+                            borderRadius: 8,
+                            border: `1px solid ${mist}`,
+                            borderLeft: `4px solid ${gold}`
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, color: ink }}>{c.subject || 'No subject'}</div>
+                                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>From: {c.name || 'Unknown'}</div>
+                              </div>
+                              <div style={{ fontSize: 16 }}>{statusIcon}</div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ color: '#6b7280', fontSize: 13, padding: '12px', textAlign: 'center' }}>No concerns to track.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

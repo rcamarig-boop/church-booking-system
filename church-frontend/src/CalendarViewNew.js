@@ -137,28 +137,44 @@ export default function CalendarViewNew({
     const booked = bookingsByDate[date] || 0;
     if (booked >= max) return 'red';
     if (booked <= 0) return 'green';
-    if (booked <= max / 4) return 'yellow';
-    return 'orange';
+    if (booked > max / 2) return 'orange';
+    return 'yellow';
   };
 
   /* ---------------------------
      MODAL
   --------------------------- */
   const openModal = (date) => {
-    const ownBookings = bookings
-      .filter(b => b.date === date)
-      .map(b => ({ ...b, _type: 'booking', _isOwner: true }));
-
     const eventItems = events
       .filter(e => e.date === date)
       .map(e => ({ ...e, _type: 'event' }));
 
+    // Use the same booking source for the modal as we use for the calendar counts
+    const allBookingsForDate = bookingSource
+      .filter(b => b.date === date)
+      .map(b => {
+        // Determine if this booking belongs to the current user
+        // Check various possible user ID field names
+        const isOwner = user && (
+          b.userId === user.id || 
+          b.user_id === user.id || 
+          b.userId === user._id || 
+          b.user_id === user._id
+        );
+        
+        return {
+          ...b,
+          _type: 'booking',
+          _isOwner: isOwner
+        };
+      });
+
     const modalItems = isAdmin
       ? [
           ...eventItems,
-          ...bookings.filter(b => b.date === date).map(b => ({ ...b, _type: 'booking' }))
+          ...allBookingsForDate
         ]
-      : [...eventItems, ...ownBookings];
+      : [...eventItems, ...allBookingsForDate];
 
     setModalDate(date);
     setModalEvents(modalItems);

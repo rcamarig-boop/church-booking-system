@@ -7,7 +7,9 @@ const SERVICE_OPTIONS = [
   'Wedding',
   'Blessing',
   'Funeral',
-  'Christening'
+  'Christening',
+  'Confessions',
+  'Pastoral Visits'
 ];
 
 const SERVICE_FORM_FIELDS = {
@@ -41,6 +43,18 @@ const SERVICE_FORM_FIELDS = {
     { key: 'childName', label: 'Child Name', required: true },
     { key: 'guardianName', label: 'Guardian Name', required: true },
     { key: 'contactNumber', label: 'Contact Number', required: true }
+  ],
+  Confessions: [
+    { key: 'fullName', label: 'Full Name', required: true },
+    { key: 'phone', label: 'Phone Number', required: true },
+    { key: 'frequencyOfConfession', label: 'Frequency of Confession', required: true },
+    { key: 'confessionNotes', label: 'Topic or Concern (Optional)', required: false, textarea: true }
+  ],
+  'Pastoral Visits': [
+    { key: 'fullName', label: 'Full Name', required: true },
+    { key: 'phone', label: 'Phone Number', required: true },
+    { key: 'reasonForVisit', label: 'Reason for Visit', required: true, textarea: true },
+    { key: 'specialNeeds', label: 'Special Needs or Notes (Optional)', required: false, textarea: true }
   ]
 };
 
@@ -190,7 +204,7 @@ export default function BookingModal({
         {currentMode === 'list' && (
           <>
             <ul style={{ paddingLeft: 16, marginBottom: 16, color: palette.ink, lineHeight: 1.5 }}>
-              {events.length === 0 && <li>No events</li>}
+              {events.length === 0 && <li>No events or bookings</li>}
               {events.map((e, idx) => {
                 const slotLabel = e.slot ?? e.time_slot ?? e.time ?? 'Time TBD';
                 const serviceLabel = e.service ?? e.service_type ?? e.title ?? 'Booking';
@@ -198,9 +212,30 @@ export default function BookingModal({
                   e._type === 'booking' ||
                   (!!(e.slot ?? e.time_slot) && !!(e.service ?? e.service_type));
                 const canCancelThis = canCancel && isBooking && e._isOwner && e.id;
+                const isOtherMemberBooking = isBooking && !e._isOwner;
+                
                 return (
-                  <li key={e.id ?? `${slotLabel}-${serviceLabel}-${idx}`} style={{ marginBottom: 6 }}>
+                  <li 
+                    key={e.id ?? `${slotLabel}-${serviceLabel}-${idx}`} 
+                    style={{ 
+                      marginBottom: 6,
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      background: isOtherMemberBooking ? 'rgba(214,173,96,0.1)' : 'transparent',
+                      border: isOtherMemberBooking ? `1px solid ${palette.gold}` : 'none'
+                    }}
+                  >
                     <strong>{slotLabel}</strong> · {serviceLabel}
+                    {isOtherMemberBooking && (
+                      <span style={{ 
+                        marginLeft: 8, 
+                        fontSize: 12, 
+                        color: palette.gold,
+                        fontWeight: 600 
+                      }}>
+                        (Member Booked)
+                      </span>
+                    )}
                     {canCancelThis && (
                       <button
                         style={{

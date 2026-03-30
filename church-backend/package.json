@@ -3,10 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "test-pg": "node test-pg-connection.js",
-    "migrate": "node migrate_sqlite_to_pg.js",
-    "migrate:sqlite-to-pg": "node migrate_sqlite_to_pg.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -18,8 +15,6 @@
     "jsonwebtoken": "^9.0.0",
     "node-cron": "^3.0.2",
     "nodemailer": "^8.0.1",
-    "pg": "^8.11.5",
-    "socket.io": "^4.7.2",
-    "sqlite3": "^5.0.2"
+    "socket.io": "^4.7.2"
   }
 }

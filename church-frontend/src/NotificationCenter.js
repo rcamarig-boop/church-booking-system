@@ -13,7 +13,10 @@ export default function NotificationCenter({
   items,
   onMarkRead,
   onMarkAllRead,
-  onClearAll
+  onClearAll,
+  onDelete,
+  onLoadMore,
+  hasMore
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -182,38 +185,74 @@ export default function NotificationCenter({
               No notifications
             </div>
           ) : (
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-              {items.map((n) => (
-                <li
-                  key={n.id}
-                  onClick={() => onMarkRead?.(n.id)}
-                  style={{
-                    padding: 12,
-                    borderBottom: '1px solid #e2e8f0',
-                    borderLeft: `4px solid ${getColor(n.type)}`,
-                    background: n.read ? '#fff' : palette.stone,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 600, color: palette.ink }}>
-                    {getIcon(n.type)} {n.text}
-                  </div>
-                  <div
+            <>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {items.map((n) => (
+                  <li
+                    key={n.id}
+                    onClick={() => onMarkRead?.(n.id)}
                     style={{
-                      fontSize: 11,
-                      color: '#a0aec0',
-                      textTransform: 'uppercase',
-                      marginTop: 4,
-                      display: 'flex',
-                      justifyContent: 'space-between'
+                      padding: 12,
+                      borderBottom: '1px solid #e2e8f0',
+                      borderLeft: `4px solid ${getColor(n.type)}`,
+                      background: n.read ? '#fff' : palette.stone,
+                      cursor: 'pointer'
                     }}
                   >
-                    <span>{n.type}</span>
-                    <span>{formatWhen(n.createdAt)}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: palette.ink }}>
+                        {getIcon(n.type)} {n.text}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete?.(n.id);
+                        }}
+                        aria-label="Delete notification"
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          color: palette.wine,
+                          fontSize: 14
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: '#a0aec0',
+                        textTransform: 'uppercase',
+                        marginTop: 4,
+                        display: 'flex',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <span>{n.type}</span>
+                      <span>{formatWhen(n.createdAt)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {hasMore && (
+                <button
+                  onClick={() => onLoadMore?.()}
+                  style={{
+                    width: '100%',
+                    padding: 10,
+                    border: 'none',
+                    background: '#f7fafc',
+                    color: palette.blue,
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Load older
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
