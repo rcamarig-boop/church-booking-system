@@ -11,6 +11,8 @@ const ink = '#1f2a44';
 const gold = '#d6ad60';
 const mist = '#e7dfcf';
 const accentBlue = '#3b5b8a';
+const churchDisplayFont = "'Cormorant Garamond', Georgia, serif";
+const churchBodyFont = "'Alegreya Sans', 'Segoe UI', sans-serif";
 
 const th = {
   padding: 10,
@@ -50,6 +52,7 @@ const SERVICE_FIELDS = {
 };
 
 const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
+const CHAPEL_OPTIONS = ['Main Chapel', 'Side Chapel #1'];
 
 export default function AdminDashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
@@ -119,6 +122,7 @@ export default function AdminDashboard({ user, onLogout }) {
     details: ''
   });
   const [bookingDetailsFields, setBookingDetailsFields] = useState({});
+  const [bookingChapel, setBookingChapel] = useState('');
   const [bookingDetailsExtra, setBookingDetailsExtra] = useState('');
   const [timeTrigger, setTimeTrigger] = useState(0);
 
@@ -132,10 +136,15 @@ export default function AdminDashboard({ user, onLogout }) {
     const extras = {};
     if (detailsObj && typeof detailsObj === 'object') {
       Object.keys(detailsObj).forEach(k => {
+        if (k === 'chapel') return;
         if (!fields.includes(k)) extras[k] = detailsObj[k];
       });
     }
-    return { fieldValues, extrasText: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : '' };
+    return {
+      fieldValues,
+      chapel: detailsObj?.chapel || '',
+      extrasText: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : ''
+    };
   };
 
   useEffect(() => {
@@ -164,7 +173,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const editAcceptedBooking = (booking) => {
     const detailsObj = booking.details && typeof booking.details === 'object' ? booking.details : {};
-    const { fieldValues, extrasText } = buildDetailsState(booking.service, detailsObj);
+    const { fieldValues, chapel, extrasText } = buildDetailsState(booking.service, detailsObj);
     setEditingBooking(booking);
     setBookingForm({
       service: booking.service || '',
@@ -173,6 +182,7 @@ export default function AdminDashboard({ user, onLogout }) {
       details: JSON.stringify(booking.details || {}, null, 2)
     });
     setBookingDetailsFields(fieldValues);
+    setBookingChapel(chapel);
     setBookingDetailsExtra(extrasText);
     setBookingError('');
     setBookingEditorOpen(true);
@@ -600,25 +610,75 @@ export default function AdminDashboard({ user, onLogout }) {
     <div
       className="dashboard-page"
       style={{
+        fontFamily: churchBodyFont,
+        color: ink,
         background:
           "linear-gradient(135deg, rgba(248, 244, 236, 0.9), rgba(255,255,255,0.82)), url('/login-bg.jpg') center/cover no-repeat fixed"
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, marginBottom: 16, flexWrap: 'wrap-reverse' }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className="church-ornament-top" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 20,
+        marginBottom: 16,
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            className="sidebar-toggle-btn"
+            aria-label="Show navigation panel"
+            onClick={() => setSidebarOpen(v => !v)}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              fontSize: 24,
+              color: '#fff',
+              fontWeight: 800,
+              padding: '8px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, rgba(31,42,68,0.98), rgba(59,91,138,0.92))',
+              border: `1px solid ${gold}`,
+              boxShadow: '0 10px 24px rgba(31,42,68,0.18), inset 0 1px 0 rgba(255,255,255,0.2)',
+              minWidth: 48
+            }}
+          >
+            ☰
+          </button>
+          <div className="dashboard-brand" style={{ paddingTop: 0, paddingBottom: 0, textAlign: 'left' }}>
+            <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0, fontFamily: churchDisplayFont, letterSpacing: 0.6 }}>Parish Admin</div>
+            <div className="dashboard-brand-subtitle" style={{ color: '#4a5568', marginTop: 4, fontFamily: churchBodyFont, fontStyle: 'italic' }}>Parish Management</div>
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 8,
+          flexWrap: 'wrap',
+          marginLeft: 'auto'
+        }}>
           <button
             onClick={() => setActiveTab('analytics')}
             style={{
               all: 'unset',
               cursor: 'pointer',
-              padding: '8px 14px',
-              borderRadius: 8,
-              background: activeTab === 'analytics' ? gold : 'transparent',
+              padding: '7px 10px',
+              borderRadius: 999,
+              background: activeTab === 'analytics' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
-              fontWeight: 600,
-              fontSize: 13,
+              fontWeight: 800,
+              fontSize: 11,
               transition: 'all 0.2s ease',
-              border: `1px solid ${activeTab === 'analytics' ? gold : 'transparent'}`
+              border: `1px solid ${activeTab === 'analytics' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'analytics' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
             }}
           >
             📊 Analytics
@@ -628,14 +688,18 @@ export default function AdminDashboard({ user, onLogout }) {
             style={{
               all: 'unset',
               cursor: 'pointer',
-              padding: '8px 14px',
-              borderRadius: 8,
-              background: activeTab === 'records' ? gold : 'transparent',
+              padding: '7px 10px',
+              borderRadius: 999,
+              background: activeTab === 'records' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
-              fontWeight: 600,
-              fontSize: 13,
+              fontWeight: 800,
+              fontSize: 11,
               transition: 'all 0.2s ease',
-              border: `1px solid ${activeTab === 'records' ? gold : 'transparent'}`
+              border: `1px solid ${activeTab === 'records' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'records' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
             }}
           >
             📖 Records
@@ -645,34 +709,84 @@ export default function AdminDashboard({ user, onLogout }) {
             style={{
               all: 'unset',
               cursor: 'pointer',
-              padding: '8px 14px',
-              borderRadius: 8,
-              background: activeTab === 'bookings' ? gold : 'transparent',
+              padding: '7px 10px',
+              borderRadius: 999,
+              background: activeTab === 'bookings' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
-              fontWeight: 600,
-              fontSize: 13,
+              fontWeight: 800,
+              fontSize: 11,
               transition: 'all 0.2s ease',
-              border: `1px solid ${activeTab === 'bookings' ? gold : 'transparent'}`
+              border: `1px solid ${activeTab === 'bookings' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'bookings' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
             }}
           >
             ✅ Bookings
           </button>
           <button
-            onClick={() => setActiveTab('concerns')}
-            style={{
-              all: 'unset',
-              cursor: 'pointer',
-              padding: '8px 14px',
-              borderRadius: 8,
-              background: activeTab === 'concerns' ? gold : 'transparent',
+          onClick={() => setActiveTab('concerns')}
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            padding: '7px 10px',
+              borderRadius: 999,
+              background: activeTab === 'concerns' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
-              fontWeight: 600,
-              fontSize: 13,
+              fontWeight: 800,
+              fontSize: 11,
               transition: 'all 0.2s ease',
-              border: `1px solid ${activeTab === 'concerns' ? gold : 'transparent'}`
+              border: `1px solid ${activeTab === 'concerns' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'concerns' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
             }}
           >
             📣 Concerns
+          </button>
+          <button
+            onClick={() => setActiveTab('requests')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '7px 10px',
+              borderRadius: 999,
+              background: activeTab === 'requests' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
+              color: ink,
+              fontWeight: 800,
+              fontSize: 11,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'requests' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'requests' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
+            }}
+          >
+            📜 Requests
+          </button>
+          <button
+            onClick={() => setActiveTab('calendar')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '7px 10px',
+              borderRadius: 999,
+              background: activeTab === 'calendar' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
+              color: ink,
+              fontWeight: 800,
+              fontSize: 11,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'calendar' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'calendar' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
+            }}
+          >
+            📅 Calendar
           </button>
           <div style={{ position: 'relative' }}>
             <button
@@ -758,41 +872,6 @@ export default function AdminDashboard({ user, onLogout }) {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button
-            className="sidebar-toggle-btn"
-            aria-label="Show navigation panel"
-            onClick={() => setSidebarOpen(v => !v)}
-            style={{
-              all: 'unset',
-              cursor: 'pointer',
-              fontSize: 28,
-              color: ink,
-              fontWeight: 800,
-              padding: '6px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            ☰
-          </button>
-          <div className="dashboard-brand" style={{ paddingTop: 0, paddingBottom: 0 }}>
-            <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0 }}>Parish Admin</div>
-        <div style={{
-          marginTop: 10,
-          background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.25), rgba(176,65,62,0.18))',
-          borderRadius: 10,
-          padding: '10px 16px',
-          color: ink,
-          fontSize: 13,
-          boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-          display: 'inline-block'
-        }}>
-          “Let all that you do be done in love.” — 1 Corinthians 16:14
-            </div>
           </div>
         </div>
       </div>
@@ -1008,6 +1087,19 @@ export default function AdminDashboard({ user, onLogout }) {
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
               <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Chapel</label>
+                <select
+                  value={bookingChapel}
+                  onChange={(e) => setBookingChapel(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}`, background: '#fff' }}
+                >
+                  <option value="">Select a chapel</option>
+                  {CHAPEL_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Service</label>
                 <input
                   type="text"
@@ -1093,11 +1185,16 @@ export default function AdminDashboard({ user, onLogout }) {
                 >
                   Cancel
                 </button>
-                <button
-                  disabled={bookingSaving}
+              <button
+                className="dashboard-action-btn dashboard-action-btn--primary"
+                disabled={bookingSaving}
                   onClick={async () => {
                     if (!editingBooking?.id) {
                       setBookingError('Missing booking id.');
+                      return;
+                    }
+                    if (!String(bookingChapel || '').trim()) {
+                      setBookingError('Chapel is required.');
                       return;
                     }
                     const key = String(bookingForm.service || '').trim().toLowerCase();
@@ -1120,7 +1217,7 @@ export default function AdminDashboard({ user, onLogout }) {
                       setBookingError('Additional details must be valid JSON.');
                       return;
                     }
-                    const details = { ...extra, ...bookingDetailsFields };
+                    const details = { chapel: bookingChapel, ...extra, ...bookingDetailsFields };
                     try {
                       setBookingSaving(true);
                       setBookingError('');
@@ -1132,6 +1229,7 @@ export default function AdminDashboard({ user, onLogout }) {
                       });
                       setBookingEditorOpen(false);
                       setEditingBooking(null);
+                      setBookingChapel('');
                       setBookingDetailsExtra('');
                       setBookingDetailsFields({});
                       await loadData();
@@ -1265,6 +1363,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   Cancel
                 </button>
                 <button
+                  className="dashboard-action-btn dashboard-action-btn--primary"
                   disabled={replySaving}
                   onClick={async () => {
                     if (!replyConcern?.id) {
@@ -1339,6 +1438,7 @@ export default function AdminDashboard({ user, onLogout }) {
               { key: 'add_event', label: 'Add Event', icon: '✚' },
             ].map(tab => (
               <button
+                className="dashboard-tab-btn dashboard-tab-btn--admin"
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 style={{
@@ -2375,6 +2475,7 @@ export default function AdminDashboard({ user, onLogout }) {
               <div style={{ color: 'red', marginBottom: 12 }}>{eventError}</div>
             )}
             <button
+              className="dashboard-action-btn dashboard-action-btn--primary"
               disabled={eventSaving}
               onClick={async () => {
                 if (!eventTitle.trim() || !eventDate) {
@@ -2433,7 +2534,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16 }}>📈 System Activity Overview</div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
-                  <div style={{
+                <div className="church-card" style={{
                     background: '#fff',
                     padding: '12px',
                     borderRadius: 10,
@@ -2444,7 +2545,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Open Concerns</div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{openConcernsCount}</div>
                   </div>
-                  <div style={{
+                <div className="church-card" style={{
                     background: '#fff',
                     padding: '12px',
                     borderRadius: 10,
@@ -2455,7 +2556,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Pending Requests</div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{pendingRequestsCount}</div>
                   </div>
-                  <div style={{
+                <div className="church-card" style={{
                     background: '#fff',
                     padding: '12px',
                     borderRadius: 10,
@@ -2466,7 +2567,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Total Bookings</div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{bookings.length}</div>
                   </div>
-                  <div style={{
+                <div className="church-card" style={{
                     background: '#fff',
                     padding: '12px',
                     borderRadius: 10,

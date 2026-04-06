@@ -39,6 +39,7 @@ const SERVICE_FIELDS = {
 };
 
 const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
+const CHAPEL_OPTIONS = ['Main Chapel', 'Side Chapel #1'];
 
 const actionWrap = {
   display: 'flex',
@@ -75,6 +76,7 @@ export default function AdminRequestPanel({ onDecision }) {
     details: ''
   });
   const [editorDetailsFields, setEditorDetailsFields] = useState({});
+  const [editorChapel, setEditorChapel] = useState('');
   const [editorDetailsExtra, setEditorDetailsExtra] = useState('');
 
   const buildDetailsState = (service, detailsObj) => {
@@ -87,10 +89,15 @@ export default function AdminRequestPanel({ onDecision }) {
     const extras = {};
     if (detailsObj && typeof detailsObj === 'object') {
       Object.keys(detailsObj).forEach(k => {
+        if (k === 'chapel') return;
         if (!fields.includes(k)) extras[k] = detailsObj[k];
       });
     }
-    return { fieldValues, extrasText: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : '' };
+    return {
+      fieldValues,
+      chapel: detailsObj?.chapel || '',
+      extrasText: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : ''
+    };
   };
 
   const [hasMore, setHasMore] = useState(false);
@@ -145,7 +152,7 @@ export default function AdminRequestPanel({ onDecision }) {
 
   const handleEdit = (request) => {
     const detailsObj = request.details && typeof request.details === 'object' ? request.details : {};
-    const { fieldValues, extrasText } = buildDetailsState(request.service, detailsObj);
+    const { fieldValues, chapel, extrasText } = buildDetailsState(request.service, detailsObj);
     setEditingRequest(request);
     setEditorForm({
       service: request.service || '',
@@ -154,6 +161,7 @@ export default function AdminRequestPanel({ onDecision }) {
       details: JSON.stringify(request.details || {}, null, 2)
     });
     setEditorDetailsFields(fieldValues);
+    setEditorChapel(chapel);
     setEditorDetailsExtra(extrasText);
     setEditorError('');
     setEditorOpen(true);
@@ -222,6 +230,19 @@ export default function AdminRequestPanel({ onDecision }) {
               </button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Chapel</label>
+                <select
+                  value={editorChapel}
+                  onChange={(e) => setEditorChapel(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff' }}
+                >
+                  <option value="">Select a chapel</option>
+                  {CHAPEL_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Service</label>
                 <input
@@ -315,6 +336,10 @@ export default function AdminRequestPanel({ onDecision }) {
                       setEditorError('Missing request id.');
                       return;
                     }
+                    if (!String(editorChapel || '').trim()) {
+                      setEditorError('Chapel is required.');
+                      return;
+                    }
                     const key = String(editorForm.service || '').trim().toLowerCase();
                     const fields = SERVICE_FIELDS[key] || [];
                     for (const f of fields) {
@@ -335,7 +360,7 @@ export default function AdminRequestPanel({ onDecision }) {
                       setEditorError('Additional details must be valid JSON.');
                       return;
                     }
-                    const details = { ...extra, ...editorDetailsFields };
+                    const details = { chapel: editorChapel, ...extra, ...editorDetailsFields };
                     try {
                       setEditorSaving(true);
                       setEditorError('');
@@ -348,6 +373,7 @@ export default function AdminRequestPanel({ onDecision }) {
                       setEditorOpen(false);
                       setEditingRequest(null);
                       setEditorDetailsExtra('');
+                      setEditorChapel('');
                       setEditorDetailsFields({});
                       await loadRequests();
                       onDecision && onDecision();

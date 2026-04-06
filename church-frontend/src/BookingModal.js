@@ -12,6 +12,11 @@ const SERVICE_OPTIONS = [
   'Pastoral Visits'
 ];
 
+const CHAPEL_OPTIONS = [
+  'Main Chapel',
+  'Side Chapel #1'
+];
+
 const SERVICE_FORM_FIELDS = {
   Counseling: [
     { key: 'fullName', label: 'Full Name', required: true },
@@ -71,7 +76,7 @@ const palette = {
 
 function defaultFormState(service) {
   const fields = SERVICE_FORM_FIELDS[service] || [];
-  const state = {};
+  const state = { chapel: '' };
   fields.forEach(f => { state[f.key] = ''; });
   return state;
 }
@@ -107,6 +112,9 @@ export default function BookingModal({
   }, [service]);
 
   const validateServiceForm = () => {
+    if (!String(serviceFormData.chapel || '').trim()) {
+      return 'Chapel is required';
+    }
     for (const field of serviceFields) {
       const value = serviceFormData[field.key];
       const strValue = String(value || '').trim();
@@ -263,6 +271,7 @@ export default function BookingModal({
             </ul>
 
             <button
+              className="dashboard-action-btn dashboard-action-btn--secondary"
               onClick={() => {
                 setCurrentMode('new');
                 onRequestNewBooking && onRequestNewBooking();
@@ -292,6 +301,24 @@ export default function BookingModal({
               gap: 10,
               marginBottom: 12
             }}>
+              <label style={{ color: palette.ink, fontWeight: 600 }}>Chapel</label>
+              <select
+                value={serviceFormData.chapel || ''}
+                onChange={e => setServiceFormData(prev => ({ ...prev, chapel: e.target.value }))}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${palette.mist}`,
+                  background: '#fff'
+                }}
+              >
+                <option value="">Select a chapel</option>
+                {CHAPEL_OPTIONS.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+
               <label style={{ color: palette.ink, fontWeight: 600 }}>Service</label>
               <select
                 value={service}
@@ -427,6 +454,7 @@ export default function BookingModal({
             {error && <p style={{ color: palette.wine }}>{error}</p>}
 
             <button
+              className="dashboard-action-btn dashboard-action-btn--primary"
               onClick={submit}
               style={{
                 width: '100%',
@@ -444,6 +472,7 @@ export default function BookingModal({
               Submit Request
             </button>
             <button
+              className="dashboard-action-btn dashboard-action-btn--secondary"
               onClick={() => setShowServiceForm(false)}
               style={{
                 width: '100%',

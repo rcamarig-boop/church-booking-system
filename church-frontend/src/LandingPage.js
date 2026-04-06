@@ -52,7 +52,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
               textTransform: 'uppercase',
               lineHeight: 1.2
             }}>
-              CABS
+              CRAMS
             </h1>
             <p style={{
               fontSize: '15px',
@@ -61,7 +61,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
               marginBottom: 12,
               letterSpacing: '0.5px'
             }}>
-              Church Appointment & Booking System
+              Church Reservations and Management System
             </p>
             <p style={{
               fontSize: '14px',

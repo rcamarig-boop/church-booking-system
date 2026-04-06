@@ -143,12 +143,12 @@ const LEGACY_SLOT_OPTIONS = ['AM', 'PM'];
 const CUSTOM_SLOT_PATTERN = /^([01]\d|2[0-3]):(00|30)$/;
 const EXCLUSIVE_SERVICES = new Set(['funeral', 'wedding']);
 const SERVICE_REQUIRED_FIELDS = {
-  counseling: ['fullName', 'phone', 'concern'],
-  baptism: ['childName', 'birthDate', 'parentNames'],
-  wedding: ['groomName', 'brideName', 'contactNumber'],
-  blessing: ['personName', 'blessingType'],
-  funeral: ['deceasedName', 'deceasedBirthDate', 'dateOfDeath', 'familyContact'],
-  christening: ['childName', 'guardianName', 'contactNumber']
+  counseling: ['chapel', 'fullName', 'phone', 'concern'],
+  baptism: ['chapel', 'childName', 'birthDate', 'parentNames'],
+  wedding: ['chapel', 'groomName', 'brideName', 'contactNumber'],
+  blessing: ['chapel', 'personName', 'blessingType'],
+  funeral: ['chapel', 'deceasedName', 'deceasedBirthDate', 'dateOfDeath', 'familyContact'],
+  christening: ['chapel', 'childName', 'guardianName', 'contactNumber']
 };
 const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
 

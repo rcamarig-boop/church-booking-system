@@ -118,6 +118,10 @@ export default function CalendarViewNew({
   ];
 
   const bookingSource = allSlots || calendarBookings || bookings;
+  const compactDayMinHeight = compact ? 'clamp(42px, 6vw, 68px)' : 'clamp(60px, 9vw, 95px)';
+  const compactGridGap = compact ? 3 : 4;
+  const compactShellPadding = compact ? 8 : 10;
+  const compactHeaderMargin = compact ? 10 : 16;
 
   const bookingsByDate = useMemo(() => {
     const map = {};
@@ -205,7 +209,7 @@ export default function CalendarViewNew({
   return (
     <div style={{
       background: 'rgba(255,255,255,0.6)',
-      padding: 10,
+      padding: compactShellPadding,
       borderRadius: 14,
       width: '100%',
       maxWidth: '100%',
@@ -214,10 +218,10 @@ export default function CalendarViewNew({
       overflow: 'hidden'
       }}>
       {!compact && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <button onClick={() => setCurrentDate(new Date(year, month - 1))}>{'\u25C0'}</button>
-          <strong>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong>
-          <button onClick={() => setCurrentDate(new Date(year, month + 1))}>{'\u25B6'}</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactHeaderMargin, gap: 8, alignItems: 'center' }}>
+          <button style={{ padding: '6px 10px' }} onClick={() => setCurrentDate(new Date(year, month - 1))}>{'\u25C0'}</button>
+          <strong style={{ fontSize: 16 }}>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong>
+          <button style={{ padding: '6px 10px' }} onClick={() => setCurrentDate(new Date(year, month + 1))}>{'\u25B6'}</button>
         </div>
       )}
 
@@ -225,12 +229,12 @@ export default function CalendarViewNew({
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, minmax(72px, 1fr))',
-          gap: 4,
+          gap: compactGridGap,
           width: '100%'
         }}
       >
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-          <div key={d} style={{ fontWeight: 700, textAlign: 'center' }}>{d}</div>
+          <div key={d} style={{ fontWeight: 700, textAlign: 'center', fontSize: compact ? 11 : 13 }}>{d}</div>
         ))}
 
         {calendarDays.map((day, i) => {
@@ -249,8 +253,8 @@ export default function CalendarViewNew({
               key={dateStr}
               onClick={() => isSelectable && !compact && openModal(dateStr)}
               style={{
-                padding: 6,
-                minHeight: 'clamp(60px, 9vw, 95px)',
+                padding: compact ? 4 : 6,
+                minHeight: compactDayMinHeight,
                 cursor: isSelectable ? 'pointer' : 'not-allowed',
                 background: palette.bg,
                 border: `2px solid ${palette.border}`,
@@ -258,7 +262,7 @@ export default function CalendarViewNew({
                 opacity: isSelectable ? 1 : 0.4,
               }}
             >
-              <div style={{ fontWeight: 700 }}>{day}</div>
+              <div style={{ fontWeight: 700, fontSize: compact ? 13 : 15 }}>{day}</div>
               {!compact && (
                 <div style={{ fontSize: 12, marginTop: 6 }}>
                   {booked}/{max} booked

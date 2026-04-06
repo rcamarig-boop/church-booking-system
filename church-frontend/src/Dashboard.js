@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useCallback, useMemo } from 'react';
+﻿import React, { useEffect, useState, useContext, useCallback, useMemo } from 'react';
 import api from './api';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
@@ -8,6 +8,8 @@ const ink = '#1f2a44';
 const gold = '#d6ad60';
 const mist = '#e7dfcf';
 const accentBlue = '#3b5b8a';
+const churchDisplayFont = "'Cormorant Garamond', Georgia, serif";
+const churchBodyFont = "'Alegreya Sans', 'Segoe UI', sans-serif";
 
 const th = {
   padding: 10,
@@ -243,26 +245,163 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     <div
       className="dashboard-page"
       style={{
+        fontFamily: churchBodyFont,
+        color: ink,
         background:
           "linear-gradient(135deg, rgba(248, 244, 236, 0.9), rgba(255,255,255,0.82)), url('/login-bg.jpg') center/cover no-repeat fixed"
       }}
     >
-      <div className="dashboard-brand" style={{ paddingTop: 12, paddingBottom: 8 }}>
-        <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>Parish Member</div>
-        <div className="dashboard-brand-subtitle" style={{ color: ink }}>
-          Your bookings, requests, and upcoming parish events
+      <div className="church-ornament-top" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 20,
+        marginBottom: 16,
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            className="sidebar-toggle-btn"
+            aria-label={sidebarOpen ? 'Hide navigation panel' : 'Show navigation panel'}
+            onClick={() => setSidebarOpen(v => !v)}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              fontSize: 24,
+              color: '#fff',
+              fontWeight: 800,
+              padding: '8px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, rgba(31,42,68,0.98), rgba(59,91,138,0.92))',
+              border: `1px solid ${gold}`,
+              boxShadow: '0 10px 24px rgba(31,42,68,0.18), inset 0 1px 0 rgba(255,255,255,0.2)',
+              minWidth: 48
+            }}
+          >
+            ☰
+          </button>
+          <div className="dashboard-brand" style={{ paddingTop: 0, paddingBottom: 0, textAlign: 'left' }}>
+            <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0, fontFamily: churchDisplayFont, letterSpacing: 0.6 }}>Parish Member</div>
+            <div className="dashboard-brand-subtitle" style={{ color: ink, fontFamily: churchBodyFont, fontStyle: 'italic' }}>
+              Your bookings, requests, and upcoming parish events
+            </div>
+          </div>
         </div>
-        <div style={{
-          marginTop: 10,
-          background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.25), rgba(176,65,62,0.18))',
-          borderRadius: 10,
-          padding: '10px 16px',
-          color: ink,
-          fontSize: 13,
-          boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-          display: 'inline-block'
-        }}>
-          “Let all that you do be done in love.” — 1 Corinthians 16:14
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginLeft: 'auto' }}>
+          <button
+            onClick={() => setActiveTab('calendar')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '7px 10px',
+              borderRadius: 999,
+              border: `1px solid ${activeTab === 'calendar' ? gold : 'rgba(214,173,96,0.45)'}`,
+              background: activeTab === 'calendar' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'rgba(255,255,255,0.92)',
+              color: ink,
+              fontWeight: 800,
+              fontSize: 11,
+              lineHeight: 1,
+              transition: 'all 0.2s ease',
+              boxShadow: activeTab === 'calendar' ? '0 10px 24px rgba(214,173,96,0.22)' : '0 6px 16px rgba(0,0,0,0.06)',
+              letterSpacing: 0.4,
+              textTransform: 'uppercase'
+            }}
+          >
+            Calendar
+          </button>
+          <button
+            onClick={() => setActiveTab('requests')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '7px 10px',
+              borderRadius: 999,
+              border: `1px solid ${activeTab === 'requests' ? gold : 'rgba(214,173,96,0.45)'}`,
+              background: activeTab === 'requests' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'rgba(255,255,255,0.92)',
+              color: ink,
+              fontWeight: 800,
+              boxShadow: activeTab === 'requests' ? '0 10px 24px rgba(214,173,96,0.22)' : '0 6px 16px rgba(0,0,0,0.06)',
+              letterSpacing: 0.4,
+              textTransform: 'uppercase',
+              fontSize: 11,
+              lineHeight: 1
+            }}
+          >
+            Request
+          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setProfileMenuOpen(v => !v)}
+              aria-label="Open profile menu"
+              style={{
+                marginLeft: 'auto',
+                background: '#f1f5f9',
+                border: `1px solid ${mist}`,
+                borderRadius: 10,
+                padding: '6px 10px',
+                fontWeight: 700,
+                color: ink,
+                cursor: 'pointer'
+              }}
+            >
+              ?
+            </button>
+            {profileMenuOpen && (
+              <div style={{
+                position: 'absolute',
+                right: 0,
+                top: '100%',
+                marginTop: 8,
+                background: '#fff',
+                border: `1px solid ${mist}`,
+                borderRadius: 12,
+                boxShadow: '0 12px 26px rgba(0,0,0,0.12)',
+                overflow: 'hidden',
+                zIndex: 5,
+                minWidth: 180
+              }}>
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    setProfileEditorOpen(true);
+                  }}
+                  style={{
+                    all: 'unset',
+                    display: 'block',
+                    width: '100%',
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    color: ink
+                  }}
+                >
+                  Edit Profile
+                </button>
+                <div style={{ height: 1, background: mist }} />
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    onLogout();
+                  }}
+                  style={{
+                    all: 'unset',
+                    display: 'block',
+                    width: '100%',
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    color: '#b0413e'
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -272,7 +411,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
         gap: 12,
         margin: '8px 0 14px'
       }}>
-        <div style={{
+        <div className="church-card" style={{
           background: '#fff',
           borderRadius: 16,
           padding: '12px 14px',
@@ -283,7 +422,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
           <div style={{ fontSize: 26, fontWeight: 800, color: ink }}>{todayEventsCount}</div>
           <div style={{ color: '#718096', fontSize: 12 }}>{todayStr}</div>
         </div>
-        <div style={{
+        <div className="church-card" style={{
           background: '#fff',
           borderRadius: 16,
           padding: '12px 14px',
@@ -294,7 +433,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
           <div style={{ fontSize: 26, fontWeight: 800, color: ink }}>{todayBookingsCount}</div>
           <div style={{ color: '#718096', fontSize: 12 }}>{todayStr}</div>
         </div>
-        <div style={{
+        <div className="church-card" style={{
           background: '#fff',
           borderRadius: 16,
           padding: '12px 14px',
@@ -378,7 +517,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   padding: '4px 8px'
                 }}
               >
-                ✕
+                âœ•
               </button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
@@ -531,7 +670,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   padding: '4px 8px'
                 }}
               >
-                ✕
+                âœ•
               </button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
@@ -610,17 +749,10 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
       )}
 
       <div className={`dashboard-layout dashboard-two-col ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
-        <button
-          className="sidebar-toggle-btn"
-          aria-label={sidebarOpen ? 'Hide navigation panel' : 'Show navigation panel'}
-          onClick={() => setSidebarOpen(v => !v)}
-        >
-          {sidebarOpen ? '≡' : '≡'}
-        </button>
         <div className="dashboard-left-column">
           <aside className="dashboard-sidebar dashboard-left-panel" style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
             <div className="dashboard-sidebar-header" style={{ paddingBottom: 12, borderBottom: `2px solid ${gold}`, position: 'relative' }}>
-              <h3 style={{ margin: '8px 0 0 0', color: ink, textAlign: 'center', fontSize: 17, fontWeight: 800 }}>✦ Member Panel ✦</h3>
+              <h3 style={{ margin: '8px 0 0 0', color: ink, textAlign: 'center', fontSize: 17, fontWeight: 800 }}>âœ¦ Member Panel âœ¦</h3>
               <div style={{ fontSize: 12, textAlign: 'center', color: gold, marginTop: 4 }}>Parish Community</div>
             </div>
             <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -663,74 +795,6 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                 }}>
                   Member
                 </div>
-                <button
-                  onClick={() => setProfileMenuOpen(v => !v)}
-                  aria-label="Open profile menu"
-                  style={{
-                    marginLeft: 'auto',
-                    background: '#f1f5f9',
-                    border: `1px solid ${mist}`,
-                    borderRadius: 10,
-                    padding: '6px 10px',
-                    fontWeight: 700,
-                    color: ink,
-                    cursor: 'pointer'
-                  }}
-                >
-                  ⋮
-                </button>
-                {profileMenuOpen && (
-                  <div style={{
-                    position: 'absolute',
-                    right: 12,
-                    top: '100%',
-                    marginTop: 8,
-                    background: '#fff',
-                    border: `1px solid ${mist}`,
-                    borderRadius: 12,
-                    boxShadow: '0 12px 26px rgba(0,0,0,0.12)',
-                    overflow: 'hidden',
-                    zIndex: 5,
-                    minWidth: 180
-                  }}>
-                    <button
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        setProfileEditorOpen(true);
-                      }}
-                      style={{
-                        all: 'unset',
-                        display: 'block',
-                        width: '100%',
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                        fontWeight: 600,
-                        color: ink
-                      }}
-                    >
-                      Edit Profile
-                    </button>
-                    <div style={{ height: 1, background: mist }} />
-                    <button
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        onLogout();
-                      }}
-                      style={{
-                        all: 'unset',
-                        display: 'block',
-                        width: '100%',
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                        color: '#b0413e'
-                      }}
-                    >
-                      Logout
-                    </button>
-                  </div>
-                )}
-              </div>
 
               <div style={{
                 display: 'grid',
@@ -738,17 +802,18 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                 gap: 12
               }}>
                 {[
-                  { key: 'calendar', label: 'Calendar', icon: '📅' },
-                  { key: 'events', label: 'Events', icon: '🕯' },
-                  { key: 'bookings', label: 'My Bookings', icon: '✅' },
-                  { key: 'requests', label: 'My Requests', icon: '📜' },
-                  { key: 'concerns', label: 'My Concerns', icon: '📣' },
-                  { key: 'tracking', label: 'Actions', icon: '📊' },
+                  { key: 'calendar', label: 'Calendar', icon: 'ðŸ“…' },
+                  { key: 'events', label: 'Events', icon: 'ðŸ•¯' },
+                  { key: 'bookings', label: 'My Bookings', icon: 'âœ…' },
+                  { key: 'requests', label: 'My Requests', icon: 'ðŸ“œ' },
+                  { key: 'concerns', label: 'My Concerns', icon: 'ðŸ“£' },
+                  { key: 'tracking', label: 'Actions', icon: 'ðŸ“Š' },
                 ].map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    style={{
+                <button
+                  className="dashboard-tab-btn dashboard-tab-btn--member"
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  style={{
                       all: 'unset',
                       cursor: 'pointer',
                       background: activeTab === tab.key ? `linear-gradient(135deg, ${accentBlue}, ${accentBlue}dd)` : '#fff',
@@ -766,6 +831,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                 ))}
               </div>
               <button
+                className="dashboard-action-btn dashboard-action-btn--primary"
                 onClick={() => {
                   setConcernError('');
                   setConcernOpen(true);
@@ -812,7 +878,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   lineHeight: 1.8,
                   boxShadow: `inset 0 0 20px ${gold}15`
                 }}>
-                  <div style={{ fontSize: 28, marginBottom: 12, letterSpacing: 4 }}>✦</div>
+                  <div style={{ fontSize: 28, marginBottom: 12, letterSpacing: 4 }}>âœ¦</div>
                   <div style={{ color: '#4a5568', fontSize: 13, fontStyle: 'italic', marginBottom: 12, fontWeight: 500 }}>
                     "In God, we trust"
                   </div>
@@ -820,7 +886,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                     May this parish be a beacon of love, faith, and community
                   </div>
                   <div style={{ fontSize: 11, color: '#4a5568', marginTop: 12, paddingTop: 12, borderTop: `1px solid ${gold}40`, fontWeight: 600 }}>
-                    📞 Contact: +1 (234) 567-8900
+                    ðŸ“ž Contact: +1 (234) 567-8900
                   </div>
                 </div>
 
@@ -840,12 +906,13 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                 <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
               </div>
             </div>
+            </div>
           </aside>
         </div>
 
-        <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 18, border: `2px solid ${gold}`, boxShadow: '0 18px 36px rgba(0,0,0,0.1)', padding: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 18, border: `2px solid ${gold}`, boxShadow: '0 18px 36px rgba(0,0,0,0.1)', padding: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ marginBottom: 10, padding: '12px 14px', background: `linear-gradient(90deg, ${gold}15, ${accentBlue}15)`, borderRadius: 12, color: ink, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, borderLeft: `4px solid ${gold}`, fontSize: 16 }}>
-            <span>✦ 🗓 Parish Calendar</span>
+            <span>âœ¦ ðŸ—“ Parish Calendar</span>
             <span style={{ fontSize: 12, color: '#4a5568', fontWeight: 500, marginLeft: 'auto' }}>Tap a date to view availability</span>
           </div>
           <CalendarViewNew
@@ -859,7 +926,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
           <div className="dashboard-main dashboard-left-content" style={{ background: '#fff', borderRadius: 16, boxShadow: '0 18px 40px rgba(0,0,0,0.1)', border: `2px solid ${gold}`, padding: 16, borderTop: `4px solid ${gold}` }}>
             {activeTab === 'events' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Events</h2>
+                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>âœ¦ Events</h2>
                 <div style={{ display: 'grid', gap: 10 }}>
                   {events.map((event) => (
                     <div key={event.id} style={{
@@ -873,7 +940,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                     }}>
                       <div style={{ fontWeight: 700 }}>{event.title}</div>
                       <div style={{ color: '#4a5568', fontSize: 14 }}>
-                        {event.date} {event.time ? `• ${event.time}` : ''}
+                        {event.date} {event.time ? `â€¢ ${event.time}` : ''}
                       </div>
                       {event.description && (
                         <div style={{ color: '#718096', marginTop: 6 }}>{event.description}</div>
@@ -887,7 +954,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'bookings' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ My Bookings</h2>
+                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>âœ¦ My Bookings</h2>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -954,7 +1021,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'requests' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ My Requests</h2>
+                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>âœ¦ My Requests</h2>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -989,14 +1056,14 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'calendar' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Calendar</h2>
+                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>âœ¦ Calendar</h2>
                 <div style={{ color: '#4a5568' }}>Use the calendar above to explore available dates.</div>
               </div>
             )}
 
             {activeTab === 'concerns' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ My Concerns</h2>
+                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>âœ¦ My Concerns</h2>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -1016,20 +1083,20 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                       
                       let statusColor = '#b0413e';
                       let statusBg = '#fff5f5';
-                      let statusIcon = '⏳';
+                      let statusIcon = 'â³';
                       
                       if (isResolved) {
                         statusColor = '#2f855a';
                         statusBg = '#f0fdf4';
-                        statusIcon = '✓';
+                        statusIcon = 'âœ“';
                       } else if (isPending) {
                         statusColor = '#d97706';
                         statusBg = '#fffbeb';
-                        statusIcon = '⏱';
+                        statusIcon = 'â±';
                       } else if (isUpdating) {
                         statusColor = '#0284c7';
                         statusBg = '#f0f9ff';
-                        statusIcon = '⟳';
+                        statusIcon = 'âŸ³';
                       }
                       
                       return (
@@ -1081,7 +1148,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                                   onMouseEnter={(e) => e.target.style.background = '#22663a'}
                                   onMouseLeave={(e) => e.target.style.background = '#2f855a'}
                                 >
-                                  ✓ Close
+                                  âœ“ Close
                                 </button>
                               )}
                               <button
@@ -1110,7 +1177,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                                 onMouseEnter={(e) => e.target.style.background = '#8b2e2a'}
                                 onMouseLeave={(e) => e.target.style.background = '#b0413e'}
                               >
-                                ✕ Delete
+                                âœ• Delete
                               </button>
                             </div>
                           </td>
@@ -1129,7 +1196,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'tracking' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Action Tracking</h2>
+                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>âœ¦ Action Tracking</h2>
                 <div style={{
                   display: 'grid',
                   gap: 12
@@ -1141,7 +1208,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                     border: `2px solid ${gold}`,
                     color: ink
                   }}>
-                    <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16 }}>📊 Your Activity Timeline</div>
+                    <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16 }}>ðŸ“Š Your Activity Timeline</div>
                     
                     <div style={{ display: 'grid', gap: 16 }}>
                       {myConcerns.length > 0 || bookings.length > 0 || bookingRequests.length > 0 ? (
@@ -1156,7 +1223,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                               border: `1px solid ${mist}`,
                               borderLeft: `4px solid ${gold}`
                             }}>
-                              <div style={{ fontSize: 20, minWidth: 30 }}>📣</div>
+                              <div style={{ fontSize: 20, minWidth: 30 }}>ðŸ“£</div>
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 700, color: ink }}>Concern Submitted</div>
                                 <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{c.subject}</div>
@@ -1185,7 +1252,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                               border: `1px solid ${mist}`,
                               borderLeft: `4px solid ${accentBlue}`
                             }}>
-                              <div style={{ fontSize: 20, minWidth: 30 }}>📜</div>
+                              <div style={{ fontSize: 20, minWidth: 30 }}>ðŸ“œ</div>
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 700, color: ink }}>Booking Request</div>
                                 <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{br.service} - {br.date}</div>
@@ -1215,7 +1282,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                               border: `1px solid ${mist}`,
                               borderLeft: `4px solid #2f855a`
                             }}>
-                              <div style={{ fontSize: 20, minWidth: 30 }}>✅</div>
+                              <div style={{ fontSize: 20, minWidth: 30 }}>âœ…</div>
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 700, color: ink }}>Booking Confirmed</div>
                                 <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{b.service} - {b.date} {b.slot}</div>
