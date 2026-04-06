@@ -437,9 +437,9 @@ app.get('/api/bookings', auth, async (req, res) => {
   ]);
   const filter = String(req.query.filter || '').toLowerCase();
   const filterClause = filter === 'past'
-    ? `date < date('now')`
+    ? `date < CAST(now() AS date)`
     : filter === 'upcoming'
-      ? `date >= date('now')`
+      ? `date >= CAST(now() AS date)`
       : '';
 
   if (req.user.role === 'admin') {
@@ -931,9 +931,9 @@ app.get('/api/events', auth, async (_, res) => {
   ]);
   const filter = String(_.query.filter || '').toLowerCase();
   const filterClause = filter === 'past'
-    ? `date < date('now')`
+    ? `date < CAST(now() AS date)`
     : filter === 'upcoming'
-      ? `date >= date('now')`
+      ? `date >= CAST(now() AS date)`
       : '';
   const whereParts = [clause, filterClause].filter(Boolean);
   const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';

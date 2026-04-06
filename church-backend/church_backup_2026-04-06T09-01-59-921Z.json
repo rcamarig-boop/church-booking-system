@@ -1,0 +1,557 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "password": "$2a$10$lyem/FpqDPyO0KN8sEyll.D8/9Nu7CxhMcPRP3pFuDHf6pN43zswq",
+      "role": "admin"
+    },
+    {
+      "id": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "password": "$2a$10$nV73/.lfywBpQIz9.dzxf.RNUTpustIAdPKM2w4zelDZ9hr0Ki6N6",
+      "role": "member"
+    },
+    {
+      "id": 3,
+      "name": "joshua",
+      "email": "joshua@church.com",
+      "password": "$2a$10$oz80QCjqFUW0xJo.JdCeHuxHVUBYKrh9BiE6TBjiIzR8n9dRqDsX2",
+      "role": "member"
+    },
+    {
+      "id": 4,
+      "name": "Krys",
+      "email": "krys@church.com",
+      "password": "$2a$10$t8TMgMVG.omzdX9e/pFlDOFt.lkPq.FrRXgpa63.VBsxOmaY7txvu",
+      "role": "member"
+    }
+  ],
+  "bookings": [
+    {
+      "id": 1,
+      "userId": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "date": "2026-04-02",
+      "slot": "09:00",
+      "service": "Baptism",
+      "details": "Adult baptism"
+    },
+    {
+      "id": 2,
+      "userId": 1,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "date": "2026-04-02",
+      "slot": "10:00",
+      "service": "Wedding",
+      "details": "Church wedding ceremony"
+    },
+    {
+      "id": 3,
+      "userId": 1,
+      "name": "Bob Johnson",
+      "email": "bob@example.com",
+      "date": "2026-03-19",
+      "slot": "11:00",
+      "service": "Funeral",
+      "details": "Funeral service"
+    },
+    {
+      "id": 4,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "date": "2026-03-30",
+      "slot": "19:00",
+      "service": "Counseling",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}"
+    },
+    {
+      "id": 5,
+      "userId": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "date": "2026-03-27",
+      "slot": "16:00",
+      "service": "Counseling",
+      "details": "{\"fullName\":\"qwe\",\"phone\":\"123\",\"concern\":\"asd\"}"
+    },
+    {
+      "id": 6,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "date": "2026-03-31",
+      "slot": "09:00",
+      "service": "Counseling",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"asd\"}"
+    }
+  ],
+  "booking_requests": [
+    {
+      "id": 1,
+      "userId": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "date": "2026-03-27",
+      "slot": "16:00",
+      "service": "Counseling",
+      "details": "{\"fullName\":\"qwe\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "status": "approved",
+      "created_at": "2026-03-27 04:42:57",
+      "reviewed_by": 1,
+      "reviewed_at": "2026-03-30 07:21:20"
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "date": "2026-03-30",
+      "slot": "09:00",
+      "service": "Counseling",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}",
+      "status": "approved",
+      "created_at": "2026-03-29 12:43:33",
+      "reviewed_by": 1,
+      "reviewed_at": "2026-03-30 07:21:01"
+    },
+    {
+      "id": 3,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "date": "2026-03-31",
+      "slot": "09:00",
+      "service": "Counseling",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "status": "approved",
+      "created_at": "2026-03-30 10:55:55",
+      "reviewed_by": 1,
+      "reviewed_at": "2026-03-30 10:56:20"
+    }
+  ],
+  "booking_records": [
+    {
+      "id": 1,
+      "request_id": 1,
+      "booking_id": null,
+      "userId": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "service": "Counseling",
+      "date": "2026-03-27",
+      "slot": "09:00",
+      "details": "{\"fullName\":\"qwe\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "action": "submitted",
+      "note": null,
+      "action_by": null,
+      "action_at": "2026-03-27 04:42:57"
+    },
+    {
+      "id": 2,
+      "request_id": 1,
+      "booking_id": null,
+      "userId": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "service": "Counseling",
+      "date": "2026-03-27",
+      "slot": "11:00",
+      "details": "{\"fullName\":\"qwe\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "action": "request_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-27 04:47:39"
+    },
+    {
+      "id": 3,
+      "request_id": 1,
+      "booking_id": null,
+      "userId": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "service": "Counseling",
+      "date": "2026-03-27",
+      "slot": "14:00",
+      "details": "{\"fullName\":\"qwe\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "action": "request_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-29 12:41:29"
+    },
+    {
+      "id": 4,
+      "request_id": 2,
+      "booking_id": null,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-30",
+      "slot": "09:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}",
+      "action": "submitted",
+      "note": null,
+      "action_by": null,
+      "action_at": "2026-03-29 12:43:33"
+    },
+    {
+      "id": 5,
+      "request_id": 2,
+      "booking_id": 4,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-30",
+      "slot": "09:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}",
+      "action": "approved",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 07:21:01"
+    },
+    {
+      "id": 6,
+      "request_id": 1,
+      "booking_id": null,
+      "userId": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "service": "Counseling",
+      "date": "2026-03-27",
+      "slot": "16:00",
+      "details": "{\"fullName\":\"qwe\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "action": "request_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 07:21:16"
+    },
+    {
+      "id": 7,
+      "request_id": 1,
+      "booking_id": null,
+      "userId": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "service": "Counseling",
+      "date": "2026-03-27",
+      "slot": "16:00",
+      "details": "{\"fullName\":\"qwe\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "action": "request_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 07:21:19"
+    },
+    {
+      "id": 8,
+      "request_id": 1,
+      "booking_id": 5,
+      "userId": 1,
+      "name": "Admin User",
+      "email": "admin@church.com",
+      "service": "Counseling",
+      "date": "2026-03-27",
+      "slot": "16:00",
+      "details": "{\"fullName\":\"qwe\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "action": "approved",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 07:21:20"
+    },
+    {
+      "id": 9,
+      "request_id": null,
+      "booking_id": 4,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-30",
+      "slot": "16:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}",
+      "action": "booking_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 07:45:51"
+    },
+    {
+      "id": 10,
+      "request_id": null,
+      "booking_id": 4,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-30",
+      "slot": "16:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}",
+      "action": "booking_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 08:04:07"
+    },
+    {
+      "id": 11,
+      "request_id": null,
+      "booking_id": 4,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-30",
+      "slot": "17:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}",
+      "action": "booking_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 08:04:15"
+    },
+    {
+      "id": 12,
+      "request_id": null,
+      "booking_id": 4,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-30",
+      "slot": "18:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}",
+      "action": "booking_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 08:20:59"
+    },
+    {
+      "id": 13,
+      "request_id": null,
+      "booking_id": 4,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-30",
+      "slot": "19:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"qe\"}",
+      "action": "booking_edited",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 10:19:29"
+    },
+    {
+      "id": 14,
+      "request_id": 3,
+      "booking_id": null,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-31",
+      "slot": "09:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "action": "submitted",
+      "note": null,
+      "action_by": null,
+      "action_at": "2026-03-30 10:55:55"
+    },
+    {
+      "id": 15,
+      "request_id": 3,
+      "booking_id": 6,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "service": "Counseling",
+      "date": "2026-03-31",
+      "slot": "09:00",
+      "details": "{\"fullName\":\"asd\",\"phone\":\"123\",\"concern\":\"asd\"}",
+      "action": "approved",
+      "note": null,
+      "action_by": 1,
+      "action_at": "2026-03-30 10:56:20"
+    }
+  ],
+  "events": [
+    {
+      "id": 1,
+      "title": "Sunday Mass",
+      "date": "2026-04-02",
+      "description": "Weekly Sunday service",
+      "time": null
+    },
+    {
+      "id": 2,
+      "title": "Bible Study",
+      "date": "2026-04-02",
+      "description": "Thursday evening bible study group",
+      "time": null
+    },
+    {
+      "id": 3,
+      "title": "Easter Celebration",
+      "date": "2026-04-25",
+      "description": "Easter Sunday special service",
+      "time": null
+    }
+  ],
+  "calendar": [
+    {
+      "date": "2026-04-02",
+      "max_slots": 5,
+      "booked": 2
+    },
+    {
+      "date": "2026-03-27",
+      "max_slots": 5,
+      "booked": 1
+    },
+    {
+      "date": "2026-03-31",
+      "max_slots": 7,
+      "booked": 1
+    },
+    {
+      "date": "2026-03-30",
+      "max_slots": 5,
+      "booked": 1
+    }
+  ],
+  "concerns": [
+    {
+      "id": 1,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "subject": "me",
+      "message": "handsome",
+      "status": "open",
+      "created_at": "2026-03-27 04:59:28",
+      "resolved_at": null,
+      "resolved_by": null,
+      "resolution_note": null,
+      "reply_message": null,
+      "replied_at": null,
+      "replied_by": null
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "name": "RSean",
+      "email": "rsean@church.com",
+      "subject": "Booking",
+      "message": "Conflict time",
+      "status": "open",
+      "created_at": "2026-03-30 10:50:49",
+      "resolved_at": null,
+      "resolved_by": null,
+      "resolution_note": null,
+      "reply_message": null,
+      "replied_at": null,
+      "replied_by": null
+    }
+  ],
+  "notifications": [
+    {
+      "id": 1,
+      "userId": 1,
+      "type": "config",
+      "text": "Calendar updated for 2026-03-31",
+      "created_at": "2026-03-29 12:39:43",
+      "read": 1
+    },
+    {
+      "id": 2,
+      "userId": 1,
+      "type": "config",
+      "text": "Calendar updated for 2026-03-31",
+      "created_at": "2026-03-29 12:39:53",
+      "read": 1
+    },
+    {
+      "id": 3,
+      "userId": 1,
+      "type": "request",
+      "text": "New booking request: Counseling on 2026-03-30 (09:00)",
+      "created_at": "2026-03-29 12:43:33",
+      "read": 1
+    },
+    {
+      "id": 4,
+      "userId": 2,
+      "type": "new_booking",
+      "text": "Booking confirmed: Counseling on 2026-03-30 (09:00)",
+      "created_at": "2026-03-30 07:21:01",
+      "read": 1
+    },
+    {
+      "id": 5,
+      "userId": 1,
+      "type": "new_booking",
+      "text": "Booking confirmed: Counseling on 2026-03-27 (16:00)",
+      "created_at": "2026-03-30 07:21:20",
+      "read": 1
+    },
+    {
+      "id": 6,
+      "userId": 1,
+      "type": "config",
+      "text": "Calendar updated for 2026-03-31",
+      "created_at": "2026-03-30 07:34:15",
+      "read": 1
+    },
+    {
+      "id": 7,
+      "userId": 1,
+      "type": "config",
+      "text": "Calendar updated for 2026-03-31",
+      "created_at": "2026-03-30 07:34:35",
+      "read": 1
+    },
+    {
+      "id": 8,
+      "userId": 1,
+      "type": "config",
+      "text": "Calendar updated for 2026-03-31",
+      "created_at": "2026-03-30 07:34:40",
+      "read": 1
+    },
+    {
+      "id": 9,
+      "userId": 2,
+      "type": "concern",
+      "text": "Concern submitted: Booking",
+      "created_at": "2026-03-30 10:50:49",
+      "read": 1
+    },
+    {
+      "id": 10,
+      "userId": 1,
+      "type": "concern",
+      "text": "New concern from RSean: Booking",
+      "created_at": "2026-03-30 10:50:49",
+      "read": 1
+    },
+    {
+      "id": 11,
+      "userId": 1,
+      "type": "request",
+      "text": "New booking request: Counseling on 2026-03-31 (09:00)",
+      "created_at": "2026-03-30 10:55:55",
+      "read": 1
+    },
+    {
+      "id": 12,
+      "userId": 2,
+      "type": "new_booking",
+      "text": "Booking confirmed: Counseling on 2026-03-31 (09:00)",
+      "created_at": "2026-03-30 10:56:20",
+      "read": 0
+    }
+  ]
+}

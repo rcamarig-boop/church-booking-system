@@ -1,33 +1,131 @@
 require('dotenv').config();
-const path = require('path');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 
 const DEFAULT_MAX_SLOTS = 5;
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'church.db');
 
-const sqliteDb = new Database(DB_PATH);
+// Create connection pool for Supabase
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
-const sqliteContext = {
-  prepare: (sql) => sqliteDb.prepare(sql),
-  exec: (sql) => sqliteDb.exec(sql)
+// Wrapper functions to match original API
+const prepare = (sql) => {
+  return {
+    get: async (...params) => {
+      const client = await pool.connect();
+      try {
+        const result = await client.query(sql, params);
+        return result.rows[0] || null;
+      } finally {
+        client.release();
+      }
+    },
+    all: async (...params) => {
+      const client = await pool.connect();
+      try {
+        const result = await client.query(sql, params);
+        return result.rows;
+      } finally {
+        client.release();
+      }
+    },
+    run: async (...params) => {
+      const client = await pool.connect();
+      try {
+        const result = await client.query(sql, params);
+        return {
+          lastInsertRowid: result.rows[0]?.id || null,
+          changes: result.rowCount
+        };
+      } finally {
+        client.release();
+      }
+    }
+  };
 };
 
-async function transaction(fn) {
-  sqliteDb.exec('BEGIN');
+const exec = async (sql) => {
+  const client = await pool.connect();
   try {
-    const result = await fn(sqliteContext);
-    sqliteDb.exec('COMMIT');
+    await client.query(sql);
+  } finally {
+    client.release();
+  }
+};
+
+// Async transaction wrapper
+async function transaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Create a context object that mimics the synchronous prepare
+    const transactionContext = {
+      prepare: (sql) => ({
+        get: (...params) => client.query(sql, params).then(r => r.rows[0] || null),
+        all: (...params) => client.query(sql, params).then(r => r.rows),
+        run: (...params) => client.query(sql, params).then(r => ({
+          lastInsertRowid: r.rows[0]?.id || null,
+          changes: r.rowCount
+        }))
+      })
+    };
+    
+    const result = await fn(transactionContext);
+    await client.query('COMMIT');
     return result;
   } catch (err) {
-    sqliteDb.exec('ROLLBACK');
+    await client.query('ROLLBACK');
     throw err;
+  } finally {
+    client.release();
   }
 }
 
+// Database query helpers - updated to be async
+const dbGet = async (sql, ...params) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(sql, params);
+    return result.rows[0] || null;
+  } finally {
+    client.release();
+  }
+};
+
+const dbAll = async (sql, ...params) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(sql, params);
+    return result.rows;
+  } finally {
+    client.release();
+  }
+};
+
+const dbRun = async (sql, ...params) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(sql, params);
+    return {
+      lastInsertRowid: result.rows[0]?.id || null,
+      changes: result.rowCount
+    };
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   DEFAULT_MAX_SLOTS,
-  sqliteContext,
-  prepare: (sql) => sqliteContext.prepare(sql),
-  exec: (sql) => sqliteContext.exec(sql),
-  transaction
+  pool,
+  prepare,
+  exec,
+  transaction,
+  dbGet,
+  dbAll,
+  dbRun
 };
