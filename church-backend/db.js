@@ -11,13 +11,25 @@ const pool = new Pool({
   }
 });
 
+// Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
+function convertPlaceholders(sql, params) {
+  if (!params || params.length === 0) {
+    return { sql, params };
+  }
+  
+  let paramIndex = 0;
+  const newSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
+  return { sql: newSql, params };
+}
+
 // Wrapper functions to match original API
 const prepare = (sql) => {
   return {
     get: async (...params) => {
       const client = await pool.connect();
       try {
-        const result = await client.query(sql, params);
+        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+        const result = await client.query(convertedSql, convertedParams);
         return result.rows[0] || null;
       } finally {
         client.release();
@@ -26,7 +38,8 @@ const prepare = (sql) => {
     all: async (...params) => {
       const client = await pool.connect();
       try {
-        const result = await client.query(sql, params);
+        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+        const result = await client.query(convertedSql, convertedParams);
         return result.rows;
       } finally {
         client.release();
@@ -35,7 +48,8 @@ const prepare = (sql) => {
     run: async (...params) => {
       const client = await pool.connect();
       try {
-        const result = await client.query(sql, params);
+        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+        const result = await client.query(convertedSql, convertedParams);
         return {
           lastInsertRowid: result.rows[0]?.id || null,
           changes: result.rowCount
@@ -65,12 +79,24 @@ async function transaction(fn) {
     // Create a context object that mimics the synchronous prepare
     const transactionContext = {
       prepare: (sql) => ({
-        get: (...params) => client.query(sql, params).then(r => r.rows[0] || null),
-        all: (...params) => client.query(sql, params).then(r => r.rows),
-        run: (...params) => client.query(sql, params).then(r => ({
-          lastInsertRowid: r.rows[0]?.id || null,
-          changes: r.rowCount
-        }))
+        get: async (...params) => {
+          const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+          const r = await client.query(convertedSql, convertedParams);
+          return r.rows[0] || null;
+        },
+        all: async (...params) => {
+          const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+          const r = await client.query(convertedSql, convertedParams);
+          return r.rows;
+        },
+        run: async (...params) => {
+          const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+          const r = await client.query(convertedSql, convertedParams);
+          return {
+            lastInsertRowid: r.rows[0]?.id || null,
+            changes: r.rowCount
+          };
+        }
       })
     };
     
@@ -89,7 +115,8 @@ async function transaction(fn) {
 const dbGet = async (sql, ...params) => {
   const client = await pool.connect();
   try {
-    const result = await client.query(sql, params);
+    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+    const result = await client.query(convertedSql, convertedParams);
     return result.rows[0] || null;
   } finally {
     client.release();
@@ -99,7 +126,8 @@ const dbGet = async (sql, ...params) => {
 const dbAll = async (sql, ...params) => {
   const client = await pool.connect();
   try {
-    const result = await client.query(sql, params);
+    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+    const result = await client.query(convertedSql, convertedParams);
     return result.rows;
   } finally {
     client.release();
@@ -109,7 +137,8 @@ const dbAll = async (sql, ...params) => {
 const dbRun = async (sql, ...params) => {
   const client = await pool.connect();
   try {
-    const result = await client.query(sql, params);
+    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+    const result = await client.query(convertedSql, convertedParams);
     return {
       lastInsertRowid: result.rows[0]?.id || null,
       changes: result.rowCount

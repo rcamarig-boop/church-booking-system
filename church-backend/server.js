@@ -42,109 +42,10 @@ function buildSearchClause(q, fields) {
 }
 
 async function initDatabase() {
-  exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      email TEXT UNIQUE,
-      password TEXT,
-      role TEXT DEFAULT 'member'
-    );
-    
-    CREATE TABLE IF NOT EXISTS bookings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userId INTEGER,
-      name TEXT,
-      email TEXT,
-      date TEXT,
-      slot TEXT,
-      service TEXT,
-      details TEXT
-    );
-    
-    CREATE TABLE IF NOT EXISTS booking_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userId INTEGER,
-      name TEXT,
-      email TEXT,
-      date TEXT,
-      slot TEXT,
-      service TEXT,
-      details TEXT,
-      status TEXT DEFAULT 'pending',
-      created_at TEXT DEFAULT (datetime('now')),
-      reviewed_by INTEGER,
-      reviewed_at TEXT
-    );
-    
-    CREATE TABLE IF NOT EXISTS booking_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      request_id INTEGER,
-      booking_id INTEGER,
-      userId INTEGER,
-      name TEXT,
-      email TEXT,
-      service TEXT,
-      date TEXT,
-      slot TEXT,
-      details TEXT,
-      action TEXT,
-      note TEXT,
-      action_by INTEGER,
-      action_at TEXT DEFAULT (datetime('now'))
-    );
-    
-    CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT,
-      date TEXT,
-      time TEXT,
-      description TEXT
-    );
-    
-    CREATE TABLE IF NOT EXISTS calendar (
-      date TEXT PRIMARY KEY,
-      max_slots INTEGER DEFAULT 5,
-      booked INTEGER DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS concerns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userId INTEGER,
-      name TEXT,
-      email TEXT,
-      subject TEXT,
-      message TEXT,
-      status TEXT DEFAULT 'open',
-      created_at TEXT DEFAULT (datetime('now')),
-      resolved_at TEXT,
-      resolved_by INTEGER,
-      resolution_note TEXT,
-      reply_message TEXT,
-      replied_at TEXT,
-      replied_by INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userId INTEGER,
-      type TEXT,
-      text TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      read INTEGER DEFAULT 0
-    );
-    `);
-
-  // Backfill missing columns if older SQLite DBs were created before schema updates.
-  try {
-    exec('ALTER TABLE events ADD COLUMN time TEXT');
-  } catch {
-    // ignore if column already exists
-  }
-  try { exec('ALTER TABLE concerns ADD COLUMN reply_message TEXT'); } catch {}
-  try { exec('ALTER TABLE concerns ADD COLUMN replied_at TEXT'); } catch {}
-  try { exec('ALTER TABLE concerns ADD COLUMN replied_by INTEGER'); } catch {}
-  try { exec('ALTER TABLE notifications ADD COLUMN read INTEGER DEFAULT 0'); } catch {}
+  // ✅ Tables already created in Supabase via schema SQL
+  // This function is kept for reference but does nothing
+  // All tables exist in PostgreSQL/Supabase
+  console.log('Database: Using existing PostgreSQL/Supabase tables');
 }
 
 const dbGet = async (sql, ...params) => {
@@ -1328,7 +1229,7 @@ const PORT = Number(process.env.PORT) || 4000;
   await initDatabase();
   await ensureAdminUser();
   server.listen(PORT, () => {
-  console.log(`SQLite server running on port ${PORT}`);
+  console.log(`PostgreSQL server running on port ${PORT}`);
 });
 })().catch(err => {
   console.error('Failed to start server', err);
