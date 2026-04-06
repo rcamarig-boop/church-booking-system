@@ -101,6 +101,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [calendarMinimized, setCalendarMinimized] = useState(false);
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profileEmail, setProfileEmail] = useState(user?.email || '');
   const [profilePassword, setProfilePassword] = useState('');
@@ -603,11 +604,183 @@ export default function AdminDashboard({ user, onLogout }) {
           "linear-gradient(135deg, rgba(248, 244, 236, 0.9), rgba(255,255,255,0.82)), url('/login-bg.jpg') center/cover no-repeat fixed"
       }}
     >
-      <div className="dashboard-brand" style={{ paddingTop: 12, paddingBottom: 8 }}>
-        <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>Parish Admin</div>
-        <div className="dashboard-brand-subtitle" style={{ color: ink }}>
-          Serving schedules, sacraments, and community care
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, marginBottom: 16, flexWrap: 'wrap-reverse' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '8px 14px',
+              borderRadius: 8,
+              background: activeTab === 'analytics' ? gold : 'transparent',
+              color: ink,
+              fontWeight: 600,
+              fontSize: 13,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'analytics' ? gold : 'transparent'}`
+            }}
+          >
+            📊 Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('records')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '8px 14px',
+              borderRadius: 8,
+              background: activeTab === 'records' ? gold : 'transparent',
+              color: ink,
+              fontWeight: 600,
+              fontSize: 13,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'records' ? gold : 'transparent'}`
+            }}
+          >
+            📖 Records
+          </button>
+          <button
+            onClick={() => setActiveTab('bookings')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '8px 14px',
+              borderRadius: 8,
+              background: activeTab === 'bookings' ? gold : 'transparent',
+              color: ink,
+              fontWeight: 600,
+              fontSize: 13,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'bookings' ? gold : 'transparent'}`
+            }}
+          >
+            ✅ Bookings
+          </button>
+          <button
+            onClick={() => setActiveTab('concerns')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '8px 14px',
+              borderRadius: 8,
+              background: activeTab === 'concerns' ? gold : 'transparent',
+              color: ink,
+              fontWeight: 600,
+              fontSize: 13,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'concerns' ? gold : 'transparent'}`
+            }}
+          >
+            📣 Concerns
+          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setProfileMenuOpen(v => !v)}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: `linear-gradient(135deg, ${accentBlue}, ${gold}aa)`,
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                border: `2px solid ${gold}`
+              }}
+              title={user?.name || 'Profile'}
+            >
+              {user?.name?.charAt(0).toUpperCase() || '👤'}
+            </button>
+            {profileMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 8,
+                  background: '#fff',
+                  borderRadius: 12,
+                  border: `1px solid ${mist}`,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  minWidth: 200,
+                  zIndex: 100
+                }}
+              >
+                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${mist}` }}>
+                  <div style={{ fontWeight: 600, color: ink }}>{user?.name || 'User'}</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{user?.email || 'No email'}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    setProfileEditorOpen(true);
+                    setProfileMenuOpen(false);
+                  }}
+                  style={{
+                    all: 'unset',
+                    width: '100%',
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    borderBottom: `1px solid ${mist}`,
+                    textAlign: 'left',
+                    fontSize: 14,
+                    color: ink,
+                    transition: 'all 0.2s ease',
+                    boxSizing: 'border-box'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = mist}
+                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                >
+                  ✏️ Edit Profile
+                </button>
+                <button
+                  onClick={onLogout}
+                  style={{
+                    all: 'unset',
+                    width: '100%',
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    textAlign: 'left',
+                    fontSize: 14,
+                    color: '#b0413e',
+                    transition: 'all 0.2s ease',
+                    boxSizing: 'border-box'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = '#fee2e2'}
+                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                >
+                  🚪 Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <button
+            className="sidebar-toggle-btn"
+            aria-label="Show navigation panel"
+            onClick={() => setSidebarOpen(v => !v)}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              fontSize: 28,
+              color: ink,
+              fontWeight: 800,
+              padding: '6px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            ☰
+          </button>
+          <div className="dashboard-brand" style={{ paddingTop: 0, paddingBottom: 0 }}>
+            <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0 }}>Parish Admin</div>
         <div style={{
           marginTop: 10,
           background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.25), rgba(176,65,62,0.18))',
@@ -619,67 +792,11 @@ export default function AdminDashboard({ user, onLogout }) {
           display: 'inline-block'
         }}>
           “Let all that you do be done in love.” — 1 Corinthians 16:14
-        </div>
-      </div>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: 12,
-        margin: '8px 0 14px'
-      }}>
-        <div style={{
-          background: '#fff',
-          borderRadius: 16,
-          padding: '12px 14px',
-          border: `1px solid ${mist}`,
-          boxShadow: '0 8px 20px rgba(0,0,0,0.08)'
-        }}>
-          <div style={{ color: '#718096', fontSize: 12 }}>Events Today</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: ink }}>{todayEvents}</div>
-          <div style={{ color: '#718096', fontSize: 12 }}>{todayStr}</div>
-        </div>
-        <div style={{
-          background: '#fff',
-          borderRadius: 16,
-          padding: '12px 14px',
-          border: `1px solid ${mist}`,
-          boxShadow: '0 8px 20px rgba(0,0,0,0.08)'
-        }}>
-          <div style={{ color: '#718096', fontSize: 12 }}>Bookings Today</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: ink }}>{todayBookings}</div>
-          <div style={{ color: '#718096', fontSize: 12 }}>{todayStr}</div>
-        </div>
-        <div style={{
-          background: '#fff',
-          borderRadius: 16,
-          padding: '12px 14px',
-          border: `1px solid ${mist}`,
-          boxShadow: '0 8px 20px rgba(0,0,0,0.08)'
-        }}>
-          <div style={{ color: '#718096', fontSize: 12 }}>Upcoming Today</div>
-          {upcomingWithinHour.length === 0 ? (
-            <div style={{ color: '#718096', fontSize: 14, marginTop: 6 }}>No upcoming events or bookings.</div>
-          ) : (
-            <div style={{ display: 'grid', gap: 6, marginTop: 6 }}>
-              {upcomingWithinHour.map(item => (
-                <div key={item.id} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  fontSize: 13,
-                  color: ink
-                }}>
-                  <div style={{ fontWeight: 700 }}>
-                    {item.type === 'event' ? 'Event' : 'Booking'}: {item.title}
-                  </div>
-                  <div style={{ color: '#4a5568' }}>{item.date} {item.time}</div>
-                </div>
-              ))}
             </div>
-          )}
+          </div>
         </div>
       </div>
+
       {profileEditorOpen && (
         <div
           role="dialog"
@@ -1194,13 +1311,6 @@ export default function AdminDashboard({ user, onLogout }) {
         </div>
       )}
     <div className={`dashboard-layout dashboard-two-col ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
-      <button
-        className="sidebar-toggle-btn"
-        aria-label={sidebarOpen ? 'Hide navigation panel' : 'Show navigation panel'}
-        onClick={() => setSidebarOpen(v => !v)}
-      >
-        {sidebarOpen ? '\u2261' : '\u2261'}
-      </button>
       <div className="dashboard-left-column">
       <aside className="dashboard-sidebar dashboard-left-panel" style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
         <div className="dashboard-sidebar-header" style={{ paddingBottom: 12, borderBottom: `2px solid ${gold}`, position: 'relative' }}>
@@ -1209,113 +1319,6 @@ export default function AdminDashboard({ user, onLogout }) {
         </div>
         {/* Tab buttons on expandable sidebar */}
         <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{
-              background: '#fff',
-              borderRadius: 18,
-              padding: '12px 14px',
-              boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              border: `2px solid ${gold}`,
-              position: 'relative',
-              borderLeft: `4px solid ${gold}`
-            }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 14,
-              background: '#cbd5e0',
-              overflow: 'hidden',
-              display: 'grid', placeItems: 'center',
-              fontWeight: 800, color: ink
-            }}>
-              {(user?.name || 'U')[0]}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 17, color: ink }}>
-                {user?.name || 'Admin User'}
-              </div>
-              <div style={{ color: '#6b7280', fontSize: 13 }}>
-                {user?.email || 'admin@parish.local'}
-              </div>
-            </div>
-            <div style={{
-              background: '#fff5f5',
-              color: '#b0413e',
-              borderRadius: 14,
-              padding: '6px 10px',
-              fontWeight: 700,
-              border: '1px solid #ffd7d7'
-            }}>
-              Admin
-            </div>
-            <button
-              onClick={() => setProfileMenuOpen(v => !v)}
-              aria-label="Open profile menu"
-              style={{
-                marginLeft: 'auto',
-                background: '#f1f5f9',
-                border: `1px solid ${mist}`,
-                borderRadius: 10,
-                padding: '6px 10px',
-                fontWeight: 700,
-                color: ink,
-                cursor: 'pointer'
-              }}
-            >
-              ⋮
-            </button>
-            {profileMenuOpen && (
-              <div style={{
-                position: 'absolute',
-                right: 12,
-                top: '100%',
-                marginTop: 8,
-                background: '#fff',
-                border: `1px solid ${mist}`,
-                borderRadius: 12,
-                boxShadow: '0 12px 26px rgba(0,0,0,0.12)',
-                overflow: 'hidden',
-                zIndex: 5,
-                minWidth: 180
-              }}>
-                <button
-                  onClick={() => {
-                    setProfileMenuOpen(false);
-                    setProfileEditorOpen(true);
-                  }}
-                  style={{
-                    all: 'unset',
-                    display: 'block',
-                    width: '100%',
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    color: ink
-                  }}
-                >
-                  View Profile
-                </button>
-                <div style={{ height: 1, background: mist }} />
-                <button
-                  onClick={() => {
-                    setProfileMenuOpen(false);
-                    onLogout();
-                  }}
-                  style={{
-                    all: 'unset',
-                    display: 'block',
-                    width: '100%',
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                    fontWeight: 700,
-                    color: '#b0413e'
-                  }}
-                >
-                  Logout
-                </button>
-              </div>
-            )}
-          </div>
 
           <div style={{
             display: 'grid',
@@ -1324,6 +1327,7 @@ export default function AdminDashboard({ user, onLogout }) {
           }}>
             {[
               { key: 'calendar', label: 'Calendar', icon: '📅' },
+              { key: 'analytics', label: 'Analytics', icon: '📊' },
               { key: 'requests', label: 'Requests', icon: '📜', count: pendingRequestsCount },
               { key: 'bookings', label: 'Bookings', icon: '✅' },
               { key: 'events', label: 'Events', icon: '🕯' },
@@ -1426,21 +1430,138 @@ export default function AdminDashboard({ user, onLogout }) {
 
       {/* ---------- MAIN CONTENT ---------- */}
       <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 18, border: `1px solid ${mist}`, boxShadow: '0 18px 36px rgba(0,0,0,0.1)', padding: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ marginBottom: 10, padding: '6px 10px', background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.12))', borderRadius: 10, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>🗓 Parish Calendar</span>
-          <span style={{ fontSize: 12, color: '#4a5568' }}>Tap a date to view or add bookings</span>
-        </div>
-        <CalendarViewNew
-          bookings={bookings}
-          calendarBookings={bookings}
-          events={events}
-          calendarConfig={calendarConfig}
-          user={user}
-          isAdmin
-        />
+        {!calendarMinimized && activeTab === 'calendar' && (
+          <div>
+            <div style={{ marginBottom: 10, padding: '10px', background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.12))', borderRadius: 10, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🗓 Parish Calendar</span>
+                <span style={{ fontSize: 12, color: '#4a5568' }}>Tap a date to view or add bookings</span>
+              </span>
+              <button
+                onClick={() => setCalendarMinimized(true)}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  color: ink,
+                  fontWeight: 700,
+                  padding: '4px 8px'
+                }}
+              >
+                −
+              </button>
+            </div>
+            <CalendarViewNew
+              bookings={bookings}
+              calendarBookings={bookings}
+              events={events}
+              calendarConfig={calendarConfig}
+              user={user}
+              isAdmin
+            />
+          </div>
+        )}
+        {calendarMinimized && activeTab === 'calendar' && (
+          <div style={{ marginBottom: 10, padding: '10px', background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.12))', borderRadius: 10, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+            <span>🗓 Calendar Minimized</span>
+            <button
+              onClick={() => setCalendarMinimized(false)}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                fontSize: 16,
+                color: ink,
+                fontWeight: 700,
+                padding: '4px 8px'
+              }}
+            >
+              +
+            </button>
+          </div>
+        )}
 
       <div className="dashboard-main dashboard-left-content" style={{ background: '#fff', borderRadius: 16, boxShadow: '0 18px 40px rgba(0,0,0,0.1)', border: `2px solid ${gold}`, padding: 16, borderTop: `4px solid ${gold}` }}>
         {/* TAB CONTENT */}
+        {activeTab === 'analytics' && (
+          <div>
+            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>📊 Dashboard Analytics</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
+              <div style={{ background: '#fff', borderRadius: 16, padding: '16px', border: `1px solid ${mist}`, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}>
+                <div style={{ color: '#718096', fontSize: 12, marginBottom: 8 }}>Events Today</div>
+                <div style={{ fontSize: 32, fontWeight: 800, color: ink, marginBottom: 8 }}>{todayEvents}</div>
+                <div style={{ color: '#718096', fontSize: 12 }}>{todayStr}</div>
+              </div>
+              <div style={{ background: '#fff', borderRadius: 16, padding: '16px', border: `1px solid ${mist}`, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}>
+                <div style={{ color: '#718096', fontSize: 12, marginBottom: 8 }}>Bookings Today</div>
+                <div style={{ fontSize: 32, fontWeight: 800, color: ink, marginBottom: 8 }}>{todayBookings}</div>
+                <div style={{ color: '#718096', fontSize: 12 }}>{todayStr}</div>
+              </div>
+              <div style={{ background: '#fff', borderRadius: 16, padding: '16px', border: `1px solid ${mist}`, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}>
+                <div style={{ color: '#718096', fontSize: 12, marginBottom: 8 }}>Upcoming Today</div>
+                {upcomingWithinHour.length === 0 ? (
+                  <div style={{ color: '#718096', fontSize: 14 }}>No upcoming events or bookings.</div>
+                ) : (
+                  <div style={{ color: ink, fontWeight: 600, fontSize: 14 }}>{upcomingWithinHour.length} item(s)</div>
+                )}
+                <div style={{ color: '#718096', fontSize: 12, marginTop: 4 }}>{todayStr}</div>
+              </div>
+            </div>
+            <div style={{
+              padding: '24px',
+              background: `linear-gradient(135deg, ${stone}40, ${mist}40)`,
+              borderRadius: 12,
+              border: `2px solid ${gold}`
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 16, color: ink }}>📈 System Overview</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+                <div style={{
+                  background: '#fff',
+                  padding: '16px',
+                  borderRadius: 10,
+                  border: `1px solid ${mist}`,
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>👥</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Total Parishioners</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: ink }}>{reportData.totalUsers}</div>
+                </div>
+                <div style={{
+                  background: '#fff',
+                  padding: '16px',
+                  borderRadius: 10,
+                  border: `1px solid ${mist}`,
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>🕯</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Total Events</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: ink }}>{reportData.totalEvents}</div>
+                </div>
+                <div style={{
+                  background: '#fff',
+                  padding: '16px',
+                  borderRadius: 10,
+                  border: `1px solid ${mist}`,
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>✅</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Total Bookings</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: ink }}>{reportData.totalBookings}</div>
+                </div>
+                <div style={{
+                  background: '#fff',
+                  padding: '16px',
+                  borderRadius: 10,
+                  border: `1px solid ${mist}`,
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>📖</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Records</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: ink }}>{reportData.totalRecords}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {activeTab === 'calendar' && (
           <div>
             <div
