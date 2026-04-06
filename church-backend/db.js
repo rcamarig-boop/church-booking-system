@@ -6,6 +6,7 @@ const DEFAULT_MAX_SLOTS = 5;
 // Create connection pool for Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  family: 4,
   ssl: {
     rejectUnauthorized: false
   }
@@ -51,6 +52,7 @@ const prepare = (sql) => {
         const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
         const result = await client.query(convertedSql, convertedParams);
         return {
+          row: result.rows[0] || null,
           lastInsertRowid: result.rows[0]?.id || null,
           changes: result.rowCount
         };
@@ -93,6 +95,7 @@ async function transaction(fn) {
           const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
           const r = await client.query(convertedSql, convertedParams);
           return {
+            row: r.rows[0] || null,
             lastInsertRowid: r.rows[0]?.id || null,
             changes: r.rowCount
           };
@@ -140,6 +143,7 @@ const dbRun = async (sql, ...params) => {
     const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
     const result = await client.query(convertedSql, convertedParams);
     return {
+      row: result.rows[0] || null,
       lastInsertRowid: result.rows[0]?.id || null,
       changes: result.rowCount
     };

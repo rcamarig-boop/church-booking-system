@@ -1,11 +1,11 @@
 import axios from 'axios';
 
-const DEFAULT_API_BASE = 'http://localhost:5000/api';
+const DEFAULT_API_BASE = 'http://localhost:4000/api';
 const rawBase =
   process.env.REACT_APP_API_BASE_URL ||
   process.env.REACT_APP_API_URL ||
   (process.env.NODE_ENV === 'production'
-    ? 'https://church-booking-api.railway.app/api'  // Update this to your deployed backend URL
+    ? window.location.origin
     : DEFAULT_API_BASE);
 const API_BASE_URL = rawBase.endsWith('/api') ? rawBase : `${rawBase.replace(/\/$/, '')}/api`;
 

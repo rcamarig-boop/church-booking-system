@@ -106,8 +106,8 @@ Set up 8 database tables with proper schema
 Modify backend code to use PostgreSQL instead of SQLite
 
 **Files needed**:
-- `db.supabase.js` → Copy to `db.js`
-- `package.supabase.json` → Copy to `package.json`
+- `db.js` already uses PostgreSQL via `DATABASE_URL`
+- `package.json` already includes the current backend dependencies
 - `server.js` → Make 2 simple find & replace changes
 
 **Output**: Code ready for deployment
@@ -151,8 +151,8 @@ Paste the schema SQL → Click Run
 ### 3️⃣ Update Your Code
 ```
 Replace 3 files:
-- db.js ← (use db.supabase.js)
-- package.json ← (use package.supabase.json)
+- db.js ← already configured for PostgreSQL
+- package.json ← already configured for PostgreSQL
 - server.js ← (search & replace 2 patterns)
 ⏱️ Takes: 8 minutes
 ```
@@ -210,8 +210,8 @@ Register, login, create booking
 In your `church-backend` folder, I've added:
 
 ```
-✅ db.supabase.js       ← New database connection file
-✅ package.supabase.json ← Updated dependencies
+✅ db.js               ← PostgreSQL connection file
+✅ package.json        ← Updated dependencies
 ```
 
 These are ready to use!
@@ -401,4 +401,3 @@ If all ✅, **YOU'RE LIVE!** 🎉
 4. SERVER_CHANGES.md (code changes)
 
 Good luck! Your church is about to have a modern web app! 🙏
-

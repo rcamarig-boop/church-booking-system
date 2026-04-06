@@ -135,12 +135,11 @@ CREATE INDEX idx_events_date ON events(date);
 ## 💻 PHASE 3: UPDATE BACKEND CODE (5 minutes)
 
 ### Step 1: Update Dependencies
-- [ ] Replace `church-backend/package.json` with the version from this guide
-- [ ] Delete `church-backend/package-lock.json`
-- [ ] Run: `npm install` in church-backend folder
+- [ ] Confirm `church-backend/package.json` already includes `pg`
+- [ ] Run: `npm install` in `church-backend`
 
 ### Step 2: Update Database Connection
-- [ ] Replace `church-backend/db.js` with the new Supabase version
+- [ ] Confirm `church-backend/db.js` points to `DATABASE_URL`
 
 ### Step 3: Update SQL Queries
 - [ ] Open `church-backend/server.js`
@@ -151,13 +150,13 @@ CREATE INDEX idx_events_date ON events(date);
 ### Step 4: Update Environment
 - [ ] Add to `church-backend/.env`:
 ```
-DATABASE_URL=postgresql://postgres:[PASSWORD]@[HOST]:6543/postgres?sslmode=require
+DATABASE_URL=postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres
 JWT_SECRET=your-secret-key-here
 AUTO_SEED_ADMIN=true
 ADMIN_EMAIL=admin@church.com
 ```
 
-Replace `[PASSWORD]` and `[HOST]` from your Supabase connection string!
+Replace `[PASSWORD]` and `[HOST]` from your Supabase connection string. Keep the database name as `postgres`.
 
 ---
 
@@ -258,8 +257,7 @@ Your app is now live at:
 ## File Checklist
 
 Before deploying, ensure you have:
-- [ ] `db.supabase.js` - New Supabase connection
-- [ ] `package.supabase.json` - Updated dependencies  
+- [ ] `db.js` - Supabase/Postgres connection
+- [ ] `package.json` - Current backend dependencies
 - [ ] Updated `server.js` - SQL changes applied
-- [ ] Updated `.env` - DATABASE_URL set
-
+- [ ] Updated `.env` - `DATABASE_URL` set

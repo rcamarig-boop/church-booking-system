@@ -1153,12 +1153,13 @@ async function createNotification(userId, type, text) {
   if (!userId || !text) return;
   const result = await dbRun(
     `INSERT INTO notifications (userId, type, text, read)
-     VALUES (?, ?, ?, 0)`,
+     VALUES (?, ?, ?, 0)
+     RETURNING id, type, text, created_at, read`,
     userId,
     type || 'info',
     text
   );
-  const insertedId = result?.lastInsertRowid;
+  const insertedId = result?.row?.id || result?.lastInsertRowid;
   // Keep only latest N notifications per user
   await dbRun(`
     DELETE FROM notifications
@@ -1171,11 +1172,10 @@ async function createNotification(userId, type, text) {
       )
   `, userId, userId);
   if (!insertedId) return null;
-  const row = await dbGet(
+  return result.row || await dbGet(
     `SELECT id, type, text, created_at, read FROM notifications WHERE id=?`,
     insertedId
   );
-  return row;
 }
 
 app.get('/api/notifications', auth, async (req, res) => {
@@ -1235,4 +1235,3 @@ const PORT = Number(process.env.PORT) || 4000;
   console.error('Failed to start server', err);
   process.exit(1);
 });
-

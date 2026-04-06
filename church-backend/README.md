@@ -1,6 +1,6 @@
 # Church Backend
 ## Setup
 - Copy `.env` variables or set env:
-  - JWT_SECRET, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM
+  - DATABASE_URL, JWT_SECRET, AUTO_SEED_ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD
 - Install deps: `npm install`
 - Start: `node server.js`
