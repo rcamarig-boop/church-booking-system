@@ -1,27 +1,23 @@
-const Database = require('better-sqlite3');
+require('dotenv').config();
 const bcrypt = require('bcryptjs');
-const path = require('path');
+const { dbAll, dbRun } = require('./db');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'church.db');
-const db = new Database(DB_PATH);
+async function main() {
+  const userColumns = await dbAll(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'users'
+  `);
+  const names = new Set(userColumns.map(c => c.column_name));
+  const passwordColumn = names.has('password') ? 'password' : names.has('password_hash') ? 'password_hash' : null;
+  const hasPhoneColumn = names.has('phone');
 
-const userColumns = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
-const passwordColumn =
-  userColumns.includes('password') ? 'password' :
-  userColumns.includes('password_hash') ? 'password_hash' : null;
-const hasPhoneColumn = userColumns.includes('phone');
-
-if (!passwordColumn) {
-  console.error('Users table missing password/password_hash column.');
-  process.exit(1);
-}
-
-bcrypt.hash('admin1234', 10, (err, hash) => {
-  if (err) {
-    console.error('Hash error:', err);
+  if (!passwordColumn) {
+    console.error('Users table missing password/password_hash column.');
     process.exit(1);
   }
 
+  const hash = await bcrypt.hash('admin1234', 10);
   const columns = hasPhoneColumn
     ? `name, email, ${passwordColumn}, phone, role`
     : `name, email, ${passwordColumn}, role`;
@@ -29,16 +25,22 @@ bcrypt.hash('admin1234', 10, (err, hash) => {
     ? ['Admin User', 'admin@church.com', hash, '', 'admin']
     : ['Admin User', 'admin@church.com', hash, 'admin'];
 
-  db.prepare(
+  await dbRun(
     `INSERT INTO users (${columns})
      VALUES (${values.map(() => '?').join(', ')})
-     ON CONFLICT(email) DO UPDATE SET
-       name=excluded.name,
-       ${passwordColumn}=excluded.${passwordColumn},
-       role=excluded.role`
-  ).run(...values);
+     ON CONFLICT (email) DO UPDATE SET
+       name = EXCLUDED.name,
+       ${passwordColumn} = EXCLUDED.${passwordColumn},
+       role = EXCLUDED.role`,
+    ...values
+  );
 
-  console.log('âœ… Admin user created!');
-  console.log('ðŸ“§ Email: admin@church.com');
-  console.log('ðŸ”‘ Password: admin1234');
+  console.log('Admin user created!');
+  console.log('Email: admin@church.com');
+  console.log('Password: admin1234');
+}
+
+main().catch(err => {
+  console.error('Failed to create admin user:', err.message);
+  process.exit(1);
 });

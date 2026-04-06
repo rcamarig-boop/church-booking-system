@@ -393,14 +393,14 @@ SELECT COUNT(*) FROM notifications;
 
 If stuck:
 1. **Check these files exist**:
-   - `church-backend/db.supabase.js`
+   - `church-backend/db.js`
    - `church-backend/package.json` (with `pg` dependency)
    - `church-backend/.env` (with DATABASE_URL)
 
 2. **Test locally first**:
    - Remove DATABASE_URL from .env
-   - Switch db.js back to `better-sqlite3`
-   - Test with local SQLite
+   - Keep `church-backend/db.js` pointed at PostgreSQL
+   - Test with your local backend + Supabase database
    - Ensure it works locally before deploying
 
 3. **Check service status**:
@@ -412,4 +412,3 @@ If stuck:
    - Render Logs: Shows backend errors
    - Vercel Logs: Shows frontend build errors
    - Supabase Logs: Shows database queries
-

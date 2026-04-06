@@ -6,11 +6,11 @@ Copy and paste these into your `.env` files depending on which stage you're at.
 
 ## STAGE 1: Local Development (Current)
 
-### File: `church-backend/.env.local`
+### File: `church-backend/.env`
 
 ```env
-# Local SQLite Setup (current)
-# No DATABASE_URL needed - uses local file: church.db
+# Local development uses PostgreSQL / Supabase
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:5432/postgres
 
 # JWT Configuration
 JWT_SECRET=your-super-secret-key-change-this-in-production
@@ -28,7 +28,6 @@ NODE_ENV=development
 
 **How to use:**
 ```bash
-cp church-backend/.env.local church-backend/.env
 npm start
 ```
 
@@ -43,8 +42,8 @@ npm start
 
 # Supabase PostgreSQL Connection
 # Get this from: Supabase → Settings → Database → Connection String
-# It looks like: postgresql://postgres:PASSWORD@HOST:6543/postgres?sslmode=require
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:6543/postgres?sslmode=require
+# It looks like: postgresql://postgres:PASSWORD@HOST:5432/postgres
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:5432/postgres
 
 # JWT Configuration - Generate a new random secret:
 # Node command: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -153,10 +152,10 @@ Copy this entire string and use it for `JWT_SECRET`.
 ### Step 7: Replace Placeholders
 - The string looks like:
   ```
-  postgresql://postgres:PASSWORD123@aws-0-us-east-1.pooling.supabase.co:6543/postgres?sslmode=require
+  postgresql://postgres:PASSWORD123@aws-0-us-east-1.pooler.supabase.com:5432/postgres
   ```
 - `PASSWORD123` is your database password (the one you created with the project)
-- `aws-0-us-east-1.pooling.supabase.co` is your host
+- `aws-0-us-east-1.pooler.supabase.com` is your host
 
 **You don't need to replace anything!** The password and host are already in the string. Just copy it exactly as-is.
 
@@ -166,7 +165,7 @@ Copy this entire string and use it for `JWT_SECRET`.
 
 ### With Real Values:
 ```
-postgresql://postgres:MyStrongPassword123!@aws-0-us-east-1.pooling.supabase.co:6543/postgres?sslmode=require
+postgresql://postgres:MyStrongPassword123!@aws-0-us-east-1.pooler.supabase.com:5432/postgres
 ```
 
 ### When Setting in Render:
@@ -269,8 +268,8 @@ RIGHT: postgresql://user:password@host:port/database?sslmode=require
 
 ### ❌ Mistake 2: Missing SSLMODE
 ```
-WRONG: postgresql://user:pass@host:6543/postgres
-RIGHT: postgresql://user:pass@host:6543/postgres?sslmode=require
+WRONG: postgresql://user:pass@host:5432/postgres
+RIGHT: postgresql://user:pass@host:5432/postgres
 ```
 
 ### ❌ Mistake 3: Special Characters Not Escaped
@@ -299,7 +298,7 @@ RIGHT: git add .gitignore (with *.env)
 Replace brackets with your actual values:
 
 ```env
-DATABASE_URL=postgresql://postgres:[YOUR_DATABASE_PASSWORD]@[YOUR_HOST]:6543/postgres?sslmode=require
+DATABASE_URL=postgresql://postgres:[YOUR_DATABASE_PASSWORD]@[YOUR_HOST]:5432/postgres
 JWT_SECRET=[GENERATE_WITH_NODE_COMMAND]
 AUTO_SEED_ADMIN=true
 ADMIN_NAME=Admin User
@@ -342,4 +341,3 @@ console.log(process.env.DATABASE_URL)
 ---
 
 **Still confused?** See QUICK_START.md for step-by-step with screenshots!
-

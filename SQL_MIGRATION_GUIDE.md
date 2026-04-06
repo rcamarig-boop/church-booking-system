@@ -185,7 +185,7 @@ curl -X POST http://localhost:4000/api/auth/register \
 ## Files to Modify
 
 1. ✅ `church-backend/package.json` - Replace with new version (already provided)
-2. ✅ `church-backend/db.js` - Replace with db.supabase.js version (already provided)
+2. ✅ `church-backend/db.js` - Already using the PostgreSQL version
 3. ⚠️ `church-backend/server.js` - Make the 2 find & replace operations above
 4. ✅ `church-backend/.env` - Add DATABASE_URL (during deployment)
 
@@ -215,4 +215,3 @@ After making changes, test these endpoints:
 - [ ] **GET /api/calendar** - Returns calendar as JSON map
 
 All should work without errors!
-

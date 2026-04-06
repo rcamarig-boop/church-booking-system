@@ -406,6 +406,7 @@ export default function AdminRequestPanel({ onDecision }) {
             <th style={th}>Service</th>
             <th style={th}>Date</th>
             <th style={th}>Slot</th>
+            <th style={th}>Place / Chapel</th>
             <th style={th}>Details</th>
             <th style={{ ...th, ...actionsColStyle }}>Actions</th>
           </tr>
@@ -419,10 +420,11 @@ export default function AdminRequestPanel({ onDecision }) {
               <td style={td}>{r.service || '-'}</td>
               <td style={td}>{r.date || '-'}</td>
               <td style={td}>{r.slot || '-'}</td>
+              <td style={td}>{r.chapel || r.details?.chapel || '-'}</td>
               <td style={td}>
                 {r.details && typeof r.details === 'object'
                   ? Object.entries(r.details)
-                      .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+                      .filter(([k, v]) => k !== 'chapel' && v !== null && v !== undefined && String(v).trim() !== '')
                       .map(([k, v]) => `${k}: ${v}`)
                       .join(' | ')
                   : '-'}
@@ -474,7 +476,7 @@ export default function AdminRequestPanel({ onDecision }) {
           ))}
           {requests.length === 0 && (
             <tr>
-              <td style={td} colSpan={8}>No pending booking requests.</td>
+              <td style={td} colSpan={9}>No pending booking requests.</td>
             </tr>
           )}
         </tbody>

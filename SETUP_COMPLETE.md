@@ -24,8 +24,8 @@ I've prepared **everything you need** to deploy your church app to production fo
 ### Code Files:
 
 ```
-✅ church-backend/db.supabase.js    ← Copy this to db.js
-✅ church-backend/package.supabase.json  ← Copy this to package.json
+✅ church-backend/db.js             ← PostgreSQL connection layer
+✅ church-backend/package.json      ← Backend dependencies
 ```
 
 ---
@@ -89,19 +89,19 @@ I've prepared **everything you need** to deploy your church app to production fo
 
 ## 💾 Code Files Prepared
 
-### File 1: db.supabase.js
-**Location**: `church-backend/db.supabase.js`
+### File 1: db.js
+**Location**: `church-backend/db.js`
 
-**What it is**: New database connection file for Supabase
-**What to do**: Copy this to replace `db.js`
-**Why needed**: Switches from SQLite to PostgreSQL
+**What it is**: PostgreSQL connection file used by the backend
+**What to do**: Keep this file in place
+**Why needed**: Connects the app to Supabase PostgreSQL
 
-### File 2: package.supabase.json
-**Location**: `church-backend/package.supabase.json`
+### File 2: package.json
+**Location**: `church-backend/package.json`
 
-**What it is**: Updated dependencies (replaces better-sqlite3 with pg)
-**What to do**: Copy this to replace `package.json`
-**Why needed**: Adds PostgreSQL client library
+**What it is**: Backend package manifest with PostgreSQL support
+**What to do**: Keep this file in place
+**Why needed**: Includes the `pg` client library
 
 ---
 
@@ -136,16 +136,14 @@ I've prepared **everything you need** to deploy your church app to production fo
 
 ### Change 1: Swap Database Layer
 ```
-Replace: church-backend/db.js
-With:    church-backend/db.supabase.js
-What it does: Connects to Supabase instead of local SQLite
+church-backend/db.js
+What it does: Connects to Supabase PostgreSQL
 ```
 
 ### Change 2: Update Dependencies
 ```
-Replace: church-backend/package.json
-With:    church-backend/package.supabase.json
-What it does: Adds PostgreSQL (pg) library
+church-backend/package.json
+What it does: Includes the PostgreSQL (pg) library
 ```
 
 ### Change 3: Fix SQL Date Functions
@@ -390,4 +388,3 @@ You now have:
 **Your church website is about to go live!**
 
 **Let's do this!** 💪
-

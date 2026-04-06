@@ -28,8 +28,8 @@ This guide covers the recommended setup:
 1. Once project loads, go to **Settings** (bottom left gear icon)
 2. Click **Database** in left menu
 3. Scroll down to "Connection pooling" section
-4. Copy the "Connection string" (URI format with `?sslmode=require`)
-   - It looks like: `postgresql://postgres:[PASSWORD]@[HOST]:6543/postgres?sslmode=require`
+4. Copy the "Connection string" (URI format)
+   - It looks like: `postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres`
 5. **IMPORTANT**: Save this securely - you'll need it later!
 
 ### Step 4: Create Database Schema
@@ -205,10 +205,10 @@ Replace your `church-backend/package.json` with:
 }
 ```
 
-Key change: Replaced `better-sqlite3` with `pg`
+Key change: The backend now uses `pg`
 
 ### Step 2: Replace db.js
-Replace your `church-backend/db.js` with the new Supabase version provided in this guide (see db.supabase.js)
+Keep your `church-backend/db.js` in place. The current version already uses PostgreSQL.
 
 ### Step 3: Update server.js SQL Queries
 Replace your `church-backend/server.js` with the PostgreSQL-compatible version.
@@ -226,7 +226,7 @@ Modify `church-backend/.env`:
 
 ```env
 # Database - from Supabase
-DATABASE_URL=postgresql://postgres:[YOUR_PASSWORD]@[YOUR_HOST]:6543/postgres?sslmode=require
+DATABASE_URL=postgresql://postgres:[YOUR_PASSWORD]@[YOUR_HOST]:5432/postgres
 
 # JWT
 JWT_SECRET=your-super-secret-key-change-this-in-production
@@ -291,7 +291,7 @@ Wait for initial deploy to fail (it will, missing DATABASE_URL).
 
 ### Step 5: Verify Deployment
 1. Go to the **Logs** tab
-2. Look for message: `SQLite server running on port 4000`
+2. Look for message: `PostgreSQL server running on port 4000`
 3. Click your service URL (top of page) to test
 4. Should see error `Cannot GET /` (that's OK - no frontend route yet)
 
@@ -475,4 +475,3 @@ If issues arise:
 - Check Vercel logs: Deployments → Logs
 - Check Supabase dashboard for database status
 - Test API directly: `https://backend-url/api/users` (should get 401 Unauthorized - expected if not authenticated)
-

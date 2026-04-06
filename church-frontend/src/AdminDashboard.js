@@ -667,15 +667,15 @@ export default function AdminDashboard({ user, onLogout }) {
             style={{
               all: 'unset',
               cursor: 'pointer',
-              padding: '7px 10px',
-              borderRadius: 999,
+              padding: '8px 12px',
+              borderRadius: 16,
               background: activeTab === 'analytics' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
               fontWeight: 800,
               fontSize: 11,
               transition: 'all 0.2s ease',
               border: `1px solid ${activeTab === 'analytics' ? gold : 'rgba(214,173,96,0.45)'}`,
-              boxShadow: activeTab === 'analytics' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              boxShadow: activeTab === 'analytics' ? '0 10px 24px rgba(214,173,96,0.22)' : '0 8px 18px rgba(0,0,0,0.08)',
               letterSpacing: 0.5,
               textTransform: 'uppercase',
               lineHeight: 1
@@ -688,15 +688,15 @@ export default function AdminDashboard({ user, onLogout }) {
             style={{
               all: 'unset',
               cursor: 'pointer',
-              padding: '7px 10px',
-              borderRadius: 999,
+              padding: '8px 12px',
+              borderRadius: 16,
               background: activeTab === 'records' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
               fontWeight: 800,
               fontSize: 11,
               transition: 'all 0.2s ease',
               border: `1px solid ${activeTab === 'records' ? gold : 'rgba(214,173,96,0.45)'}`,
-              boxShadow: activeTab === 'records' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              boxShadow: activeTab === 'records' ? '0 10px 24px rgba(214,173,96,0.22)' : '0 8px 18px rgba(0,0,0,0.08)',
               letterSpacing: 0.5,
               textTransform: 'uppercase',
               lineHeight: 1
@@ -709,15 +709,15 @@ export default function AdminDashboard({ user, onLogout }) {
             style={{
               all: 'unset',
               cursor: 'pointer',
-              padding: '7px 10px',
-              borderRadius: 999,
+              padding: '8px 12px',
+              borderRadius: 16,
               background: activeTab === 'bookings' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
               fontWeight: 800,
               fontSize: 11,
               transition: 'all 0.2s ease',
               border: `1px solid ${activeTab === 'bookings' ? gold : 'rgba(214,173,96,0.45)'}`,
-              boxShadow: activeTab === 'bookings' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              boxShadow: activeTab === 'bookings' ? '0 10px 24px rgba(214,173,96,0.22)' : '0 8px 18px rgba(0,0,0,0.08)',
               letterSpacing: 0.5,
               textTransform: 'uppercase',
               lineHeight: 1
@@ -730,15 +730,15 @@ export default function AdminDashboard({ user, onLogout }) {
           style={{
             all: 'unset',
             cursor: 'pointer',
-            padding: '7px 10px',
-              borderRadius: 999,
+            padding: '8px 12px',
+              borderRadius: 16,
               background: activeTab === 'concerns' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
               fontWeight: 800,
               fontSize: 11,
               transition: 'all 0.2s ease',
               border: `1px solid ${activeTab === 'concerns' ? gold : 'rgba(214,173,96,0.45)'}`,
-              boxShadow: activeTab === 'concerns' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              boxShadow: activeTab === 'concerns' ? '0 10px 24px rgba(214,173,96,0.22)' : '0 8px 18px rgba(0,0,0,0.08)',
               letterSpacing: 0.5,
               textTransform: 'uppercase',
               lineHeight: 1
@@ -751,15 +751,15 @@ export default function AdminDashboard({ user, onLogout }) {
             style={{
               all: 'unset',
               cursor: 'pointer',
-              padding: '7px 10px',
-              borderRadius: 999,
+              padding: '8px 12px',
+              borderRadius: 16,
               background: activeTab === 'requests' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
               color: ink,
               fontWeight: 800,
               fontSize: 11,
               transition: 'all 0.2s ease',
               border: `1px solid ${activeTab === 'requests' ? gold : 'rgba(214,173,96,0.45)'}`,
-              boxShadow: activeTab === 'requests' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              boxShadow: activeTab === 'requests' ? '0 10px 24px rgba(214,173,96,0.22)' : '0 8px 18px rgba(0,0,0,0.08)',
               letterSpacing: 0.5,
               textTransform: 'uppercase',
               lineHeight: 1
@@ -1421,8 +1421,8 @@ export default function AdminDashboard({ user, onLogout }) {
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: 12
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 10
           }}>
             {[
               { key: 'calendar', label: 'Calendar', icon: '📅' },
@@ -1444,18 +1444,26 @@ export default function AdminDashboard({ user, onLogout }) {
                 style={{
                   all: 'unset',
                   cursor: 'pointer',
-                  background: activeTab === tab.key ? `linear-gradient(135deg, ${accentBlue}, ${accentBlue}dd)` : '#fff',
+                  background: activeTab === tab.key
+                    ? `linear-gradient(135deg, ${accentBlue}, ${accentBlue}dd)`
+                    : 'linear-gradient(180deg, #fff 0%, #fafaf8 100%)',
                   borderRadius: 16,
-                  border: `2px solid ${activeTab === tab.key ? gold : mist}`,
+                  border: `2px solid ${activeTab === tab.key ? gold : 'rgba(214,173,96,0.35)'}`,
                   padding: '12px 10px',
+                  minHeight: 74,
                   textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
                   transition: 'all 0.2s ease',
-                  boxShadow: activeTab === tab.key ? `0 6px 16px ${accentBlue}40` : '0 2px 8px rgba(0,0,0,0.05)'
+                  boxShadow: activeTab === tab.key ? `0 8px 18px ${accentBlue}30` : '0 4px 12px rgba(0,0,0,0.05)'
                 }}
               >
-                <div style={{ fontSize: 20, marginBottom: 4 }}>{tab.icon}</div>
+                <div style={{ fontSize: 22, lineHeight: 1 }}>{tab.icon}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: activeTab === tab.key ? '#fff' : ink }}>{tab.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: activeTab === tab.key ? '#fff' : ink }}>{tab.label}</div>
                   {tab.count > 0 && (
                     <span style={{
                       background: '#b0413e',
@@ -1474,65 +1482,28 @@ export default function AdminDashboard({ user, onLogout }) {
             ))}
           </div>
 
-          {/* Church-themed footer decoration with expandable space */}
           <div style={{
-            marginTop: 'auto',
-            paddingTop: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16
+            marginTop: 12,
+            padding: '12px 14px',
+            borderRadius: 12,
+            border: `1px solid rgba(214,173,96,0.35)`,
+            background: `linear-gradient(135deg, ${stone}80, ${mist}60)`,
+            textAlign: 'center',
+            color: '#4a5568',
+            fontSize: 12,
+            fontStyle: 'italic'
           }}>
-            <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
-            
-            <div style={{
-              padding: '24px 16px',
-              background: `linear-gradient(135deg, ${stone}80, ${mist}60)`,
-              borderRadius: 14,
-              borderTop: `4px solid ${gold}`,
-              borderLeft: `4px solid ${gold}`,
-              textAlign: 'center',
-              color: ink,
-              fontSize: 13,
-              fontWeight: 600,
-              lineHeight: 1.8,
-              boxShadow: `inset 0 0 20px ${gold}15`
-            }}>
-              <div style={{ fontSize: 28, marginBottom: 12, letterSpacing: 4 }}>✦</div>
-              <div style={{ color: '#4a5568', fontSize: 13, fontStyle: 'italic', marginBottom: 12, fontWeight: 500 }}>
-                "In God, we trust"
-              </div>
-              <div style={{ fontSize: 12, color: '#6b7280', borderTop: `2px solid ${gold}40`, paddingTop: 12, lineHeight: 1.7 }}>
-                May this parish be a beacon of love, faith, and community
-              </div>
-              <div style={{ fontSize: 11, color: '#4a5568', marginTop: 12, paddingTop: 12, borderTop: `1px solid ${gold}40`, fontWeight: 600 }}>
-                ☎️ Contact: +639##-###-#### |
-              </div>
-            </div>
-
-            <div style={{
-              padding: '12px 16px',
-              background: `${mist}40`,
-              borderRadius: 10,
-              borderLeft: `4px solid ${gold}`,
-              fontSize: 11,
-              color: '#6b7280',
-              textAlign: 'center',
-              fontStyle: 'italic'
-            }}>
-              "Let us gather in fellowship and serve with compassion"
-            </div>
-
-            <div style={{ height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
+            "Let us gather in fellowship and serve with compassion"
           </div>
         </div>
       </aside>
       </div>
 
       {/* ---------- MAIN CONTENT ---------- */}
-      <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 18, border: `1px solid ${mist}`, boxShadow: '0 18px 36px rgba(0,0,0,0.1)', padding: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.88)', borderRadius: 18, border: `1px solid rgba(214,173,96,0.38)`, boxShadow: '0 16px 32px rgba(0,0,0,0.08)', padding: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
         {!calendarMinimized && activeTab === 'calendar' && (
           <div>
-            <div style={{ marginBottom: 10, padding: '10px', background: 'linear-gradient(90deg, rgba(59,91,138,0.12), rgba(214,173,96,0.12))', borderRadius: 10, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+            <div style={{ marginBottom: 10, padding: '12px 14px', background: 'linear-gradient(90deg, rgba(255,255,255,0.96), rgba(248,244,236,0.96))', borderRadius: 16, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', border: `1px solid rgba(214,173,96,0.35)`, boxShadow: '0 8px 18px rgba(0,0,0,0.06)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>🗓 Parish Calendar</span>
                 <span style={{ fontSize: 12, color: '#4a5568' }}>Tap a date to view or add bookings</span>
@@ -1551,14 +1522,16 @@ export default function AdminDashboard({ user, onLogout }) {
                 −
               </button>
             </div>
-            <CalendarViewNew
-              bookings={bookings}
-              calendarBookings={bookings}
-              events={events}
-              calendarConfig={calendarConfig}
-              user={user}
-              isAdmin
-            />
+            <div style={{ background: 'rgba(255,255,255,0.96)', borderRadius: 18, border: `1px solid rgba(214,173,96,0.35)`, boxShadow: '0 14px 30px rgba(0,0,0,0.06)', padding: 12 }}>
+              <CalendarViewNew
+                bookings={bookings}
+                calendarBookings={bookings}
+                events={events}
+                calendarConfig={calendarConfig}
+                user={user}
+                isAdmin
+              />
+            </div>
           </div>
         )}
         {calendarMinimized && activeTab === 'calendar' && (
@@ -2279,6 +2252,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <th style={th}>Service</th>
                   <th style={th}>Date</th>
                   <th style={th}>Slot</th>
+                  <th style={th}>Place / Chapel</th>
                   <th style={th}>Action</th>
                   <th style={th}>Details</th>
                   <th style={th}>At</th>
@@ -2292,11 +2266,12 @@ export default function AdminDashboard({ user, onLogout }) {
                     <td style={td}>{r.service || '-'}</td>
                     <td style={td}>{r.date || '-'}</td>
                     <td style={td}>{r.slot || '-'}</td>
+                    <td style={td}>{r.chapel || r.details?.chapel || '-'}</td>
                     <td style={{ ...td, textTransform: 'capitalize' }}>{r.action || '-'}</td>
                     <td style={td}>
                       {r.details && typeof r.details === 'object'
                         ? Object.entries(r.details)
-                            .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+                            .filter(([k, v]) => k !== 'chapel' && v !== null && v !== undefined && String(v).trim() !== '')
                             .map(([k, v]) => `${k}: ${v}`)
                             .join(' | ')
                         : '-'}
@@ -2306,7 +2281,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 ))}
                 {records.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={8}>No booking records match your search.</td>
+                    <td style={td} colSpan={9}>No booking records match your search.</td>
                   </tr>
                 )}
               </tbody>

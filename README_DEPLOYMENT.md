@@ -59,7 +59,7 @@ I've created **8 comprehensive guides** for you. Here's what each one contains:
 ---
 
 ### 📊 **TECHNICAL REFERENCE** → [SQL_MIGRATION_GUIDE.md](SQL_MIGRATION_GUIDE.md)
-**What**: SQLite to PostgreSQL changes explained  
+**What**: PostgreSQL migration notes and SQL compatibility  
 **Why read**: Understand what changed and why  
 **Time**: 10 minutes  
 **Contains**: SQL pattern changes, compatibility notes
@@ -101,15 +101,15 @@ church-project/
 ├── SQL_MIGRATION_GUIDE.md     ← Database reference
 │
 └── church-backend/
-    ├── db.supabase.js         ← Copy to db.js
-    └── package.supabase.json   ← Copy to package.json
+    ├── db.js                  ← PostgreSQL connection layer
+    └── package.json           ← Backend dependencies
 ```
 
 ### Files You Need to Use
 
-1. **db.supabase.js** → Copy this to replace `db.js`
-2. **package.supabase.json** → Copy this to replace `package.json`  
-3. **server.js** → Edit with 2 find & replace operations (see SERVER_CHANGES.md)
+1. **db.js** → PostgreSQL connection layer already in place
+2. **package.json** → Includes the `pg` dependency already
+3. **server.js** → PostgreSQL-compatible queries already applied
 4. **.env** → Add DATABASE_URL (see ENV_SETUP_GUIDE.md)
 
 ---
@@ -337,4 +337,3 @@ You now have:
 **START WITH:** [START_HERE.md](START_HERE.md) or [QUICK_START.md](QUICK_START.md)
 
 **GOOD LUCK! 🙏**
-

@@ -45,6 +45,7 @@ async function initDatabase() {
   // ✅ Tables already created in Supabase via schema SQL
   // This function is kept for reference but does nothing
   // All tables exist in PostgreSQL/Supabase
+  await detectUserTableShape();
   console.log('Database: Using existing PostgreSQL/Supabase tables');
 }
 
@@ -63,12 +64,17 @@ const dbRun = async (sql, ...params) => {
   return await stmt.run(...params);
 };
 
-const passwordColumn = 'password';
-const hasPhoneColumn = false;
+let passwordColumn = 'password';
+let hasPhoneColumn = false;
 const eventTitleCol = 'title';
 const eventDateCol = 'date';
 const eventTimeCol = 'time';
 const eventDescCol = 'description';
+let bookingUserIdCol = '"userId"';
+let bookingRecordUserIdCol = '"userId"';
+let requestUserIdCol = '"userId"';
+let concernUserIdCol = '"userId"';
+let notificationUserIdCol = '"userId"';
 
 const normalizeEvent = (e) => ({
   id: e.id,
@@ -100,14 +106,12 @@ async function ensureAdminUser() {
   console.log(`Seeded admin user: ${ADMIN_EMAIL}`);
 }
 
-const bookingUserIdCol = 'userId';
 const bookingNameCol = 'name';
 const bookingEmailCol = 'email';
 const bookingServiceCol = 'service';
 const bookingSlotCol = 'slot';
 const bookingDetailsCol = 'details';
 
-const requestUserIdCol = 'userId';
 const requestNameCol = 'name';
 const requestEmailCol = 'email';
 const requestServiceCol = 'service';
@@ -123,7 +127,8 @@ const normalizeBooking = (b) => ({
   service: b.service ?? b.service_type ?? null,
   date: b.date,
   slot: b.slot ?? b.time_slot ?? null,
-  details: safeJsonParse(b.details)
+  details: safeJsonParse(b.details),
+  chapel: b.chapel ?? b.place ?? safeJsonParse(b.details)?.chapel ?? null
 });
 
 const normalizeBookingRequest = (r) => ({
@@ -135,9 +140,52 @@ const normalizeBookingRequest = (r) => ({
   date: r.date,
   slot: r.slot ?? r.time_slot ?? null,
   details: safeJsonParse(r.details),
+  chapel: r.chapel ?? r.place ?? safeJsonParse(r.details)?.chapel ?? null,
   status: r.status || 'pending',
   createdAt: r.created_at || null
 });
+
+async function detectUserTableShape() {
+  try {
+    const tableColumns = async (tableName) => {
+      const rows = await dbAll(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = ?
+      `, tableName);
+      return new Set(rows.map(c => c.column_name));
+    };
+
+    const quoteIdent = (name) => (/[A-Z]/.test(name) ? `"${name}"` : name);
+    const pickColumn = (names, candidates, fallback) => {
+      for (const candidate of candidates) {
+        if (names.has(candidate)) return quoteIdent(candidate);
+      }
+      return fallback;
+    };
+
+    const users = await tableColumns('users');
+    passwordColumn = pickColumn(users, ['password', 'password_hash'], 'password');
+    hasPhoneColumn = users.has('phone');
+
+    const bookingRequests = await tableColumns('booking_requests');
+    requestUserIdCol = pickColumn(bookingRequests, ['userId', 'userid', 'user_id'], '"userId"');
+
+    const bookings = await tableColumns('bookings');
+    bookingUserIdCol = pickColumn(bookings, ['userId', 'userid', 'user_id'], '"userId"');
+
+    const bookingRecords = await tableColumns('booking_records');
+    bookingRecordUserIdCol = pickColumn(bookingRecords, ['userId', 'userid', 'user_id'], '"userId"');
+
+    const concerns = await tableColumns('concerns');
+    concernUserIdCol = pickColumn(concerns, ['userId', 'userid', 'user_id'], '"userId"');
+
+    const notifications = await tableColumns('notifications');
+    notificationUserIdCol = pickColumn(notifications, ['userId', 'userid', 'user_id'], '"userId"');
+  } catch (err) {
+    console.warn('Could not detect users table columns, using defaults:', err.message);
+  }
+}
 
 const LEGACY_SLOT_OPTIONS = ['AM', 'PM'];
 const CUSTOM_SLOT_PATTERN = /^([01]\d|2[0-3]):(00|30)$/;
@@ -228,9 +276,10 @@ async function addBookingRecord({
   actionBy = null
 }, conn = null) {
   const runner = conn ? conn.prepare.bind(conn) : prepare;
+  const userIdCol = bookingRecordUserIdCol || '"userId"';
   await runner(`
     INSERT INTO booking_records (
-      request_id, booking_id, userId, name, email, service, date, slot, details, action, note, action_by
+      request_id, booking_id, ${userIdCol}, name, email, service, date, slot, details, action, note, action_by
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
   requestId,
@@ -241,7 +290,7 @@ async function addBookingRecord({
   service,
   date,
   slot,
-  details ? JSON.stringify(details) : null,
+  details || null,
   action,
   note,
   actionBy
@@ -268,9 +317,13 @@ function admin(req, res, next) {
 /* ===================== AUTH ===================== */
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password, role } = req.body;
-  const hashed = await bcrypt.hash(password, 10);
 
   try {
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password are required' });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
     const columns = hasPhoneColumn
       ? `name, email, ${passwordColumn}, phone, role`
       : `name, email, ${passwordColumn}, role`;
@@ -287,8 +340,12 @@ app.post('/api/auth/register', async (req, res) => {
     const token = jwt.sign(user, JWT_SECRET);
 
     res.json({ token, user });
-  } catch {
-    res.status(400).json({ error: 'Email already exists' });
+  } catch (err) {
+    if (err?.code === '23505') {
+      return res.status(409).json({ error: 'Email already exists' });
+    }
+    console.error('Register failed', err);
+    res.status(500).json({ error: 'Registration failed' });
   }
 });
 
@@ -338,9 +395,9 @@ app.get('/api/bookings', auth, async (req, res) => {
   ]);
   const filter = String(req.query.filter || '').toLowerCase();
   const filterClause = filter === 'past'
-    ? `date < CAST(now() AS date)`
+    ? `date < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`
     : filter === 'upcoming'
-      ? `date >= CAST(now() AS date)`
+      ? `date >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`
       : '';
 
   if (req.user.role === 'admin') {
@@ -402,7 +459,7 @@ app.post('/api/bookings', auth, async (req, res) => {
     if (requestEmailCol) { cols.push(requestEmailCol); vals.push(req.user.email || null); }
     if (requestServiceCol) { cols.push(requestServiceCol); vals.push(service); }
     if (requestSlotCol) { cols.push(requestSlotCol); vals.push(slot); }
-    if (requestDetailsCol) { cols.push(requestDetailsCol); vals.push(JSON.stringify(details || {})); }
+    if (requestDetailsCol) { cols.push(requestDetailsCol); vals.push(details || {}); }
     cols.push('date'); vals.push(date);
     if (requestStatusCol) { cols.push(requestStatusCol); vals.push('pending'); }
 
@@ -512,7 +569,7 @@ app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
     UPDATE booking_requests
     SET date=?, service=?, slot=?, details=?
     WHERE id=?
-  `, date, service, slot, JSON.stringify(details), requestId);
+  `, date, service, slot, details || {}, requestId);
 
   await addBookingRecord({
     requestId,
@@ -571,7 +628,7 @@ app.post('/api/booking-requests/:id/approve', auth, admin, async (req, res) => {
     if (bookingEmailCol) { cols.push(bookingEmailCol); vals.push(request.email || null); }
     if (bookingServiceCol) { cols.push(bookingServiceCol); vals.push(request.service); }
     if (bookingSlotCol) { cols.push(bookingSlotCol); vals.push(slot); }
-    if (bookingDetailsCol) { cols.push(bookingDetailsCol); vals.push(request.details ? JSON.stringify(request.details) : null); }
+    if (bookingDetailsCol) { cols.push(bookingDetailsCol); vals.push(request.details || null); }
     cols.push('date'); vals.push(request.date);
 
     const insertResult = await conn.prepare(`
@@ -679,7 +736,7 @@ app.get('/api/booking-records', auth, admin, async (_, res) => {
     'id', 'name', 'email', 'service', 'date', 'slot', 'action', 'details'
   ]);
   const rows = await dbAll(`
-    SELECT id, request_id, booking_id, userId, name, email, service, date, slot, details, action, note, action_by, action_at
+    SELECT id, request_id, booking_id, ${bookingRecordUserIdCol || '"userId"'} AS "userId", name, email, service, date, slot, details, action, note, action_by, action_at
     FROM booking_records
     ${clause ? `WHERE ${clause}` : ''}
     ORDER BY id DESC
@@ -696,6 +753,7 @@ app.get('/api/booking-records', auth, admin, async (_, res) => {
     date: r.date,
     slot: r.slot,
     details: safeJsonParse(r.details),
+    chapel: r.chapel ?? safeJsonParse(r.details)?.chapel ?? null,
     action: r.action,
     note: r.note,
     actionBy: r.action_by,
@@ -763,7 +821,7 @@ app.put('/api/bookings/:id', auth, admin, async (req, res) => {
       UPDATE bookings
       SET date=?, ${serviceCol}=?, ${slotCol}=?, ${detailsCol}=?
       WHERE id=?
-    `).run(date, service, slot, JSON.stringify(details), bookingId);
+    `).run(date, service, slot, details || {}, bookingId);
 
     await addBookingRecord({
       bookingId,
@@ -832,9 +890,9 @@ app.get('/api/events', auth, async (_, res) => {
   ]);
   const filter = String(_.query.filter || '').toLowerCase();
   const filterClause = filter === 'past'
-    ? `date < CAST(now() AS date)`
+    ? `date < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`
     : filter === 'upcoming'
-      ? `date >= CAST(now() AS date)`
+      ? `date >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`
       : '';
   const whereParts = [clause, filterClause].filter(Boolean);
   const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
@@ -945,7 +1003,7 @@ app.post('/api/concerns', auth, async (req, res) => {
     return res.status(400).json({ error: 'Subject and message are required' });
   }
   await dbRun(
-    `INSERT INTO concerns (userId, name, email, subject, message, status)
+    `INSERT INTO concerns (${concernUserIdCol || '"userId"'}, name, email, subject, message, status)
      VALUES (?, ?, ?, ?, ?, 'open')`,
     req.user.id,
     req.user.name || null,
@@ -976,7 +1034,7 @@ app.get('/api/concerns', auth, admin, async (_, res) => {
     'id', 'name', 'email', 'subject', 'message', 'status'
   ]);
   const rows = await dbAll(`
-    SELECT id, userId, name, email, subject, message, status, created_at, resolved_at, resolved_by, resolution_note,
+    SELECT id, ${concernUserIdCol || '"userId"'} AS "userId", name, email, subject, message, status, created_at, resolved_at, resolved_by, resolution_note,
            reply_message, replied_at, replied_by
     FROM concerns
     ${clause ? `WHERE ${clause}` : ''}
@@ -1002,10 +1060,10 @@ app.get('/api/concerns/my', auth, async (req, res) => {
     'id', 'subject', 'message', 'status'
   ]);
   const rows = await dbAll(`
-    SELECT id, userId, name, email, subject, message, status, created_at, resolved_at, resolved_by, resolution_note,
+    SELECT id, ${concernUserIdCol || '"userId"'} AS "userId", name, email, subject, message, status, created_at, resolved_at, resolved_by, resolution_note,
            reply_message, replied_at, replied_by
     FROM concerns
-    WHERE userId=?
+    WHERE ${concernUserIdCol || '"userId"'}=?
     ${clause ? `AND ${clause}` : ''}
     ORDER BY created_at DESC, id DESC
     ${limit ? `LIMIT ${limit} OFFSET ${offset}` : ''}
@@ -1018,7 +1076,7 @@ app.put('/api/concerns/:id', auth, admin, async (req, res) => {
   const status = String(req.body.status || '').trim() || 'open';
   const resolutionNote = String(req.body.resolution_note || '').trim();
   const replyMessage = String(req.body.reply_message || '').trim();
-  const row = await dbGet('SELECT id,status,userId FROM concerns WHERE id=?', concernId);
+  const row = await dbGet(`SELECT id,status,${concernUserIdCol || '"userId"'} AS "userId" FROM concerns WHERE id=?`, concernId);
   if (!row) return res.status(404).json({ error: 'Concern not found' });
 
   const isResolved = status.toLowerCase() === 'resolved';
@@ -1039,18 +1097,18 @@ app.put('/api/concerns/:id', auth, admin, async (req, res) => {
   io.emit('concern_updated', {
     id: concernId,
     status,
-    userId: row.userId,
+    userId: row.userId ?? row.userid ?? row.user_id,
     reply_message: replyMessage || null
   });
   if (replyMessage) {
     await createNotification(
-      row.userId,
+      row.userId ?? row.userid ?? row.user_id,
       'concern_update',
       'Admin replied to your concern'
     );
   } else {
     await createNotification(
-      row.userId,
+      row.userId ?? row.userid ?? row.user_id,
       'concern_update',
       `Your concern status: ${status}`
     );
@@ -1065,9 +1123,10 @@ app.put('/api/concerns/:id', auth, admin, async (req, res) => {
 
 app.put('/api/concerns/:id/close', auth, async (req, res) => {
   const concernId = Number(req.params.id);
-  const row = await dbGet('SELECT id,userId,status FROM concerns WHERE id=?', concernId);
+  const row = await dbGet(`SELECT id,${concernUserIdCol || '"userId"'} AS "userId",status FROM concerns WHERE id=?`, concernId);
   if (!row) return res.status(404).json({ error: 'Concern not found' });
-  if (row.userId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+  const concernOwnerId = row.userId ?? row.userid ?? row.user_id;
+  if (concernOwnerId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
   await dbRun(
     `UPDATE concerns
@@ -1077,9 +1136,9 @@ app.put('/api/concerns/:id/close', auth, async (req, res) => {
     'Closed by user',
     concernId
   );
-  io.emit('concern_updated', { id: concernId, status: 'resolved', userId: row.userId });
+  io.emit('concern_updated', { id: concernId, status: 'resolved', userId: concernOwnerId });
   await createNotification(
-    row.userId,
+    concernOwnerId,
     'concern_update',
     'You closed your concern'
   );
@@ -1151,8 +1210,9 @@ const MAX_NOTIFICATIONS_PER_USER = 30;
 
 async function createNotification(userId, type, text) {
   if (!userId || !text) return;
+  const userIdCol = notificationUserIdCol || '"userId"';
   const result = await dbRun(
-    `INSERT INTO notifications (userId, type, text, read)
+    `INSERT INTO notifications (${userIdCol}, type, text, read)
      VALUES (?, ?, ?, 0)
      RETURNING id, type, text, created_at, read`,
     userId,
@@ -1163,10 +1223,10 @@ async function createNotification(userId, type, text) {
   // Keep only latest N notifications per user
   await dbRun(`
     DELETE FROM notifications
-    WHERE userId=?
+    WHERE ${userIdCol}=?
       AND id NOT IN (
         SELECT id FROM notifications
-        WHERE userId=?
+        WHERE ${userIdCol}=?
         ORDER BY id DESC
         LIMIT ${MAX_NOTIFICATIONS_PER_USER}
       )
@@ -1183,7 +1243,7 @@ app.get('/api/notifications', auth, async (req, res) => {
   const rows = await dbAll(
     `SELECT id, type, text, created_at, read
      FROM notifications
-     WHERE userId=?
+     WHERE ${notificationUserIdCol || '"userId"'}=?
      ORDER BY id DESC
      ${limit ? `LIMIT ${limit} OFFSET ${offset}` : ''}`,
     req.user.id
@@ -1202,18 +1262,18 @@ app.post('/api/notifications', auth, async (req, res) => {
 app.post('/api/notifications/read', auth, async (req, res) => {
   const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
   if (!ids.length) return res.json({ success: true });
-  await dbRun(`UPDATE notifications SET read=1 WHERE userId=? AND id IN (${ids.map(() => '?').join(',')})`, req.user.id, ...ids);
+  await dbRun(`UPDATE notifications SET read=1 WHERE ${notificationUserIdCol || '"userId"'}=? AND id IN (${ids.map(() => '?').join(',')})`, req.user.id, ...ids);
   res.json({ success: true });
 });
 
 app.delete('/api/notifications/:id', auth, async (req, res) => {
   const id = Number(req.params.id);
-  await dbRun('DELETE FROM notifications WHERE id=? AND userId=?', id, req.user.id);
+  await dbRun(`DELETE FROM notifications WHERE id=? AND ${notificationUserIdCol || '"userId"'}=?`, id, req.user.id);
   res.json({ success: true });
 });
 
 app.delete('/api/notifications', auth, async (req, res) => {
-  await dbRun('DELETE FROM notifications WHERE userId=?', req.user.id);
+  await dbRun(`DELETE FROM notifications WHERE ${notificationUserIdCol || '"userId"'}=?`, req.user.id);
   res.json({ success: true });
 });
 
