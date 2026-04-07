@@ -1157,7 +1157,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 })()}
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: 6 }}>Additional Details (optional JSON)</label>
+                <label style={{ display: 'block', marginBottom: 6 }}>Additional Details</label>
                 <textarea
                   rows={4}
                   value={bookingDetailsExtra}
