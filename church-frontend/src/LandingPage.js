@@ -11,7 +11,7 @@ const sacredRed = '#8b3a3a';
 export default function LandingPage({ onChooseLogin, onChooseRegister }) {
   return (
     <PageWrapper>
-      <div style={{
+      <div className="landing-page-shell" style={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
@@ -19,7 +19,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
         padding: '20px',
         background: `linear-gradient(135deg, rgba(139, 58, 58, 0.05), rgba(214, 173, 96, 0.08)), linear-gradient(180deg, rgba(248, 244, 236, 0.95), rgba(255,255,255,0.85))`
       }}>
-        <div style={{
+        <div className="landing-card" style={{
           width: '100%',
           maxWidth: 700,
           background: '#fff',
@@ -30,7 +30,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
           textAlign: 'center'
         }}>
           {/* Sacred Cross Symbol */}
-          <div style={{
+          <div className="landing-cross" style={{
             fontSize: 64,
             marginBottom: 16,
             color: sacredRed,
@@ -42,7 +42,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
           </div>
 
           {/* Header Section */}
-          <header style={{ marginBottom: 36 }}>
+          <header className="landing-header" style={{ marginBottom: 36 }}>
             <h1 style={{
               fontSize: '3.2em',
               fontWeight: 800,
@@ -73,7 +73,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
             </p>
 
             {/* Inspirational Quote */}
-            <div style={{
+            <div className="landing-quote" style={{
               background: `linear-gradient(135deg, ${stone}50, ${mist}40)`,
               borderLeft: `5px solid ${gold}`,
               borderRight: `5px solid ${gold}`,
@@ -93,12 +93,12 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
           </header>
 
           {/* Feature Cards */}
-          <div style={{
+          <div className="landing-features" style={{
             display: 'grid',
             gap: 14,
             marginBottom: 36
           }}>
-            <div style={{
+            <div className="landing-feature-card" style={{
               background: `linear-gradient(135deg, ${stone}70, ${mist}50)`,
               padding: '16px 18px',
               borderRadius: 14,
@@ -114,7 +114,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
               <span><strong>Sacred Services:</strong> Book confessions, baptisms, counseling, and pastoral visits</span>
             </div>
 
-            <div style={{
+            <div className="landing-feature-card" style={{
               background: `linear-gradient(135deg, ${stone}70, ${mist}50)`,
               padding: '16px 18px',
               borderRadius: 14,
@@ -130,7 +130,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
               <span><strong>Spiritual Guidance:</strong> Connect with clergy for prayers, blessings, and ministry</span>
             </div>
 
-            <div style={{
+            <div className="landing-feature-card" style={{
               background: `linear-gradient(135deg, ${stone}70, ${mist}50)`,
               padding: '16px 18px',
               borderRadius: 14,
@@ -146,7 +146,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
               <span><strong>Parish Updates:</strong> Stay connected with church events and announcements</span>
             </div>
 
-            <div style={{
+            <div className="landing-feature-card" style={{
               background: `linear-gradient(135deg, ${stone}70, ${mist}50)`,
               padding: '16px 18px',
               borderRadius: 14,
@@ -164,7 +164,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
           </div>
 
           {/* Action Buttons */}
-          <div style={{
+          <div className="landing-actions" style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             gap: 14,
@@ -172,6 +172,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
           }}>
             <button
               onClick={onChooseLogin}
+              className="landing-primary-btn"
               style={{
                 padding: '15px 24px',
                 fontSize: 15,
@@ -200,6 +201,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
 
             <button
               onClick={onChooseRegister}
+              className="landing-secondary-btn"
               style={{
                 padding: '15px 24px',
                 fontSize: 15,
@@ -228,7 +230,7 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
           </div>
 
           {/* Footer Text */}
-          <div style={{
+          <div className="landing-footer" style={{
             fontSize: 13,
             color: '#6b7280',
             borderTop: `2px solid ${mist}`,

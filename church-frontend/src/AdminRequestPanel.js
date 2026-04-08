@@ -14,7 +14,8 @@ const td = {
 };
 
 const actionsColStyle = {
-  width: 820
+  minWidth: 180,
+  whiteSpace: 'nowrap'
 };
 const iconBtn = {
   width: 32,
@@ -172,12 +173,13 @@ export default function AdminRequestPanel({ onDecision }) {
 
   return (
     <div>
-      <h2>Booking Request Panel</h2>
+      <h2 className="admin-request-title">Booking Request Panel</h2>
       {error && (
         <div style={{ marginBottom: 12, color: '#e53e3e' }}>{error}</div>
       )}
       {editorOpen && (
         <div
+          className="admin-request-modal-overlay"
           role="dialog"
           aria-modal="true"
           style={{
@@ -198,6 +200,7 @@ export default function AdminRequestPanel({ onDecision }) {
           }}
         >
           <div
+            className="admin-request-modal-card"
             style={{
               width: '100%',
               maxWidth: 620,
@@ -205,7 +208,9 @@ export default function AdminRequestPanel({ onDecision }) {
               borderRadius: 16,
               padding: 20,
               border: '1px solid #e2e8f0',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.18)'
+              boxShadow: '0 20px 50px rgba(0,0,0,0.18)',
+              maxHeight: 'calc(100vh - 32px)',
+              overflowY: 'auto'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -312,7 +317,7 @@ export default function AdminRequestPanel({ onDecision }) {
               {editorError && (
                 <div style={{ color: '#e53e3e', fontWeight: 600 }}>{editorError}</div>
               )}
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="admin-request-modal-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => {
                     if (editorSaving) return;
@@ -397,7 +402,8 @@ export default function AdminRequestPanel({ onDecision }) {
           </div>
         </div>
       )}
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="admin-request-table-wrap">
+        <table className="admin-request-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ background: '#eee' }}>
             <th style={th}>ID</th>
@@ -480,8 +486,9 @@ export default function AdminRequestPanel({ onDecision }) {
             </tr>
           )}
         </tbody>
-      </table>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
+        </table>
+      </div>
+      <div className="admin-request-pagination" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
         <button
           onClick={() => setPage(p => Math.max(1, p - 1))}
           disabled={page <= 1}

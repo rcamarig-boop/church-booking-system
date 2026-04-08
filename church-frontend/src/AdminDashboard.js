@@ -680,7 +680,14 @@ export default function AdminDashboard({ user, onLogout }) {
           "linear-gradient(135deg, rgba(248, 244, 236, 0.9), rgba(255,255,255,0.82)), url('/login-bg.jpg') center/cover no-repeat fixed"
       }}
     >
-      <div className="church-ornament-top" style={{
+      {sidebarOpen && (
+        <div
+          className="dashboard-drawer-overlay"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <div className="church-ornament-top dashboard-shell-header" style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -688,7 +695,7 @@ export default function AdminDashboard({ user, onLogout }) {
         marginBottom: 16,
         flexWrap: 'wrap'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="dashboard-shell-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <button
             className="sidebar-toggle-btn"
             aria-label="Show navigation panel"
@@ -713,12 +720,12 @@ export default function AdminDashboard({ user, onLogout }) {
             ☰
           </button>
           <div className="dashboard-brand" style={{ paddingTop: 0, paddingBottom: 0, textAlign: 'left' }}>
-            <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0, fontFamily: churchDisplayFont, letterSpacing: 0.6 }}>Parish Admin</div>
+            <div className="dashboard-brand-title dashboard-shell-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0, fontFamily: churchDisplayFont, letterSpacing: 0.6 }}>Parish Admin</div>
             <div className="dashboard-brand-subtitle" style={{ color: '#4a5568', marginTop: 4, fontFamily: churchBodyFont, fontStyle: 'italic' }}>Parish Management</div>
           </div>
         </div>
 
-        <div style={{
+        <div className="dashboard-shell-header-actions" style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
@@ -942,6 +949,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
       {profileEditorOpen && (
         <div
+          className="dashboard-dialog-overlay"
           role="dialog"
           aria-modal="true"
           style={{
@@ -963,6 +971,7 @@ export default function AdminDashboard({ user, onLogout }) {
           }}
         >
           <div
+            className="dashboard-dialog-card"
             style={{
               width: '100%',
               maxWidth: 520,
@@ -1035,7 +1044,7 @@ export default function AdminDashboard({ user, onLogout }) {
               {profileError && (
                 <div style={{ color: '#b0413e', fontWeight: 600 }}>{profileError}</div>
               )}
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => {
                     if (profileSaving) return;
@@ -1098,6 +1107,7 @@ export default function AdminDashboard({ user, onLogout }) {
       )}
       {bookingEditorOpen && (
         <div
+          className="dashboard-dialog-overlay"
           role="dialog"
           aria-modal="true"
           style={{
@@ -1118,6 +1128,7 @@ export default function AdminDashboard({ user, onLogout }) {
           }}
         >
           <div
+            className="dashboard-dialog-card"
             style={{
               width: '100%',
               maxWidth: 620,
@@ -1276,7 +1287,7 @@ export default function AdminDashboard({ user, onLogout }) {
               {bookingError && (
                 <div style={{ color: '#b0413e', fontWeight: 600 }}>{bookingError}</div>
               )}
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => {
                     if (bookingSaving) return;
@@ -1391,6 +1402,7 @@ export default function AdminDashboard({ user, onLogout }) {
       )}
       {concernReplyOpen && (
         <div
+          className="dashboard-dialog-overlay"
           role="dialog"
           aria-modal="true"
           style={{
@@ -1412,6 +1424,7 @@ export default function AdminDashboard({ user, onLogout }) {
           }}
         >
           <div
+            className="dashboard-dialog-card"
             style={{
               width: '100%',
               maxWidth: 560,
@@ -1480,7 +1493,7 @@ export default function AdminDashboard({ user, onLogout }) {
               {replyError && (
                 <div style={{ color: '#b0413e', fontWeight: 600 }}>{replyError}</div>
               )}
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => {
                     if (replySaving) return;
@@ -1553,9 +1566,9 @@ export default function AdminDashboard({ user, onLogout }) {
           <div style={{ fontSize: 12, textAlign: 'center', color: gold, marginTop: 4 }}>Parish Management</div>
         </div>
         {/* Tab buttons on expandable sidebar */}
-        <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          <div style={{
+          <div className="dashboard-admin-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
             gap: 10
@@ -2475,8 +2488,8 @@ export default function AdminDashboard({ user, onLogout }) {
               </div>
             </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
-                <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+              <div className="dashboard-report-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
+                <div className="dashboard-report-card" style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
                   <div style={{
                     width: 120,
                     height: 120,
@@ -2499,7 +2512,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                <div className="dashboard-report-card" style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
                   <div style={{
                     width: 120,
                     height: 120,
@@ -2522,7 +2535,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                <div className="dashboard-report-card" style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
                   <div style={{
                     width: 120,
                     height: 120,

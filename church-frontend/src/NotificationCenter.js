@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 const palette = {
   gold: '#d6ad60',
@@ -19,6 +19,14 @@ export default function NotificationCenter({
   hasMore
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const update = () => setIsNarrow(window.innerWidth <= 520);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   const unreadCount = useMemo(
     () => items.reduce((count, n) => count + (n.read ? 0 : 1), 0),
@@ -61,7 +69,13 @@ export default function NotificationCenter({
   };
 
   return (
-    <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 999 }}>
+    <div style={{
+      position: 'fixed',
+      bottom: isNarrow ? 12 : 20,
+      right: isNarrow ? 12 : 20,
+      left: 'auto',
+      zIndex: 999
+    }}>
       <button
         onClick={() => {
           const next = !isOpen;
@@ -71,8 +85,8 @@ export default function NotificationCenter({
           }
         }}
         style={{
-          width: 60,
-          height: 60,
+          width: isNarrow ? 52 : 60,
+          height: isNarrow ? 52 : 60,
           borderRadius: '50%',
           border: 'none',
           background: palette.gold,
@@ -116,9 +130,10 @@ export default function NotificationCenter({
         <div
           style={{
             position: 'absolute',
-            bottom: 80,
+            bottom: isNarrow ? 68 : 80,
             right: 0,
-            width: 360,
+            width: isNarrow ? 'min(360px, calc(100vw - 24px))' : 360,
+            maxWidth: 'calc(100vw - 24px)',
             maxHeight: '70vh',
             background: '#fff',
             borderRadius: 12,
@@ -136,11 +151,13 @@ export default function NotificationCenter({
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              gap: 10,
+              flexWrap: isNarrow ? 'wrap' : 'nowrap',
               color: palette.ink
             }}
           >
             <span>Parish Notifications ({items.length})</span>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: isNarrow ? 'flex-start' : 'flex-end' }}>
               <button
                 onClick={() => onMarkAllRead?.()}
                 style={{
@@ -148,7 +165,8 @@ export default function NotificationCenter({
                   background: 'none',
                   cursor: 'pointer',
                   fontSize: 12,
-                  color: palette.blue
+                  color: palette.blue,
+                  padding: 0
                 }}
               >
                 Mark all read
@@ -160,7 +178,8 @@ export default function NotificationCenter({
                   background: 'none',
                   cursor: 'pointer',
                   fontSize: 12,
-                  color: palette.wine
+                  color: palette.wine,
+                  padding: 0
                 }}
               >
                 Clear
@@ -199,7 +218,7 @@ export default function NotificationCenter({
                       cursor: 'pointer'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: palette.ink }}>
                         {getIcon(n.type)} {n.text}
                       </div>
@@ -209,14 +228,15 @@ export default function NotificationCenter({
                           onDelete?.(n.id);
                         }}
                         aria-label="Delete notification"
-                        style={{
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                          color: palette.wine,
-                          fontSize: 14
-                        }}
-                      >
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        color: palette.wine,
+                        fontSize: 14,
+                        padding: 0
+                      }}
+                    >
                         ×
                       </button>
                     </div>
@@ -227,7 +247,9 @@ export default function NotificationCenter({
                         textTransform: 'uppercase',
                         marginTop: 4,
                         display: 'flex',
-                        justifyContent: 'space-between'
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        flexWrap: 'wrap'
                       }}
                     >
                       <span>{n.type}</span>

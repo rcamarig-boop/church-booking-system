@@ -251,7 +251,14 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
           "linear-gradient(135deg, rgba(248, 244, 236, 0.9), rgba(255,255,255,0.82)), url('/login-bg.jpg') center/cover no-repeat fixed"
       }}
     >
-      <div className="church-ornament-top" style={{
+      {sidebarOpen && (
+        <div
+          className="dashboard-drawer-overlay"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <div className="church-ornament-top dashboard-shell-header" style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -259,7 +266,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
         marginBottom: 16,
         flexWrap: 'nowrap'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap', minWidth: 0, maxWidth: '62%' }}>
+        <div className="dashboard-shell-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap', minWidth: 0, maxWidth: '62%' }}>
           <button
             className="sidebar-toggle-btn"
             aria-label={sidebarOpen ? 'Hide navigation panel' : 'Show navigation panel'}
@@ -284,14 +291,14 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
             ☰
           </button>
           <div className="dashboard-brand" style={{ paddingTop: 0, paddingBottom: 0, textAlign: 'left', minWidth: 0 }}>
-            <div className="dashboard-brand-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0, fontFamily: churchDisplayFont, letterSpacing: 0.6, whiteSpace: 'nowrap', fontSize: 'clamp(1.9rem, 3.2vw, 3rem)' }}>Parish Member</div>
+            <div className="dashboard-brand-title dashboard-shell-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0, fontFamily: churchDisplayFont, letterSpacing: 0.6, whiteSpace: 'nowrap', fontSize: 'clamp(1.9rem, 3.2vw, 3rem)' }}>Parish Member</div>
             <div className="dashboard-brand-subtitle" style={{ color: ink, fontFamily: churchBodyFont, fontStyle: 'italic', whiteSpace: 'normal', maxWidth: 420 }}>
               Your bookings, requests, and upcoming parish events
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', marginLeft: 'auto', flexShrink: 0 }}>
+        <div className="dashboard-shell-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', marginLeft: 'auto', flexShrink: 0 }}>
           <button
             onClick={() => setActiveTab('calendar')}
             style={{
@@ -360,7 +367,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
               {user?.name?.charAt(0).toUpperCase() || '👤'}
             </button>
             {profileMenuOpen && (
-              <div style={{
+              <div className="dashboard-profile-menu" style={{
                 position: 'absolute',
                 right: 0,
                 top: '100%',
@@ -420,6 +427,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
       {profileEditorOpen && (
         <div
+          className="dashboard-dialog-overlay"
           role="dialog"
           aria-modal="true"
           style={{
@@ -441,6 +449,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
           }}
         >
           <div
+            className="dashboard-dialog-card"
             style={{
               width: '100%',
               maxWidth: 520,
@@ -513,7 +522,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
               {profileError && (
                 <div style={{ color: '#b0413e', fontWeight: 600 }}>{profileError}</div>
               )}
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => {
                     if (profileSaving) return;
@@ -577,6 +586,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
       {concernOpen && (
         <div
+          className="dashboard-dialog-overlay"
           role="dialog"
           aria-modal="true"
           style={{
@@ -596,6 +606,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
           }}
         >
           <div
+            className="dashboard-dialog-card"
             style={{
               width: '100%',
               maxWidth: 560,
@@ -648,7 +659,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
               {concernError && (
                 <div style={{ color: '#b0413e', fontWeight: 600 }}>{concernError}</div>
               )}
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => {
                     if (concernSaving) return;
@@ -709,7 +720,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
               <div style={{ fontSize: 12, textAlign: 'center', color: gold, marginTop: 4 }}>Parish Community</div>
             </div>
             <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{
+              <div className="dashboard-member-grid" style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                 gap: 10

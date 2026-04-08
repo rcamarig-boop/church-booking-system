@@ -24,6 +24,7 @@ export default function CalendarViewNew({
   compact = false
 }) {
   const socket = useContext(SocketContext);
+  const [isNarrowScreen, setIsNarrowScreen] = useState(false);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalDate, setModalDate] = useState(null);
@@ -31,6 +32,13 @@ export default function CalendarViewNew({
   const [modalMode, setModalMode] = useState('list');
   const [dateMap, setDateMap] = useState({});
   const [allSlots, setAllSlots] = useState([]);
+
+  useEffect(() => {
+    const update = () => setIsNarrowScreen(window.innerWidth <= 640);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   /* ---------------------------
      SYNC CONFIG ONLY (max slots)
@@ -118,10 +126,11 @@ export default function CalendarViewNew({
   ];
 
   const bookingSource = allSlots || calendarBookings || bookings;
-  const compactDayMinHeight = compact ? 'clamp(42px, 6vw, 68px)' : 'clamp(60px, 9vw, 95px)';
-  const compactGridGap = compact ? 3 : 4;
-  const compactShellPadding = compact ? 8 : 10;
-  const compactHeaderMargin = compact ? 10 : 16;
+  const compactLayout = compact || isNarrowScreen;
+  const compactDayMinHeight = compactLayout ? 'clamp(40px, 6vw, 64px)' : 'clamp(60px, 9vw, 95px)';
+  const compactGridGap = compactLayout ? 3 : 4;
+  const compactShellPadding = compactLayout ? 8 : 10;
+  const compactHeaderMargin = compactLayout ? 10 : 16;
 
   const bookingsByDate = useMemo(() => {
     const map = {};
@@ -228,13 +237,13 @@ export default function CalendarViewNew({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, minmax(72px, 1fr))',
+          gridTemplateColumns: compactLayout ? 'repeat(7, minmax(0, 1fr))' : 'repeat(7, minmax(72px, 1fr))',
           gap: compactGridGap,
           width: '100%'
         }}
       >
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-          <div key={d} style={{ fontWeight: 700, textAlign: 'center', fontSize: compact ? 11 : 13 }}>{d}</div>
+          <div key={d} style={{ fontWeight: 700, textAlign: 'center', fontSize: compactLayout ? 10 : 13 }}>{d}</div>
         ))}
 
         {calendarDays.map((day, i) => {
@@ -253,7 +262,7 @@ export default function CalendarViewNew({
               key={dateStr}
               onClick={() => isSelectable && !compact && openModal(dateStr)}
               style={{
-                padding: compact ? 4 : 6,
+                padding: compactLayout ? 3 : 6,
                 minHeight: compactDayMinHeight,
                 cursor: isSelectable ? 'pointer' : 'not-allowed',
                 background: palette.bg,
@@ -262,8 +271,8 @@ export default function CalendarViewNew({
                 opacity: isSelectable ? 1 : 0.4,
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: compact ? 13 : 15 }}>{day}</div>
-              {!compact && (
+              <div style={{ fontWeight: 700, fontSize: compactLayout ? 12 : 15 }}>{day}</div>
+              {!compactLayout && (
                 <div style={{ fontSize: 12, marginTop: 6 }}>
                   {booked}/{max} booked
                 </div>
