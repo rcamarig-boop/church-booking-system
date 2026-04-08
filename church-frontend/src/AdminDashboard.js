@@ -53,6 +53,7 @@ const SERVICE_FIELDS = {
 
 const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
 const CHAPEL_OPTIONS = ['Main Chapel', 'Side Chapel #1'];
+const BOOKING_SHARED_DETAIL_KEYS = new Set(['chapel', 'needsChairsTables', 'chairsCount', 'tablesCount']);
 
 export default function AdminDashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
@@ -123,6 +124,9 @@ export default function AdminDashboard({ user, onLogout }) {
   });
   const [bookingDetailsFields, setBookingDetailsFields] = useState({});
   const [bookingChapel, setBookingChapel] = useState('');
+  const [bookingNeedsChairsTables, setBookingNeedsChairsTables] = useState(false);
+  const [bookingChairsCount, setBookingChairsCount] = useState('');
+  const [bookingTablesCount, setBookingTablesCount] = useState('');
   const [bookingDetailsExtra, setBookingDetailsExtra] = useState('');
   const [timeTrigger, setTimeTrigger] = useState(0);
 
@@ -136,15 +140,42 @@ export default function AdminDashboard({ user, onLogout }) {
     const extras = {};
     if (detailsObj && typeof detailsObj === 'object') {
       Object.keys(detailsObj).forEach(k => {
-        if (k === 'chapel') return;
+        if (BOOKING_SHARED_DETAIL_KEYS.has(k)) return;
         if (!fields.includes(k)) extras[k] = detailsObj[k];
       });
     }
     return {
       fieldValues,
       chapel: detailsObj?.chapel || '',
+      needsChairsTables: !!detailsObj?.needsChairsTables,
+      chairsCount: detailsObj?.chairsCount ?? '',
+      tablesCount: detailsObj?.tablesCount ?? '',
       extrasText: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : ''
     };
+  };
+
+  const formatBookingDetails = (detailsObj) => {
+    if (!detailsObj || typeof detailsObj !== 'object') return '-';
+    const parts = [];
+
+    if (detailsObj.chapel) {
+      parts.push(`Chapel: ${detailsObj.chapel}`);
+    }
+
+    if (detailsObj.needsChairsTables) {
+      parts.push(`Chairs: ${detailsObj.chairsCount || '0'}`);
+      parts.push(`Tables: ${detailsObj.tablesCount || '0'}`);
+    }
+
+    Object.entries(detailsObj).forEach(([key, value]) => {
+      if (BOOKING_SHARED_DETAIL_KEYS.has(key)) return;
+      if (value === null || value === undefined) return;
+      const text = String(value).trim();
+      if (!text) return;
+      parts.push(`${key}: ${text}`);
+    });
+
+    return parts.length ? parts.join(' | ') : '-';
   };
 
   useEffect(() => {
@@ -173,7 +204,14 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const editAcceptedBooking = (booking) => {
     const detailsObj = booking.details && typeof booking.details === 'object' ? booking.details : {};
-    const { fieldValues, chapel, extrasText } = buildDetailsState(booking.service, detailsObj);
+    const {
+      fieldValues,
+      chapel,
+      needsChairsTables,
+      chairsCount,
+      tablesCount,
+      extrasText
+    } = buildDetailsState(booking.service, detailsObj);
     setEditingBooking(booking);
     setBookingForm({
       service: booking.service || '',
@@ -183,6 +221,9 @@ export default function AdminDashboard({ user, onLogout }) {
     });
     setBookingDetailsFields(fieldValues);
     setBookingChapel(chapel);
+    setBookingNeedsChairsTables(needsChairsTables);
+    setBookingChairsCount(chairsCount);
+    setBookingTablesCount(tablesCount);
     setBookingDetailsExtra(extrasText);
     setBookingError('');
     setBookingEditorOpen(true);
@@ -427,6 +468,28 @@ export default function AdminDashboard({ user, onLogout }) {
       return acc;
     }, {});
 
+    const setupStats = bookings.reduce((acc, b) => {
+      const details = b.details && typeof b.details === 'object' ? b.details : {};
+      const needsSetup = !!details.needsChairsTables;
+      const chairsCount = Number.parseInt(details.chairsCount, 10);
+      const tablesCount = Number.parseInt(details.tablesCount, 10);
+
+      if (needsSetup || Number.isFinite(chairsCount) || Number.isFinite(tablesCount)) {
+        acc.setupBookings += 1;
+      }
+      if (Number.isFinite(chairsCount)) {
+        acc.totalChairsRequested += chairsCount;
+      }
+      if (Number.isFinite(tablesCount)) {
+        acc.totalTablesRequested += tablesCount;
+      }
+      return acc;
+    }, {
+      setupBookings: 0,
+      totalChairsRequested: 0,
+      totalTablesRequested: 0
+    });
+
     return {
       totalUsers: users.length,
       totalEvents: events.length,
@@ -434,7 +497,8 @@ export default function AdminDashboard({ user, onLogout }) {
       totalRecords: records.length,
       serviceCounts,
       actionCounts,
-      roleCounts
+      roleCounts,
+      ...setupStats
     };
   }, [bookings, records, users, events]);
 
@@ -1092,12 +1156,56 @@ export default function AdminDashboard({ user, onLogout }) {
                   value={bookingChapel}
                   onChange={(e) => setBookingChapel(e.target.value)}
                   style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}`, background: '#fff' }}
-                >
+                  >
                   <option value="">Select a chapel</option>
                   {CHAPEL_OPTIONS.map(option => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
+              </div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: ink }}>
+                  <input
+                    type="checkbox"
+                    checked={bookingNeedsChairsTables}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setBookingNeedsChairsTables(checked);
+                      if (!checked) {
+                        setBookingChairsCount('');
+                        setBookingTablesCount('');
+                      }
+                    }}
+                    style={{ width: 16, height: 16, margin: 0 }}
+                  />
+                  Need chairs and tables?
+                </label>
+                {bookingNeedsChairsTables && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6 }}>Chairs Needed</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={bookingChairsCount}
+                        onChange={(e) => setBookingChairsCount(e.target.value)}
+                        style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6 }}>Tables Needed</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={bookingTablesCount}
+                        onChange={(e) => setBookingTablesCount(e.target.value)}
+                        style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Service</label>
@@ -1197,6 +1305,24 @@ export default function AdminDashboard({ user, onLogout }) {
                       setBookingError('Chapel is required.');
                       return;
                     }
+                    if (bookingNeedsChairsTables) {
+                      if (!String(bookingChairsCount || '').trim()) {
+                        setBookingError('Chairs count is required when chairs and tables are needed.');
+                        return;
+                      }
+                      if (!String(bookingTablesCount || '').trim()) {
+                        setBookingError('Tables count is required when chairs and tables are needed.');
+                        return;
+                      }
+                      if (!/^\d+$/.test(String(bookingChairsCount || '').trim())) {
+                        setBookingError('Chairs count must contain numbers only.');
+                        return;
+                      }
+                      if (!/^\d+$/.test(String(bookingTablesCount || '').trim())) {
+                        setBookingError('Tables count must contain numbers only.');
+                        return;
+                      }
+                    }
                     const key = String(bookingForm.service || '').trim().toLowerCase();
                     const fields = SERVICE_FIELDS[key] || [];
                     for (const f of fields) {
@@ -1217,7 +1343,14 @@ export default function AdminDashboard({ user, onLogout }) {
                       setBookingError('Additional details must be valid JSON.');
                       return;
                     }
-                    const details = { chapel: bookingChapel, ...extra, ...bookingDetailsFields };
+                    const details = {
+                      chapel: bookingChapel,
+                      needsChairsTables: bookingNeedsChairsTables,
+                      chairsCount: bookingNeedsChairsTables ? bookingChairsCount : '',
+                      tablesCount: bookingNeedsChairsTables ? bookingTablesCount : '',
+                      ...extra,
+                      ...bookingDetailsFields
+                    };
                     try {
                       setBookingSaving(true);
                       setBookingError('');
@@ -1230,6 +1363,9 @@ export default function AdminDashboard({ user, onLogout }) {
                       setBookingEditorOpen(false);
                       setEditingBooking(null);
                       setBookingChapel('');
+                      setBookingNeedsChairsTables(false);
+                      setBookingChairsCount('');
+                      setBookingTablesCount('');
                       setBookingDetailsExtra('');
                       setBookingDetailsFields({});
                       await loadData();
@@ -2250,14 +2386,16 @@ export default function AdminDashboard({ user, onLogout }) {
                   <th style={th}>ID</th>
                   <th style={th}>User</th>
                   <th style={th}>Service</th>
-                  <th style={th}>Date</th>
-                  <th style={th}>Slot</th>
-                  <th style={th}>Place / Chapel</th>
-                  <th style={th}>Action</th>
-                  <th style={th}>Details</th>
-                  <th style={th}>At</th>
-                </tr>
-              </thead>
+              <th style={th}>Date</th>
+              <th style={th}>Slot</th>
+              <th style={th}>Place / Chapel</th>
+              <th style={th}>Chairs</th>
+              <th style={th}>Tables</th>
+              <th style={th}>Action</th>
+              <th style={th}>Details</th>
+              <th style={th}>At</th>
+            </tr>
+          </thead>
               <tbody>
                 {records.map(r => (
                   <tr key={r.id}>
@@ -2267,21 +2405,16 @@ export default function AdminDashboard({ user, onLogout }) {
                     <td style={td}>{r.date || '-'}</td>
                     <td style={td}>{r.slot || '-'}</td>
                     <td style={td}>{r.chapel || r.details?.chapel || '-'}</td>
+                    <td style={td}>{r.details?.needsChairsTables ? (r.details?.chairsCount || '0') : '-'}</td>
+                    <td style={td}>{r.details?.needsChairsTables ? (r.details?.tablesCount || '0') : '-'}</td>
                     <td style={{ ...td, textTransform: 'capitalize' }}>{r.action || '-'}</td>
-                    <td style={td}>
-                      {r.details && typeof r.details === 'object'
-                        ? Object.entries(r.details)
-                            .filter(([k, v]) => k !== 'chapel' && v !== null && v !== undefined && String(v).trim() !== '')
-                            .map(([k, v]) => `${k}: ${v}`)
-                            .join(' | ')
-                        : '-'}
-                    </td>
+                    <td style={td}>{formatBookingDetails(r.details)}</td>
                     <td style={td}>{r.actionAt || '-'}</td>
                   </tr>
                 ))}
                 {records.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={9}>No booking records match your search.</td>
+                    <td style={td} colSpan={11}>No booking records match your search.</td>
                   </tr>
                 )}
               </tbody>
@@ -2327,6 +2460,18 @@ export default function AdminDashboard({ user, onLogout }) {
               <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
                 <div style={{ color: '#6b7280', fontSize: 12 }}>History Logged</div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalRecords}</div>
+              </div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Bookings Needing Setup</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.setupBookings}</div>
+              </div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Total Chairs Requested</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalChairsRequested}</div>
+              </div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Total Tables Requested</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalTablesRequested}</div>
               </div>
             </div>
 

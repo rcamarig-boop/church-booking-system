@@ -74,9 +74,14 @@ const palette = {
   mist: '#e7dfcf'
 };
 
-function defaultFormState(service) {
+function defaultFormState(service, previous = {}) {
   const fields = SERVICE_FORM_FIELDS[service] || [];
-  const state = { chapel: '' };
+  const state = {
+    chapel: previous.chapel || '',
+    needsChairsTables: !!previous.needsChairsTables,
+    chairsCount: previous.chairsCount || '',
+    tablesCount: previous.tablesCount || ''
+  };
   fields.forEach(f => { state[f.key] = ''; });
   return state;
 }
@@ -108,13 +113,32 @@ export default function BookingModal({
   }, [mode]);
 
   useEffect(() => {
-    setServiceFormData(defaultFormState(service));
+    setServiceFormData(prev => defaultFormState(service, prev));
   }, [service]);
 
   const validateServiceForm = () => {
     if (!String(serviceFormData.chapel || '').trim()) {
       return 'Chapel is required';
     }
+
+    if (serviceFormData.needsChairsTables) {
+      const chairsCount = String(serviceFormData.chairsCount || '').trim();
+      const tablesCount = String(serviceFormData.tablesCount || '').trim();
+
+      if (!chairsCount) {
+        return 'Chairs count is required when chairs and tables are needed';
+      }
+      if (!tablesCount) {
+        return 'Tables count is required when chairs and tables are needed';
+      }
+      if (!/^\d+$/.test(chairsCount)) {
+        return 'Chairs count must contain numbers only';
+      }
+      if (!/^\d+$/.test(tablesCount)) {
+        return 'Tables count must contain numbers only';
+      }
+    }
+
     for (const field of serviceFields) {
       const value = serviceFormData[field.key];
       const strValue = String(value || '').trim();
@@ -330,11 +354,90 @@ export default function BookingModal({
                   border: `1px solid ${palette.mist}`,
                   background: '#fff'
                 }}
-              >
+                >
                 {SERVICE_OPTIONS.map(option => (
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: palette.ink, fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={!!serviceFormData.needsChairsTables}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setError(null);
+                    setServiceFormData(prev => ({
+                      ...prev,
+                      needsChairsTables: checked,
+                      chairsCount: checked ? prev.chairsCount : '',
+                      tablesCount: checked ? prev.tablesCount : ''
+                    }));
+                  }}
+                  style={{ width: 16, height: 16, margin: 0 }}
+                />
+                Need chairs and tables?
+              </label>
+
+              {serviceFormData.needsChairsTables && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, color: palette.ink, fontWeight: 600 }}>
+                      Chairs Needed
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={serviceFormData.chairsCount || ''}
+                      onChange={e => {
+                        const nextValue = e.target.value;
+                        if (nextValue && /[^0-9]/.test(nextValue)) {
+                          setError('Chairs count must contain numbers only');
+                          return;
+                        }
+                        setError(null);
+                        setServiceFormData(prev => ({ ...prev, chairsCount: nextValue }));
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: 12,
+                        borderRadius: 8,
+                        border: `1px solid ${palette.mist}`,
+                        background: '#fff'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, color: palette.ink, fontWeight: 600 }}>
+                      Tables Needed
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={serviceFormData.tablesCount || ''}
+                      onChange={e => {
+                        const nextValue = e.target.value;
+                        if (nextValue && /[^0-9]/.test(nextValue)) {
+                          setError('Tables count must contain numbers only');
+                          return;
+                        }
+                        setError(null);
+                        setServiceFormData(prev => ({ ...prev, tablesCount: nextValue }));
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: 12,
+                        borderRadius: 8,
+                        border: `1px solid ${palette.mist}`,
+                        background: '#fff'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <label style={{ color: palette.ink, fontWeight: 600 }}>Preferred Time</label>
               <input
