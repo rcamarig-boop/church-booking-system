@@ -2,6 +2,7 @@
 import api from './api';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
+import { loadSidebarContact } from './sidebarContact';
 
 const stone = '#f8f4ec';
 const ink = '#1f2a44';
@@ -52,12 +53,20 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [timeTrigger, setTimeTrigger] = useState(0);
+  const [sidebarContact, setSidebarContact] = useState(loadSidebarContact());
 
   useEffect(() => {
     if (!user) return;
     setProfileName(user.name || '');
     setProfileEmail(user.email || '');
   }, [user]);
+
+  useEffect(() => {
+    const syncContact = () => setSidebarContact(loadSidebarContact());
+    syncContact();
+    window.addEventListener('storage', syncContact);
+    return () => window.removeEventListener('storage', syncContact);
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -367,59 +376,66 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
               {user?.name?.charAt(0).toUpperCase() || '👤'}
             </button>
             {profileMenuOpen && (
-              <div className="dashboard-profile-menu" style={{
-                position: 'absolute',
-                right: 0,
-                top: '100%',
-                marginTop: 8,
-                background: '#fff',
-                border: `1px solid ${mist}`,
-                borderRadius: 12,
-                boxShadow: '0 12px 26px rgba(0,0,0,0.12)',
-                overflow: 'hidden',
-                zIndex: 5,
-                minWidth: 200
-              }}>
-                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${mist}` }}>
-                  <div style={{ fontWeight: 600, color: ink }}>{user?.name || 'Member'}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{user?.email || 'No email'}</div>
+              <>
+                <div
+                  className="dashboard-profile-backdrop"
+                  onClick={() => setProfileMenuOpen(false)}
+                  aria-hidden="true"
+                />
+                <div className="dashboard-profile-menu" style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '100%',
+                  marginTop: 8,
+                  background: '#fff',
+                  border: `1px solid ${mist}`,
+                  borderRadius: 12,
+                  boxShadow: '0 12px 26px rgba(0,0,0,0.12)',
+                  overflow: 'hidden',
+                  zIndex: 9991,
+                  minWidth: 200
+                }}>
+                  <div style={{ padding: '12px 16px', borderBottom: `1px solid ${mist}` }}>
+                    <div style={{ fontWeight: 600, color: ink }}>{user?.name || 'Member'}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{user?.email || 'No email'}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      setProfileEditorOpen(true);
+                    }}
+                    style={{
+                      all: 'unset',
+                      display: 'block',
+                      width: '100%',
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      color: ink
+                    }}
+                  >
+                    Edit Profile
+                  </button>
+                  <div style={{ height: 1, background: mist }} />
+                  <button
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      onLogout();
+                    }}
+                    style={{
+                      all: 'unset',
+                      display: 'block',
+                      width: '100%',
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      color: '#b0413e'
+                    }}
+                  >
+                    Logout
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setProfileMenuOpen(false);
-                    setProfileEditorOpen(true);
-                  }}
-                  style={{
-                    all: 'unset',
-                    display: 'block',
-                    width: '100%',
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    color: ink
-                  }}
-                >
-                  Edit Profile
-                </button>
-                <div style={{ height: 1, background: mist }} />
-                <button
-                  onClick={() => {
-                    setProfileMenuOpen(false);
-                    onLogout();
-                  }}
-                  style={{
-                    all: 'unset',
-                    display: 'block',
-                    width: '100%',
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    color: '#b0413e'
-                  }}
-                >
-                  Logout
-                </button>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -786,6 +802,35 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
               >
                 Raise Concern
               </button>
+              <div className="dashboard-sidebar-contact">
+                <div className="dashboard-sidebar-contact-title">{sidebarContact.title}</div>
+                <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 8, lineHeight: 1.5 }}>
+                  {sidebarContact.contactNote}
+                </div>
+                <a
+                  className="dashboard-sidebar-contact-link"
+                  href={`mailto:${sidebarContact.email}`}
+                >
+                  {sidebarContact.emailLabel}
+                </a>
+                <a
+                  className="dashboard-sidebar-contact-link"
+                  href={sidebarContact.phone ? `tel:${sidebarContact.phone}` : undefined}
+                  onClick={(e) => {
+                    if (!sidebarContact.phone) e.preventDefault();
+                  }}
+                >
+                  {sidebarContact.phone ? `${sidebarContact.phoneLabel}: ${sidebarContact.phone}` : sidebarContact.phoneLabel}
+                </a>
+                <a
+                  className="dashboard-sidebar-contact-link"
+                  href={sidebarContact.facebookUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {sidebarContact.facebookLabel}
+                </a>
+              </div>
             </div>
           </aside>
       </div>

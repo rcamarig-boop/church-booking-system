@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
 import AdminRequestPanel from './AdminRequestPanel';
+import { loadSidebarContact, saveSidebarContact } from './sidebarContact';
 
 /* ---------- shared styles (parish palette) ---------- */
 const stone = '#f8f4ec';
@@ -129,6 +130,10 @@ export default function AdminDashboard({ user, onLogout }) {
   const [bookingTablesCount, setBookingTablesCount] = useState('');
   const [bookingDetailsExtra, setBookingDetailsExtra] = useState('');
   const [timeTrigger, setTimeTrigger] = useState(0);
+  const [sidebarContact, setSidebarContact] = useState(loadSidebarContact());
+  const [contactEditorOpen, setContactEditorOpen] = useState(false);
+  const [contactDraft, setContactDraft] = useState(loadSidebarContact());
+  const [contactError, setContactError] = useState('');
 
   const buildDetailsState = (service, detailsObj) => {
     const key = String(service || '').trim().toLowerCase();
@@ -183,6 +188,17 @@ export default function AdminDashboard({ user, onLogout }) {
     setProfileName(user.name || '');
     setProfileEmail(user.email || '');
   }, [user]);
+
+  useEffect(() => {
+    const syncContact = () => {
+      const latest = loadSidebarContact();
+      setSidebarContact(latest);
+      setContactDraft(prev => ({ ...latest, ...prev }));
+    };
+    syncContact();
+    window.addEventListener('storage', syncContact);
+    return () => window.removeEventListener('storage', syncContact);
+  }, []);
 
   const editEvent = async (event) => {
     const title = window.prompt('Title', event.title || '');
@@ -883,65 +899,73 @@ export default function AdminDashboard({ user, onLogout }) {
               {user?.name?.charAt(0).toUpperCase() || '👤'}
             </button>
             {profileMenuOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 8,
-                  background: '#fff',
-                  borderRadius: 12,
-                  border: `1px solid ${mist}`,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                  minWidth: 200,
-                  zIndex: 100
-                }}
-              >
-                <div style={{ padding: '12px 16px', borderBottom: `1px solid ${mist}` }}>
-                  <div style={{ fontWeight: 600, color: ink }}>{user?.name || 'User'}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{user?.email || 'No email'}</div>
+              <>
+                <div
+                  className="dashboard-profile-backdrop"
+                  onClick={() => setProfileMenuOpen(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  className="dashboard-profile-menu"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: 8,
+                    background: '#fff',
+                    borderRadius: 12,
+                    border: `1px solid ${mist}`,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    minWidth: 200,
+                    zIndex: 9991
+                  }}
+                >
+                  <div style={{ padding: '12px 16px', borderBottom: `1px solid ${mist}` }}>
+                    <div style={{ fontWeight: 600, color: ink }}>{user?.name || 'User'}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{user?.email || 'No email'}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setProfileEditorOpen(true);
+                      setProfileMenuOpen(false);
+                    }}
+                    style={{
+                      all: 'unset',
+                      width: '100%',
+                      cursor: 'pointer',
+                      padding: '10px 16px',
+                      borderBottom: `1px solid ${mist}`,
+                      textAlign: 'left',
+                      fontSize: 14,
+                      color: ink,
+                      transition: 'all 0.2s ease',
+                      boxSizing: 'border-box'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = mist}
+                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  >
+                    ✏️ Edit Profile
+                  </button>
+                  <button
+                    onClick={onLogout}
+                    style={{
+                      all: 'unset',
+                      width: '100%',
+                      cursor: 'pointer',
+                      padding: '10px 16px',
+                      textAlign: 'left',
+                      fontSize: 14,
+                      color: '#b0413e',
+                      transition: 'all 0.2s ease',
+                      boxSizing: 'border-box'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#fee2e2'}
+                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  >
+                    🚪 Logout
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setProfileEditorOpen(true);
-                    setProfileMenuOpen(false);
-                  }}
-                  style={{
-                    all: 'unset',
-                    width: '100%',
-                    cursor: 'pointer',
-                    padding: '10px 16px',
-                    borderBottom: `1px solid ${mist}`,
-                    textAlign: 'left',
-                    fontSize: 14,
-                    color: ink,
-                    transition: 'all 0.2s ease',
-                    boxSizing: 'border-box'
-                  }}
-                  onMouseEnter={(e) => e.target.style.background = mist}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                >
-                  ✏️ Edit Profile
-                </button>
-                <button
-                  onClick={onLogout}
-                  style={{
-                    all: 'unset',
-                    width: '100%',
-                    cursor: 'pointer',
-                    padding: '10px 16px',
-                    textAlign: 'left',
-                    fontSize: 14,
-                    color: '#b0413e',
-                    transition: 'all 0.2s ease',
-                    boxSizing: 'border-box'
-                  }}
-                  onMouseEnter={(e) => e.target.style.background = '#fee2e2'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                >
-                  🚪 Logout
-                </button>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -1644,9 +1668,233 @@ export default function AdminDashboard({ user, onLogout }) {
           }}>
             "Let us gather in fellowship and serve with compassion"
           </div>
+          <div className="dashboard-sidebar-contact">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              <div className="dashboard-sidebar-contact-title" style={{ marginBottom: 0 }}>{sidebarContact.title}</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setContactError('');
+                  setContactDraft(sidebarContact);
+                  setContactEditorOpen(true);
+                }}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: accentBlue,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Edit
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 8, lineHeight: 1.5 }}>
+              {sidebarContact.contactNote}
+            </div>
+            <a
+              className="dashboard-sidebar-contact-link"
+              href={`mailto:${sidebarContact.email}`}
+            >
+              {sidebarContact.emailLabel}
+            </a>
+            <a
+              className="dashboard-sidebar-contact-link"
+              href={sidebarContact.phone ? `tel:${sidebarContact.phone}` : undefined}
+              onClick={(e) => {
+                if (!sidebarContact.phone) e.preventDefault();
+              }}
+            >
+              {sidebarContact.phone ? `${sidebarContact.phoneLabel}: ${sidebarContact.phone}` : sidebarContact.phoneLabel}
+            </a>
+            <a
+              className="dashboard-sidebar-contact-link"
+              href={sidebarContact.facebookUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {sidebarContact.facebookLabel}
+            </a>
+          </div>
         </div>
       </aside>
       </div>
+
+      {contactEditorOpen && (
+        <div
+          className="dashboard-dialog-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setContactEditorOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.5)',
+            backdropFilter: 'blur(2px)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 10020,
+            padding: 16
+          }}
+        >
+          <div
+            className="dashboard-dialog-card dashboard-contact-modal-card"
+            style={{
+              width: '100%',
+              maxWidth: 640,
+              maxHeight: 'calc(100vh - 32px)',
+              overflow: 'hidden',
+              background: '#fff',
+              borderRadius: 18,
+              border: `1px solid rgba(214,173,96,0.28)`,
+              boxShadow: '0 24px 60px rgba(15,23,42,0.24)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '18px 20px 14px', background: 'linear-gradient(180deg, rgba(248,244,236,0.98), rgba(255,255,255,0.98))', borderBottom: `1px solid rgba(214,173,96,0.18)` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, color: ink, fontSize: 22, lineHeight: 1.15 }}>Edit Contact Info</h3>
+                  <div style={{ marginTop: 4, color: '#64748b', fontSize: 13, lineHeight: 1.45 }}>
+                    Update the sidebar contact card and Facebook details shown to members.
+                  </div>
+                </div>
+                <button
+                  onClick={() => setContactEditorOpen(false)}
+                  style={{ all: 'unset', cursor: 'pointer', color: '#64748b', fontWeight: 800, padding: '4px 8px', lineHeight: 1 }}
+                  aria-label="Close contact editor"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div style={{ padding: 20, overflowY: 'auto', display: 'grid', gap: 16 }}>
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: ink }}>Section Title</label>
+                  <input
+                    value={contactDraft.title}
+                    onChange={(e) => setContactDraft(prev => ({ ...prev, title: e.target.value }))}
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${mist}`, background: '#fff' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: ink }}>Short Description</label>
+                  <textarea
+                    rows={3}
+                    value={contactDraft.contactNote}
+                    onChange={(e) => setContactDraft(prev => ({ ...prev, contactNote: e.target.value }))}
+                    style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${mist}`, background: '#fff', resize: 'vertical' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: '#64748b' }}>
+                  Contact Channels
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: ink }}>Email Label</label>
+                    <input
+                      value={contactDraft.emailLabel}
+                      onChange={(e) => setContactDraft(prev => ({ ...prev, emailLabel: e.target.value }))}
+                      style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${mist}`, background: '#fff' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: ink }}>Email Address</label>
+                    <input
+                      type="email"
+                      value={contactDraft.email}
+                      onChange={(e) => setContactDraft(prev => ({ ...prev, email: e.target.value }))}
+                      style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${mist}`, background: '#fff' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: ink }}>Phone Label</label>
+                    <input
+                      value={contactDraft.phoneLabel}
+                      onChange={(e) => setContactDraft(prev => ({ ...prev, phoneLabel: e.target.value }))}
+                      style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${mist}`, background: '#fff' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: ink }}>Phone Number</label>
+                    <input
+                      value={contactDraft.phone}
+                      onChange={(e) => setContactDraft(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="e.g. +63 912 345 6789"
+                      style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${mist}`, background: '#fff' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: ink }}>Facebook Label</label>
+                    <input
+                      value={contactDraft.facebookLabel}
+                      onChange={(e) => setContactDraft(prev => ({ ...prev, facebookLabel: e.target.value }))}
+                      style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${mist}`, background: '#fff' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: ink }}>Facebook URL</label>
+                    <input
+                      type="url"
+                      value={contactDraft.facebookUrl}
+                      onChange={(e) => setContactDraft(prev => ({ ...prev, facebookUrl: e.target.value }))}
+                      style={{ width: '100%', padding: 12, borderRadius: 10, border: `1px solid ${mist}`, background: '#fff' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {contactError && (
+                <div style={{ color: '#b0413e', fontWeight: 700, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px' }}>
+                  {contactError}
+                </div>
+              )}
+
+              <div className="dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
+                <button
+                  onClick={() => setContactEditorOpen(false)}
+                  style={{ background: '#e2e8f0', color: '#1f2937', borderRadius: 10, padding: '10px 14px', fontWeight: 700 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const next = {
+                      ...contactDraft,
+                      title: String(contactDraft.title || '').trim() || 'Contact & Facebook',
+                      email: String(contactDraft.email || '').trim(),
+                      facebookUrl: String(contactDraft.facebookUrl || '').trim(),
+                      contactNote: String(contactDraft.contactNote || '').trim() || 'Need help? Reach out to the parish office.'
+                    };
+                    if (!next.email) {
+                      setContactError('Email is required.');
+                      return;
+                    }
+                    if (!next.facebookUrl) {
+                      setContactError('Facebook URL is required.');
+                      return;
+                    }
+                    saveSidebarContact(next);
+                    setSidebarContact(next);
+                    setContactEditorOpen(false);
+                    setContactError('');
+                  }}
+                  style={{ background: '#1f2a44', color: '#fff', borderRadius: 10, padding: '10px 14px', fontWeight: 700 }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---------- MAIN CONTENT ---------- */}
       <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.88)', borderRadius: 18, border: `1px solid rgba(214,173,96,0.38)`, boxShadow: '0 16px 32px rgba(0,0,0,0.08)', padding: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
