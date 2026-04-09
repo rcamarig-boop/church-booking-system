@@ -22,16 +22,23 @@ flowchart LR
   UC3[Check Available Slots]
   UC4[Create Booking Request]
   UC5[Cancel Own Booking]
-  UC6[Submit Concern]
-  UC7[View Notifications]
+  UC6[Edit Confirmed Booking]
+  UC7[Propose Booking Changes]
+  UC8[Propose Request Changes]
+  UC9[Submit Concern]
+  UC10[View Concerns]
+  UC11[View Notifications]
 
-  UC8[Manage Calendar Slots]
-  UC9[Approve / Edit Booking Request]
-  UC10[Edit / Cancel Booking]
-  UC11[Manage Events]
-  UC12[Manage Users]
-  UC13[Resolve Concerns]
-  UC14[View Reports]
+  UC12[Manage Calendar Slots]
+  UC13[Approve / Reject Booking Request]
+  UC14[Edit / Cancel Booking]
+  UC15[Review Booking Edit Proposals]
+  UC16[Review Request Edit Proposals]
+  UC17[Manage Events]
+  UC18[Manage Users]
+  UC19[Submit Concerns]
+  UC20[Reply / Resolve Concerns]
+  UC21[View Reports]
 
   Member --> UC1
   Member --> UC2
@@ -40,16 +47,22 @@ flowchart LR
   Member --> UC5
   Member --> UC6
   Member --> UC7
+  Member --> UC8
+  Member --> UC9
+  Member --> UC10
+  Member --> UC11
 
   Admin --> UC1
-  Admin --> UC8
-  Admin --> UC9
-  Admin --> UC10
-  Admin --> UC11
   Admin --> UC12
   Admin --> UC13
   Admin --> UC14
-  Admin --> UC7
+  Admin --> UC15
+  Admin --> UC16
+  Admin --> UC17
+  Admin --> UC18
+  Admin --> UC19
+  Admin --> UC20
+  Admin --> UC21
 ```
 
 ## 2) Activity Diagram
@@ -130,8 +143,12 @@ erDiagram
   USERS ||--o{ BOOKING_RECORDS : owns
   USERS ||--o{ CONCERNS : submits
   USERS ||--o{ NOTIFICATIONS : receives
+  USERS ||--o{ BOOKING_EDIT_PROPOSALS : proposes
+  USERS ||--o{ BOOKING_REQUEST_EDIT_PROPOSALS : proposes
   BOOKINGS ||--o{ BOOKING_RECORDS : logs
+  BOOKINGS ||--o{ BOOKING_EDIT_PROPOSALS : referenced
   BOOKING_REQUESTS ||--o{ BOOKING_RECORDS : logs
+  BOOKING_REQUESTS ||--o{ BOOKING_REQUEST_EDIT_PROPOSALS : referenced
   CALENDAR ||--o{ BOOKINGS : limits
   EVENTS ||--o{ BOOKING_RECORDS : references
 
@@ -207,6 +224,40 @@ erDiagram
     string time
     string description
   }
+
+  BOOKING_EDIT_PROPOSALS {
+    int id PK
+    int booking_id FK
+    int user_id FK
+    int admin_id FK
+    string current_booking_date
+    string current_booking_slot
+    json current_booking_details
+    string proposed_booking_date
+    string proposed_booking_slot
+    json proposed_booking_details
+    string admin_note
+    string user_reply
+    string status
+    timestamp created_at
+  }
+
+  BOOKING_REQUEST_EDIT_PROPOSALS {
+    int id PK
+    int booking_request_id FK
+    int user_id FK
+    int admin_id FK
+    string current_request_date
+    string current_request_slot
+    json current_request_details
+    string proposed_request_date
+    string proposed_request_slot
+    json proposed_request_details
+    string admin_note
+    string user_reply
+    string status
+    timestamp created_at
+  }
 ```
 
 ## 5) Class Diagram
@@ -235,10 +286,16 @@ classDiagram
     +bookings
     +events
     +calendarBookings
+    +myConcerns
+    +bookingEditProposals
+    +bookingRequestEditProposals
     +windowWidth
     +sidebarOpen
     +loadData()
     +editAcceptedBooking()
+    +proposeBookingChange()
+    +proposeRequestChange()
+    +submitConcern()
   }
 
   class AdminDashboard {
@@ -246,11 +303,16 @@ classDiagram
     +records
     +users
     +events
+    +concerns
+    +bookingEditProposals
+    +bookingRequestEditProposals
     +windowWidth
     +sidebarOpen
     +loadData()
     +editAcceptedBooking()
     +reportData
+    +reviewEditProposals()
+    +resolveConcerns()
   }
 
   class CalendarViewNew {
@@ -264,6 +326,15 @@ classDiagram
     +notifications
     +markRead()
     +deleteNotification()
+    +displayProposalAlert()
+  }
+
+  class ConcernManager {
+    +concerns
+    +replyMessage
+    +submitConcern()
+    +replyConcern()
+    +resolveConcern()
   }
 
   class api {
@@ -283,11 +354,13 @@ classDiagram
   App --> BookingModal
   App --> CalendarViewNew
   App --> NotificationCenter
+  App --> ConcernManager
   BookingModal --> api
   Dashboard --> api
   AdminDashboard --> api
   CalendarViewNew --> api
   NotificationCenter --> api
+  ConcernManager --> api
 ```
 
 ## 6) Deployment Diagram
