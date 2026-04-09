@@ -56,6 +56,11 @@ export default {
     respond: (id, data) => api.post(`/booking-edit-proposals/${id}/respond`, data)
   },
 
+  bookingRequestEditProposals: {
+    my: () => api.get('/booking-request-edit-proposals/my'),
+    respond: (id, data) => api.post(`/booking-request-edit-proposals/${id}/respond`, data)
+  },
+
   events: {
     list: (params) => api.get('/events', { params }),
     create: data => api.post('/events', data),

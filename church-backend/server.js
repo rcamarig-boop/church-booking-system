@@ -47,6 +47,7 @@ async function initDatabase() {
   // All tables exist in PostgreSQL/Supabase
   await detectUserTableShape();
   await ensureBookingEditProposalsTable();
+  await ensureBookingRequestEditProposalsTable();
   console.log('Database: Using existing PostgreSQL/Supabase tables');
 }
 
@@ -165,6 +166,25 @@ const normalizeBookingEditProposal = (row) => ({
   createdAt: row.created_at || null
 });
 
+const normalizeBookingRequestEditProposal = (row) => ({
+  id: row.id,
+  bookingRequestId: row.booking_request_id,
+  userId: row.user_id,
+  adminId: row.admin_id,
+  currentDate: row.current_request_date ?? row.current_date,
+  currentSlot: row.current_request_slot ?? row.current_slot,
+  currentDetails: safeJsonParse(row.current_request_details ?? row.current_details),
+  proposedDate: row.proposed_request_date ?? row.proposed_date,
+  proposedSlot: row.proposed_request_slot ?? row.proposed_slot,
+  proposedDetails: safeJsonParse(row.proposed_request_details ?? row.proposed_details),
+  adminNote: row.admin_note || '',
+  userReply: row.user_reply || '',
+  status: row.status || 'pending',
+  reviewedAt: row.reviewed_at || null,
+  respondedAt: row.responded_at || null,
+  createdAt: row.created_at || null
+});
+
 async function detectUserTableShape() {
   try {
     const tableColumns = async (tableName) => {
@@ -259,6 +279,61 @@ async function ensureBookingEditProposalsTable() {
   await exec(`
     CREATE INDEX IF NOT EXISTS booking_edit_proposals_user_idx
     ON booking_edit_proposals (user_id, status, created_at DESC);
+  `);
+}
+
+async function ensureBookingRequestEditProposalsTable() {
+  await exec(`
+    CREATE TABLE IF NOT EXISTS booking_request_edit_proposals (
+      id SERIAL PRIMARY KEY,
+      booking_request_id INTEGER NOT NULL,
+      user_id INTEGER,
+      admin_id INTEGER,
+      current_request_date TEXT NOT NULL,
+      current_request_slot TEXT NOT NULL,
+      current_request_details JSONB,
+      proposed_request_date TEXT NOT NULL,
+      proposed_request_slot TEXT NOT NULL,
+      proposed_request_details JSONB,
+      admin_note TEXT,
+      user_reply TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_at TIMESTAMP NULL,
+      responded_at TIMESTAMP NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  const proposalColumns = await dbAll(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'booking_request_edit_proposals'
+  `);
+  const proposalColumnNames = new Set(proposalColumns.map(row => row.column_name));
+  if (proposalColumnNames.has('current_date') && !proposalColumnNames.has('current_request_date')) {
+    await exec('ALTER TABLE booking_request_edit_proposals RENAME COLUMN "current_date" TO current_request_date;');
+  }
+  if (proposalColumnNames.has('current_slot') && !proposalColumnNames.has('current_request_slot')) {
+    await exec('ALTER TABLE booking_request_edit_proposals RENAME COLUMN current_slot TO current_request_slot;');
+  }
+  if (proposalColumnNames.has('current_details') && !proposalColumnNames.has('current_request_details')) {
+    await exec('ALTER TABLE booking_request_edit_proposals RENAME COLUMN current_details TO current_request_details;');
+  }
+  if (proposalColumnNames.has('proposed_date') && !proposalColumnNames.has('proposed_request_date')) {
+    await exec('ALTER TABLE booking_request_edit_proposals RENAME COLUMN proposed_date TO proposed_request_date;');
+  }
+  if (proposalColumnNames.has('proposed_slot') && !proposalColumnNames.has('proposed_request_slot')) {
+    await exec('ALTER TABLE booking_request_edit_proposals RENAME COLUMN proposed_slot TO proposed_request_slot;');
+  }
+  if (proposalColumnNames.has('proposed_details') && !proposalColumnNames.has('proposed_request_details')) {
+    await exec('ALTER TABLE booking_request_edit_proposals RENAME COLUMN proposed_details TO proposed_request_details;');
+  }
+  await exec(`
+    CREATE INDEX IF NOT EXISTS booking_request_edit_proposals_request_idx
+    ON booking_request_edit_proposals (booking_request_id, status, created_at DESC);
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS booking_request_edit_proposals_user_idx
+    ON booking_request_edit_proposals (user_id, status, created_at DESC);
   `);
 }
 
@@ -774,9 +849,14 @@ app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
   const date = req.body.date || current.date;
   const service = req.body.service || current.service;
   const slot = normalizeSlot(req.body.slot || current.slot);
-  const details = normalizeServiceDetailsForStorage(normalizeDetailsPayload(
+  const currentDetails = normalizeServiceDetailsForStorage(normalizeDetailsPayload(current.details));
+  const incomingDetails = normalizeServiceDetailsForStorage(normalizeDetailsPayload(
     req.body.details !== undefined ? req.body.details : current.details
   ));
+  const proposedDetails = {
+    ...currentDetails,
+    chapel: String(incomingDetails.chapel || currentDetails.chapel || '').trim()
+  };
 
   if (!date || !service || !slot) {
     return res.status(400).json({ error: 'Missing date/slot/service' });
@@ -787,16 +867,44 @@ app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
   if (!isAllowedBookingTime(slot)) {
     return res.status(400).json({ error: 'Request time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
   }
-  const detailsValidation = validateServiceDetails(service, details);
+  const detailsValidation = validateServiceDetails(service, proposedDetails);
   if (!detailsValidation.ok) {
     return res.status(400).json({ error: detailsValidation.reason });
   }
 
-  await dbRun(`
-    UPDATE booking_requests
-    SET date=?, service=?, slot=?, details=?
-    WHERE id=?
-  `, date, service, slot, details || {}, requestId);
+  if (date === current.date && slot === current.slot && proposedDetails.chapel === (currentDetails.chapel || '')) {
+    return res.status(400).json({ error: 'No request changes were detected' });
+  }
+
+  const existingPending = await dbGet(
+    `SELECT id FROM booking_request_edit_proposals WHERE booking_request_id=? AND status='pending' ORDER BY id DESC LIMIT 1`,
+    requestId
+  );
+  if (existingPending) {
+    return res.status(409).json({ error: 'A booking request edit proposal is already pending approval' });
+  }
+
+  const proposalRow = await dbGet(`
+    INSERT INTO booking_request_edit_proposals (
+      booking_request_id, user_id, admin_id,
+      current_request_date, current_request_slot, current_request_details,
+      proposed_request_date, proposed_request_slot, proposed_request_details,
+      admin_note, status
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    RETURNING id, booking_request_id, user_id, admin_id, current_request_date, current_request_slot, current_request_details, proposed_request_date, proposed_request_slot, proposed_request_details, admin_note, user_reply, status, reviewed_at, responded_at, created_at
+  `,
+    requestId,
+    current.userId,
+    req.user.id,
+    current.date,
+    current.slot,
+    currentDetails,
+    date,
+    slot,
+    proposedDetails,
+    String(req.body.note || '').trim() || null
+  );
 
   await addBookingRecord({
     requestId,
@@ -806,13 +914,23 @@ app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
     service,
     date,
     slot,
-    details,
-    action: 'request_edited',
+    details: proposedDetails,
+    action: 'request_edit_proposed',
+    note: String(req.body.note || '').trim() || null,
     actionBy: req.user.id
   });
 
-  io.emit('booking_request_updated', { id: requestId, status: 'pending', updated: true });
-  res.json({ success: true });
+  io.emit('booking_request_edit_proposal_created', { id: proposalRow.id, requestId, status: 'pending' });
+
+  if (current.userId) {
+    await createNotification(
+      current.userId,
+      'request',
+      `The admin has suggested changes to your booking request: ${service} on ${date} (${slot}).${String(req.body.note || '').trim() ? ` Note: ${String(req.body.note || '').trim()}` : ''}`
+    );
+  }
+
+  res.json({ success: true, proposalId: proposalRow.id });
 });
 
 app.post('/api/booking-requests/:id/approve', auth, admin, async (req, res) => {
@@ -958,6 +1076,143 @@ app.post('/api/booking-requests/:id/reject', auth, admin, async (req, res) => {
     );
   }
   res.json({ success: true });
+});
+
+app.get('/api/booking-request-edit-proposals/my', auth, async (req, res) => {
+  const rows = await dbAll(
+    `SELECT *
+     FROM booking_request_edit_proposals
+     WHERE user_id=?
+     ORDER BY id DESC`,
+    req.user.id
+  );
+  res.json(rows.map(normalizeBookingRequestEditProposal));
+});
+
+app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, res) => {
+  const proposalId = Number(req.params.id);
+  const decision = String(req.body.decision || '').trim().toLowerCase();
+  const replyMessage = String(req.body.reply_message || '').trim();
+
+  const row = await dbGet('SELECT * FROM booking_request_edit_proposals WHERE id=?', proposalId);
+  if (!row) return res.status(404).json({ error: 'Proposal not found' });
+  if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+  if ((row.status || 'pending') !== 'pending') {
+    return res.status(409).json({ error: 'This booking request change has already been handled' });
+  }
+  if (!['accept', 'reject'].includes(decision)) {
+    return res.status(400).json({ error: 'Decision must be accept or reject' });
+  }
+
+  const proposal = normalizeBookingRequestEditProposal(row);
+  const requestRow = await dbGet('SELECT * FROM booking_requests WHERE id=?', proposal.bookingRequestId);
+  if (!requestRow) return res.status(404).json({ error: 'Booking request not found' });
+  const current = normalizeBookingRequest(requestRow);
+  const proposedDetails = proposal.proposedDetails || {};
+  const proposedDate = proposal.proposedDate;
+  const proposedSlot = normalizeSlot(proposal.proposedSlot);
+  const currentDate = current.date;
+  const currentDetails = normalizeServiceDetailsForStorage(normalizeDetailsPayload(current.details));
+
+  if (decision === 'accept') {
+    if (!isBookingDateWithinSixMonths(proposedDate)) {
+      return res.status(400).json({ error: 'Bookings must be scheduled between tomorrow and 6 months ahead' });
+    }
+    if (!isAllowedBookingTime(proposedSlot)) {
+      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+    }
+    const detailsValidation = validateServiceDetails(current.service, proposedDetails);
+    if (!detailsValidation.ok) {
+      return res.status(400).json({ error: detailsValidation.reason });
+    }
+
+    await dbRun(`
+      UPDATE booking_requests
+      SET date=?, slot=?, details=?
+      WHERE id=?
+    `, proposedDate, proposedSlot, proposedDetails || {}, proposal.bookingRequestId);
+
+    await dbRun(`
+      UPDATE booking_request_edit_proposals
+      SET status='accepted', user_reply=?, reviewed_at=CURRENT_TIMESTAMP, responded_at=CURRENT_TIMESTAMP
+      WHERE id=?
+    `, replyMessage || null, proposalId);
+
+    await addBookingRecord({
+      requestId: proposal.bookingRequestId,
+      userId: current.userId,
+      name: current.name,
+      email: current.email,
+      service: current.service,
+      date: proposedDate,
+      slot: proposedSlot,
+      details: proposedDetails,
+      action: 'request_edit_accepted',
+      note: replyMessage || null,
+      actionBy: req.user.id
+    });
+
+    if (current.userId) {
+      await createNotification(
+        current.userId,
+        'request',
+        `You accepted the booking request change for ${current.service} on ${proposedDate} (${proposedSlot}).`
+      );
+    }
+
+    const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+    for (const adminUser of admins) {
+      await createNotification(
+        adminUser.id,
+        'request',
+        `Member accepted the booking request change for ${current.service} on ${proposedDate} (${proposedSlot}).${replyMessage ? ` Reply: ${replyMessage}` : ''}`
+      );
+    }
+
+    io.emit('booking_request_updated', { id: proposal.bookingRequestId, status: 'pending', updated: true });
+    io.emit('booking_request_edit_proposal_updated', { id: proposalId, status: 'accepted' });
+    return res.json({ success: true, status: 'accepted' });
+  }
+
+  await dbRun(`
+    UPDATE booking_request_edit_proposals
+    SET status='rejected', user_reply=?, reviewed_at=CURRENT_TIMESTAMP, responded_at=CURRENT_TIMESTAMP
+    WHERE id=?
+  `, replyMessage || null, proposalId);
+
+  await addBookingRecord({
+    requestId: proposal.bookingRequestId,
+    userId: current.userId,
+    name: current.name,
+    email: current.email,
+    service: current.service,
+    date: currentDate,
+    slot: current.slot,
+    details: currentDetails,
+    action: 'request_edit_rejected',
+    note: replyMessage || null,
+    actionBy: req.user.id
+  });
+
+  if (current.userId) {
+    await createNotification(
+      current.userId,
+      'request',
+      `You rejected the booking request change for ${current.service} on ${currentDate}.`
+    );
+  }
+
+  const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  for (const adminUser of admins) {
+    await createNotification(
+      adminUser.id,
+      'request',
+      `Member rejected the booking request change for ${current.service} on ${currentDate}.${replyMessage ? ` Reply: ${replyMessage}` : ''}`
+    );
+  }
+
+  io.emit('booking_request_edit_proposal_updated', { id: proposalId, status: 'rejected' });
+  res.json({ success: true, status: 'rejected' });
 });
 
 app.get('/api/booking-records', auth, admin, async (_, res) => {

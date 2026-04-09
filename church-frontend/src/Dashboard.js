@@ -40,6 +40,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   const [calendarConfig, setCalendarConfig] = useState({});
   const [myConcerns, setMyConcerns] = useState([]);
   const [bookingEditProposals, setBookingEditProposals] = useState([]);
+  const [bookingRequestEditProposals, setBookingRequestEditProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('calendar'); // events | bookings | requests | calendar | concerns | tracking
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -63,6 +64,11 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   const [bookingProposalSaving, setBookingProposalSaving] = useState(false);
   const [bookingProposalError, setBookingProposalError] = useState('');
   const [selectedBookingProposal, setSelectedBookingProposal] = useState(null);
+  const [bookingRequestProposalOpen, setBookingRequestProposalOpen] = useState(false);
+  const [bookingRequestProposalReply, setBookingRequestProposalReply] = useState('');
+  const [bookingRequestProposalSaving, setBookingRequestProposalSaving] = useState(false);
+  const [bookingRequestProposalError, setBookingRequestProposalError] = useState('');
+  const [selectedBookingRequestProposal, setSelectedBookingRequestProposal] = useState(null);
   const [concernPreviewOpen, setConcernPreviewOpen] = useState(false);
   const [concernDraft, setConcernDraft] = useState(null);
 
@@ -103,7 +109,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
   const loadData = useCallback(async () => {
     try {
-      const [b, usage, br, e, c, s, myc, edits, concernUsageRes] = await Promise.all([
+      const [b, usage, br, e, c, s, myc, edits, brEdits, concernUsageRes] = await Promise.all([
         api.bookings.list(),
         api.bookings.usage(),
         api.bookingRequests.my(),
@@ -112,6 +118,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
         api.bookings.slots(),
         api.concerns.my(),
         api.bookingEditProposals.my(),
+        api.bookingRequestEditProposals.my(),
         api.concerns.usage()
       ]);
 
@@ -123,6 +130,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
       setCalendarBookings(s.data || []);
       setMyConcerns(myc.data || []);
       setBookingEditProposals(edits.data || []);
+      setBookingRequestEditProposals(brEdits.data || []);
       setConcernUsage(concernUsageRes.data || null);
     } catch (err) {
       console.error('Dashboard load failed', err);
@@ -198,6 +206,16 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     });
     return map;
   }, [bookingEditProposals]);
+
+  const pendingBookingRequestProposalByRequestId = useMemo(() => {
+    const map = new Map();
+    bookingRequestEditProposals.forEach((proposal) => {
+      if (proposal?.status === 'pending' && proposal.bookingRequestId != null && !map.has(proposal.bookingRequestId)) {
+        map.set(proposal.bookingRequestId, proposal);
+      }
+    });
+    return map;
+  }, [bookingRequestEditProposals]);
 
   const normalizeSlotToTime = (slot) => {
     const raw = String(slot || '').trim();
@@ -1074,6 +1092,183 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
         </div>
       )}
 
+      {bookingRequestProposalOpen && selectedBookingRequestProposal && (
+        <div
+          className="church-review-overlay dashboard-dialog-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!bookingRequestProposalSaving) {
+              setBookingRequestProposalOpen(false);
+              setSelectedBookingRequestProposal(null);
+              setBookingRequestProposalReply('');
+              setBookingRequestProposalError('');
+            }
+          }}
+        >
+          <div
+            className="dashboard-dialog-card church-review-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="church-review-header">
+              <div className="church-review-kicker">✦ Request Proposal</div>
+              <button
+                onClick={() => {
+                  if (bookingRequestProposalSaving) return;
+                  setBookingRequestProposalOpen(false);
+                  setSelectedBookingRequestProposal(null);
+                  setBookingRequestProposalReply('');
+                  setBookingRequestProposalError('');
+                }}
+                className="church-review-close"
+                aria-label="Close request change review"
+              >
+                ×
+              </button>
+            </div>
+
+            <h3 className="church-review-title">Review Request Change</h3>
+            <div className="church-review-subtitle">
+              The parish office proposed a place or time update to your booking request. You can accept, reject, or send a message back.
+            </div>
+
+            <div className="church-review-sheet">
+              <div className="church-review-section">
+                <div className="church-review-section-title">Current Request</div>
+                <div className="church-review-grid">
+                  <div className="church-review-row">
+                    <span className="church-review-label">Service</span>
+                    <span className="church-review-value">
+                      {selectedBookingRequestProposal.service || 'Service'}
+                    </span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Date</span>
+                    <span className="church-review-value">{selectedBookingRequestProposal.currentDate || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Time</span>
+                    <span className="church-review-value">{selectedBookingRequestProposal.currentSlot || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Place / Chapel</span>
+                    <span className="church-review-value">{selectedBookingRequestProposal.currentDetails?.chapel || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="church-review-section">
+                <div className="church-review-section-title">Proposed Change</div>
+                <div className="church-review-grid">
+                  <div className="church-review-row">
+                    <span className="church-review-label">Date</span>
+                    <span className="church-review-value">{selectedBookingRequestProposal.proposedDate || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Time</span>
+                    <span className="church-review-value">{selectedBookingRequestProposal.proposedSlot || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Place / Chapel</span>
+                    <span className="church-review-value">{selectedBookingRequestProposal.proposedDetails?.chapel || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="church-review-section">
+                <div className="church-review-section-title">Your Reply</div>
+                <div className="church-review-row church-review-row--stacked">
+                  <span className="church-review-label">Message to Parish Office</span>
+                  <textarea
+                    rows={4}
+                    value={bookingRequestProposalReply}
+                    onChange={(e) => setBookingRequestProposalReply(e.target.value)}
+                    placeholder="Write a short reply to the parish office..."
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      borderRadius: 12,
+                      border: `1px solid rgba(214,173,96,0.35)`,
+                      background: '#fff',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {bookingRequestProposalError && (
+              <div className="church-review-error">
+                {bookingRequestProposalError}
+              </div>
+            )}
+
+            <div className="church-review-actions dashboard-dialog-actions">
+              <button
+                onClick={() => {
+                  if (bookingRequestProposalSaving) return;
+                  setBookingRequestProposalOpen(false);
+                  setSelectedBookingRequestProposal(null);
+                  setBookingRequestProposalReply('');
+                  setBookingRequestProposalError('');
+                }}
+                className="church-review-btn church-review-btn--soft"
+              >
+                Back
+              </button>
+                <button
+                  onClick={async () => {
+                    if (bookingRequestProposalSaving) return;
+                    try {
+                      setBookingRequestProposalSaving(true);
+                      setBookingRequestProposalError('');
+                      await api.bookingRequestEditProposals.respond(selectedBookingRequestProposal.id, {
+                        decision: 'reject',
+                        reply_message: bookingRequestProposalReply.trim()
+                      });
+                      setBookingRequestProposalOpen(false);
+                      setSelectedBookingRequestProposal(null);
+                      setBookingRequestProposalReply('');
+                      await loadData();
+                    } catch (err) {
+                      setBookingRequestProposalError(err.response?.data?.error || 'Failed to reject the request change.');
+                    } finally {
+                      setBookingRequestProposalSaving(false);
+                    }
+                  }}
+                  className="church-review-btn church-review-btn--soft"
+                >
+                  Reject Change
+                </button>
+                <button
+                  onClick={async () => {
+                    if (bookingRequestProposalSaving) return;
+                    try {
+                      setBookingRequestProposalSaving(true);
+                      setBookingRequestProposalError('');
+                      await api.bookingRequestEditProposals.respond(selectedBookingRequestProposal.id, {
+                        decision: 'accept',
+                        reply_message: bookingRequestProposalReply.trim()
+                      });
+                      setBookingRequestProposalOpen(false);
+                      setSelectedBookingRequestProposal(null);
+                      setBookingRequestProposalReply('');
+                      await loadData();
+                    } catch (err) {
+                      setBookingRequestProposalError(err.response?.data?.error || 'Failed to accept the request change.');
+                    } finally {
+                      setBookingRequestProposalSaving(false);
+                    }
+                  }}
+                  className="church-review-btn church-review-btn--primary"
+                >
+                  {bookingRequestProposalSaving ? 'Saving...' : 'Accept Change'}
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={`dashboard-layout dashboard-two-col ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <div className="dashboard-left-column">
           <aside className="dashboard-sidebar dashboard-left-panel" style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
@@ -1343,6 +1538,45 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
             {activeTab === 'requests' && (
               <div>
                 <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ My Requests</h2>
+                
+                {bookingRequestEditProposals.filter(p => p.status === 'pending').map(proposal => (
+                  <div
+                    key={proposal.id}
+                    style={{
+                      marginBottom: 16,
+                      padding: 16,
+                      borderRadius: 12,
+                      border: `2px solid #d6ad60`,
+                      background: 'linear-gradient(135deg, rgba(214,173,96,0.15), rgba(248,244,236,0.8))',
+                      color: '#1f2937'
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                      📋 Pending Changes for {proposal.service || 'Your Request'}
+                    </div>
+                    <div style={{ fontSize: 14, color: '#4a5568', marginBottom: 12 }}>
+                      The parish office has suggested changes. Please review and accept or reject them.
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedBookingRequestProposal(proposal);
+                        setBookingRequestProposalOpen(true);
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#3b5b8a',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        fontWeight: 600
+                      }}
+                    >
+                      Review Proposal
+                    </button>
+                  </div>
+                ))}
+
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
