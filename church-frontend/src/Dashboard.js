@@ -71,6 +71,14 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   const [selectedBookingRequestProposal, setSelectedBookingRequestProposal] = useState(null);
   const [concernPreviewOpen, setConcernPreviewOpen] = useState(false);
   const [concernDraft, setConcernDraft] = useState(null);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  // Track window width for responsive grid layout
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -1289,7 +1297,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
             <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <div className="dashboard-member-grid" style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gridTemplateColumns: windowWidth >= 900 ? 'repeat(2, minmax(0, 1fr))' : '1fr',
                 gap: 10
               }}>
                 {[

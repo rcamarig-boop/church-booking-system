@@ -135,6 +135,14 @@ export default function AdminDashboard({ user, onLogout }) {
   const [contactEditorOpen, setContactEditorOpen] = useState(false);
   const [contactDraft, setContactDraft] = useState(loadSidebarContact());
   const [contactError, setContactError] = useState('');
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  // Track window width for responsive grid layout
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -1592,7 +1600,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
           <div className="dashboard-admin-grid" style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gridTemplateColumns: windowWidth >= 900 ? 'repeat(2, minmax(0, 1fr))' : '1fr',
             gap: 10
           }}>
             {[
