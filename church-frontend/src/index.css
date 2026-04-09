@@ -1144,6 +1144,29 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
     padding: 6px;
   }
 
+  .dashboard-member-grid,
+  .dashboard-admin-grid {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+
+  .dashboard-tab-btn--member,
+  .dashboard-tab-btn--admin {
+    padding: 10px 8px !important;
+    min-height: 56px !important;
+    font-size: 12px !important;
+  }
+
+  .dashboard-tab-btn--member > div:first-child,
+  .dashboard-tab-btn--admin > div:first-child {
+    font-size: 16px !important;
+  }
+
+  .dashboard-tab-btn--member > div:last-child,
+  .dashboard-tab-btn--admin > div:last-child {
+    font-size: 11px !important;
+  }
+
   .auth-card { padding: 20px; border-radius: 10px; }
   .auth-card--large { padding: 24px; }
   .landing-actions {
@@ -1341,6 +1364,31 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
     flex-direction: column;
     padding: 10px;
   }
+
+  .dashboard-left-column {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .dashboard-member-grid,
+  .dashboard-admin-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .dashboard-tab-btn--member,
+  .dashboard-tab-btn--admin {
+    padding: 10px 8px !important;
+    minHeight: 68px !important;
+    font-size: 12px !important;
+  }
+
+  .dashboard-tab-btn--member > div:first-child,
+  .dashboard-tab-btn--admin > div:first-child {
+    font-size: 18px !important;
+  }
+
   .dashboard-page {
     height: auto;
     overflow: auto;
@@ -1441,6 +1489,19 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   .dashboard-admin-grid,
   .dashboard-report-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  .dashboard-tab-btn--member,
+  .dashboard-tab-btn--admin {
+    padding: 12px 10px !important;
+    min-height: 60px !important;
+    font-size: 13px !important;
+  }
+
+  .dashboard-tab-btn--member > div:last-child,
+  .dashboard-tab-btn--admin > div:last-child {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
   }
 
   .dashboard-report-card {
@@ -1720,6 +1781,32 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   .church-review-card {
     padding: 16px 14px 14px;
     border-radius: 18px;
+  }
+
+  .dashboard-member-grid,
+  .dashboard-admin-grid {
+    gap: 6px !important;
+  }
+
+  .dashboard-tab-btn--member,
+  .dashboard-tab-btn--admin {
+    padding: 10px 8px !important;
+    min-height: 54px !important;
+    font-size: 11px !important;
+  }
+
+  .dashboard-tab-btn--member > div:first-child,
+  .dashboard-tab-btn--admin > div:first-child {
+    font-size: 15px !important;
+  }
+
+  .dashboard-tab-btn--member > div:last-child,
+  .dashboard-tab-btn--admin > div:last-child {
+    font-size: 10px !important;
+  }
+
+  .dashboard-sidebar-contact-link {
+    font-size: 11px !important;
   }
 
   .sidebar-toggle-btn {
