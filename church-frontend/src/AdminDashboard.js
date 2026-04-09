@@ -2755,7 +2755,7 @@ export default function AdminDashboard({ user, onLogout }) {
             </div>
 
               <div className="dashboard-report-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
-                <div className="dashboard-report-card" style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                <div className="dashboard-report-card" style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
                   <div style={{
                     width: 120,
                     height: 120,
@@ -2778,7 +2778,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div className="dashboard-report-card" style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                <div className="dashboard-report-card" style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
                   <div style={{
                     width: 120,
                     height: 120,
@@ -2801,7 +2801,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div className="dashboard-report-card" style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                <div className="dashboard-report-card" style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
                   <div style={{
                     width: 120,
                     height: 120,
