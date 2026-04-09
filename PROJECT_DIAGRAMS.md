@@ -100,13 +100,19 @@ sequenceDiagram
   UI->>API: POST /api/bookings (create booking request)
   API->>API: Validate date in 6-month window, service, time range
   API->>DB: Insert booking_request (status: pending)
-  API->>DB: Auto-create booking record (no admin approval)
-  API->>DB: Create corresponding booking (auto-confirmed)
-  API->>N: Notify admin of new booking
-  N-->>Admin: Booking confirmed notification
-  API-->>UI: Success response with booking_id
-  UI-->>Member: Booking confirmed successfully
-  UI->>UI: Update calendar to display new booking
+  API->>DB: Add booking_record (action: submitted)
+  API->>N: Notify admins of new request
+  N-->>Admin: New booking request notification
+  API-->>UI: Success response
+  UI-->>Member: Booking request submitted for approval
+  Admin->>UI: Reviews pending requests in admin dashboard
+  Admin->>API: PUT /api/booking-requests/:id/accept
+  API->>DB: Update booking_request (status: accepted)
+  API->>DB: Create booking record (confirmed)
+  API->>DB: Add booking_record (action: accepted)
+  API->>N: Notify member of approval
+  N-->>Member: Booking confirmed notification
+  UI->>UI: Update calendar to display confirmed booking
 ```
 
 ## 4) Entity Relationship Diagram
@@ -453,30 +459,76 @@ Steps:
 5. Save the updated setting to the calendar table.
 6. Re-render the calendar to reflect the new state.
 
-## 10) Time Validation Algorithm
+## 10) Core Business Algorithms
 
-### A. Time Validation (8am-6pm, Any Minute)
+### A. Booking Request Submission & Approval Flow
+
+```text
+BEGIN
+  MEMBER inputs booking form (date, service, time, details)
+  
+  VALIDATE date in 6-month window AND time in 8am-6pm AND service details
+  IF validation fails THEN
+    REJECT with error message
+    STOP
+  ENDIF
+  
+  CHECK booking limit (active count <= BOOKING_LIMIT=2)
+  IF user exceeds limit THEN
+    REJECT with error "Limit reached, cancel one first"
+    STOP
+  ENDIF
+  
+  CHECK calendar max_slots for selected date
+  IF max_slots <= 0 THEN
+    REJECT with error "This date is closed for bookings"
+    STOP
+  ENDIF
+  
+  IF all validations pass THEN
+    INSERT booking_request with status='pending'
+    INSERT booking_record with action='submitted'
+    NOTIFY all admins of new request
+    RETURN success: "Booking request submitted for admin verification"
+  ENDIF
+  
+  ADMIN reviews request in admin dashboard
+  
+  WHEN admin accepts request:
+    UPDATE booking_request status='accepted'
+    INSERT new booking record (confirmed)
+    INSERT booking_record with action='accepted'
+    NOTIFY member: "Your booking has been confirmed"
+    CALENDAR updates to show confirmed booking
+  
+  WHEN admin rejects request:
+    UPDATE booking_request status='rejected'
+    INSERT booking_record with action='rejected'
+    NOTIFY member: "Your booking request was declined"
+END
+```
+
+### B. Time Validation (8:00 AM - 6:00 PM, Any Minute)
 
 ```text
 BEGIN
   INPUT: user selected time as HH:MM format
   PARSE hours and minutes from time string
   MINIMUM_HOUR = 8 (8:00 AM)
-  MAXIMUM_HOUR = 18 (6:00 PM, exclusive end)
+  MAXIMUM_HOUR = 18 (6:00 PM, boundary)
   
   IF hours >= MINIMUM_HOUR AND hours < MAXIMUM_HOUR THEN
-    ACCEPT time
-    Display: "Time accepted (any minute allowed)"
+    ACCEPT time (any minute allowed: 8:15, 2:47, etc.)
   ELSE IF hours = 18 AND minutes = 0 THEN
-    ACCEPT time (exactly 6:00 PM, boundary case)
+    ACCEPT time (exactly 6:00 PM boundary case)
   ELSE
-    REJECT time
+    REJECT time with error
     Display: "Time must be between 8:00 AM and 6:00 PM"
   ENDIF
 END
 ```
 
-### B. Calendar Navigation (6-Month Dynamic Window)
+### C. Calendar Navigation (6-Month Dynamic Window)
 
 ```text
 BEGIN
@@ -511,7 +563,7 @@ BEGIN
 END
 ```
 
-### C. Mobile Responsive Layout Algorithm
+### D. Mobile Responsive Layout Algorithm
 
 ```text
 BEGIN
@@ -727,21 +779,34 @@ sequenceDiagram
   
   Form->>Form: Step 6: Preview and confirm
   Form->>User: Display booking summary
-  User->>Form: Click "Confirm Booking"
+  User->>Form: Click "Submit Request"
   
   Form->>API: POST /api/bookings
-  API->>Store: Auto-create booking_record
-  API->>Store: Auto-create booking (confirmed)
+  API->>Store: Create booking_request (status: pending)
+  API->>Store: Create booking_record (action: submitted)
   API-->>Form: Success response
-  Form->>User: Show success notification
+  Form->>User: Show "Request submitted for approval"
   User->>User: Redirect to dashboard
 ```
 
-## 13) Notes for the Report
+## 13) Admin Approval Workflow
+
+After a member submits a booking request:
+
+1. **Notification**: Admin receives notification of pending request
+2. **Review**: Admin views request details in admin dashboard
+3. **Decision Points**:
+   - **Accept**: Booking becomes confirmed, member notified
+   - **Reject**: Request marked rejected, member notified
+   - **Edit & Accept**: Admin can modify details (date, time, service) before accepting
+4. **Confirmation**: Once accepted, booking appears on member's calendar and in reports
+5. **Cancellation**: Member or admin can cancel confirmed bookings anytime
+
+## 14) Notes for the Report
 
 - **Time Validation**: Bookings are restricted to 8:00 AM - 6:00 PM with no 30-minute interval restrictions. Any minute value is allowed within this range (e.g., 8:15 AM, 2:47 PM, 6:00 PM are all valid).
 - **Calendar Navigation**: Past months are automatically disabled. Users can only view and book within a dynamic 6-month forward-looking window (tomorrow through 6 months ahead). Month navigation buttons disable gracefully at window boundaries.
-- **Auto-Booking System**: When a user submits a booking request, the system automatically creates the booking record without waiting for admin approval, improving user experience and reducing booking uncertainty.
+- **Booking Request Workflow**: When a user submits a booking form, it creates a pending request that requires admin approval before becoming a confirmed booking. Admins can accept/reject/edit requests from the admin dashboard. Once accepted, the booking is confirmed and the member is notified.
 - **Mobile Responsiveness**: The system implements a mobile-first responsive design with 7 key breakpoints (390px, 420px, 520px, 600px, 680px, 900px, 1920px+). Sidebar transforms into a full-screen drawer overlay on mobile with backdrop overlay and body scroll-lock.
 - **Responsive Modals**: Booking modals are fully responsive with scrollable content areas and fixed action buttons. Service forms handle 2-4 fields without layout overflow using the flexbox `flex: 1, min-height: 0` pattern.
 - **Sidebar Features**: Left sidebar is independently scrollable to ensure contact information (email, phone, Facebook) is always accessible. On mobile, hamburger menu opens drawer with fixed positioning and z-index layering. Right column interaction is disabled while drawer is open.
