@@ -347,7 +347,8 @@ async function getUserBookingUsage(userId) {
 }
 
 function safeJsonParse(value) {
-  if (!value) return null;
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'object') return value;
   try {
     return JSON.parse(value);
   } catch {
