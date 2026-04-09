@@ -62,6 +62,73 @@ function Icon({ kind }) {
   return <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>✕</span>;
 }
 
+const DETAIL_LABEL_OVERRIDES = {
+  fullName: 'Full Name',
+  childName: 'Child Name',
+  parentNames: 'Parent Names',
+  groomName: 'Groom Name',
+  brideName: 'Bride Name',
+  contactNumber: 'Contact Number',
+  personName: 'Person Name',
+  blessingType: 'Blessing Type',
+  deceasedName: 'Deceased Name',
+  deceasedBirthDate: 'Birth Date of Deceased',
+  dateOfDeath: 'Date of Death',
+  familyContact: 'Family Contact',
+  guardianName: 'Guardian Name',
+  frequencyOfConfession: 'Frequency of Confession',
+  confessionNotes: 'Confession Notes',
+  reasonForVisit: 'Reason for Visit',
+  specialNeeds: 'Special Needs',
+  notes: 'Notes',
+  phone: 'Phone Number',
+  chapel: 'Place / Chapel'
+};
+
+function humanizeDetailKey(key) {
+  if (DETAIL_LABEL_OVERRIDES[key]) return DETAIL_LABEL_OVERRIDES[key];
+  return String(key || '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\b\w/g, ch => ch.toUpperCase())
+    .trim();
+}
+
+function buildDetailEntries(request) {
+  const detailsObj = request?.details && typeof request.details === 'object' ? request.details : {};
+  const serviceKey = String(request?.service || '').trim().toLowerCase();
+  const fields = SERVICE_FIELDS[serviceKey] || [];
+  const entries = [];
+
+  if (detailsObj.chapel) {
+    entries.push({ label: 'Place / Chapel', value: String(detailsObj.chapel) });
+  }
+
+  if (detailsObj.needsChairsTables) {
+    entries.push({
+      label: 'Chairs / Tables',
+      value: `${detailsObj.chairsCount || 0} chairs, ${detailsObj.tablesCount || 0} tables`
+    });
+  }
+
+  fields.forEach((field) => {
+    if (field === 'chapel') return;
+    const value = detailsObj[field];
+    if (value === undefined || value === null || String(value).trim() === '') return;
+    entries.push({ label: humanizeDetailKey(field), value: String(value) });
+  });
+
+  Object.entries(detailsObj).forEach(([key, value]) => {
+    if (BOOKING_SHARED_DETAIL_KEYS.has(key)) return;
+    if (fields.includes(key)) return;
+    if (value === undefined || value === null || String(value).trim() === '') return;
+    entries.push({ label: humanizeDetailKey(key), value: String(value) });
+  });
+
+  return entries;
+}
+
 export default function AdminRequestPanel({ onDecision }) {
   const socket = useContext(SocketContext);
   const [requests, setRequests] = useState([]);
@@ -83,7 +150,6 @@ export default function AdminRequestPanel({ onDecision }) {
   });
   const [editorDetailsFields, setEditorDetailsFields] = useState({});
   const [editorChapel, setEditorChapel] = useState('');
-  const [editorDetailsExtra, setEditorDetailsExtra] = useState('');
 
   const buildDetailsState = (service, detailsObj) => {
     const key = String(service || '').trim().toLowerCase();
@@ -101,8 +167,7 @@ export default function AdminRequestPanel({ onDecision }) {
     }
     return {
       fieldValues,
-      chapel: detailsObj?.chapel || '',
-      extrasText: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : ''
+      chapel: detailsObj?.chapel || ''
     };
   };
 
@@ -200,7 +265,7 @@ export default function AdminRequestPanel({ onDecision }) {
       const res = await api.bookingRequests.get(request.id);
       const freshRequest = res.data || request;
       const detailsObj = freshRequest.details && typeof freshRequest.details === 'object' ? freshRequest.details : {};
-      const { fieldValues, chapel, extrasText } = buildDetailsState(freshRequest.service, detailsObj);
+      const { fieldValues, chapel } = buildDetailsState(freshRequest.service, detailsObj);
       setEditingRequest(freshRequest);
       setEditorForm({
         service: freshRequest.service || '',
@@ -210,12 +275,11 @@ export default function AdminRequestPanel({ onDecision }) {
       });
       setEditorDetailsFields(fieldValues);
       setEditorChapel(chapel);
-      setEditorDetailsExtra(extrasText);
       setEditorOpen(true);
     } catch (err) {
       const fallback = request;
       const detailsObj = fallback.details && typeof fallback.details === 'object' ? fallback.details : {};
-      const { fieldValues, chapel, extrasText } = buildDetailsState(fallback.service, detailsObj);
+      const { fieldValues, chapel } = buildDetailsState(fallback.service, detailsObj);
       setEditingRequest(fallback);
       setEditorForm({
         service: fallback.service || '',
@@ -225,7 +289,6 @@ export default function AdminRequestPanel({ onDecision }) {
       });
       setEditorDetailsFields(fieldValues);
       setEditorChapel(chapel);
-      setEditorDetailsExtra(extrasText);
       setEditorError(err.response?.data?.error || 'Failed to load booking request.');
       setEditorOpen(true);
     } finally {
@@ -414,15 +477,6 @@ export default function AdminRequestPanel({ onDecision }) {
                   );
                 })()}
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: 6 }}>Additional Details (optional JSON)</label>
-                <textarea
-                  rows={4}
-                  value={editorDetailsExtra}
-                  readOnly
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569' }}
-                />
-              </div>
               {editorError && (
                 <div style={{ color: '#e53e3e', fontWeight: 600 }}>{editorError}</div>
               )}
@@ -538,6 +592,9 @@ export default function AdminRequestPanel({ onDecision }) {
         </thead>
         <tbody>
           {requests.map(r => (
+            (() => {
+              const detailEntries = buildDetailEntries(r);
+              return (
             <tr key={r.id}>
               <td style={td}>{r.id}</td>
               <td style={td}>{r.name || '-'}</td>
@@ -546,13 +603,18 @@ export default function AdminRequestPanel({ onDecision }) {
               <td style={td}>{r.date || '-'}</td>
               <td style={td}>{r.slot || '-'}</td>
               <td style={td}>{r.chapel || r.details?.chapel || '-'}</td>
-              <td style={td}>
-                {r.details && typeof r.details === 'object'
-                  ? Object.entries(r.details)
-                      .filter(([k, v]) => k !== 'chapel' && v !== null && v !== undefined && String(v).trim() !== '')
-                      .map(([k, v]) => `${k}: ${v}`)
-                      .join(' | ')
-                  : '-'}
+              <td style={{ ...td, minWidth: 280 }}>
+                {detailEntries.length ? (
+                  <div style={{ display: 'grid', gap: 4, lineHeight: 1.35 }}>
+                    {detailEntries.map((item) => (
+                      <div key={`${r.id}-${item.label}`} style={{ wordBreak: 'break-word' }}>
+                        <strong>{item.label}:</strong> {item.value}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  '-'
+                )}
               </td>
               <td style={{ ...td, ...actionsColStyle }}>
                 <div style={actionWrap}>
@@ -598,6 +660,8 @@ export default function AdminRequestPanel({ onDecision }) {
                 </div>
               </td>
             </tr>
+              );
+            })()
           ))}
           {requests.length === 0 && (
             <tr>
