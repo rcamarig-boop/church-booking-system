@@ -35,9 +35,11 @@ const SERVICE_FIELDS = {
   counseling: ['fullName', 'phone', 'concern'],
   baptism: ['childName', 'birthDate', 'parentNames'],
   wedding: ['groomName', 'brideName', 'contactNumber'],
-  blessing: ['personName', 'blessingType'],
+  blessing: ['personName', 'blessingType', 'notes'],
   funeral: ['deceasedName', 'deceasedBirthDate', 'dateOfDeath', 'familyContact'],
-  christening: ['childName', 'guardianName', 'contactNumber']
+  christening: ['childName', 'guardianName', 'contactNumber'],
+  confessions: ['fullName', 'phone', 'frequencyOfConfession', 'confessionNotes'],
+  'pastoral visits': ['fullName', 'phone', 'reasonForVisit', 'specialNeeds']
 };
 
 const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
@@ -72,6 +74,7 @@ export default function AdminRequestPanel({ onDecision }) {
   const [editorSaving, setEditorSaving] = useState(false);
   const [editorError, setEditorError] = useState('');
   const [editingRequest, setEditingRequest] = useState(null);
+  const [editorLoading, setEditorLoading] = useState(false);
   const [editorForm, setEditorForm] = useState({
     service: '',
     date: '',
@@ -190,21 +193,44 @@ export default function AdminRequestPanel({ onDecision }) {
     }
   };
 
-  const handleEdit = (request) => {
-    const detailsObj = request.details && typeof request.details === 'object' ? request.details : {};
-    const { fieldValues, chapel, extrasText } = buildDetailsState(request.service, detailsObj);
-    setEditingRequest(request);
-    setEditorForm({
-      service: request.service || '',
-      date: request.date || '',
-      slot: request.slot || '',
-      details: JSON.stringify(request.details || {}, null, 2)
-    });
-    setEditorDetailsFields(fieldValues);
-    setEditorChapel(chapel);
-    setEditorDetailsExtra(extrasText);
+  const handleEdit = async (request) => {
+    setEditorLoading(true);
     setEditorError('');
-    setEditorOpen(true);
+    try {
+      const res = await api.bookingRequests.get(request.id);
+      const freshRequest = res.data || request;
+      const detailsObj = freshRequest.details && typeof freshRequest.details === 'object' ? freshRequest.details : {};
+      const { fieldValues, chapel, extrasText } = buildDetailsState(freshRequest.service, detailsObj);
+      setEditingRequest(freshRequest);
+      setEditorForm({
+        service: freshRequest.service || '',
+        date: freshRequest.date || '',
+        slot: freshRequest.slot || '',
+        details: JSON.stringify(freshRequest.details || {}, null, 2)
+      });
+      setEditorDetailsFields(fieldValues);
+      setEditorChapel(chapel);
+      setEditorDetailsExtra(extrasText);
+      setEditorOpen(true);
+    } catch (err) {
+      const fallback = request;
+      const detailsObj = fallback.details && typeof fallback.details === 'object' ? fallback.details : {};
+      const { fieldValues, chapel, extrasText } = buildDetailsState(fallback.service, detailsObj);
+      setEditingRequest(fallback);
+      setEditorForm({
+        service: fallback.service || '',
+        date: fallback.date || '',
+        slot: fallback.slot || '',
+        details: JSON.stringify(fallback.details || {}, null, 2)
+      });
+      setEditorDetailsFields(fieldValues);
+      setEditorChapel(chapel);
+      setEditorDetailsExtra(extrasText);
+      setEditorError(err.response?.data?.error || 'Failed to load booking request.');
+      setEditorOpen(true);
+    } finally {
+      setEditorLoading(false);
+    }
   };
 
   if (loading) return <div>Loading booking requests...</div>;
@@ -274,6 +300,9 @@ export default function AdminRequestPanel({ onDecision }) {
               </button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
+              {editorLoading && (
+                <div style={{ color: '#64748b', fontSize: 14 }}>Loading request details...</div>
+              )}
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#fbfaf7' }}>
                 <div style={{ fontWeight: 800, marginBottom: 8, color: '#1f2937' }}>Original Request</div>
                 <div style={{ display: 'grid', gap: 6, color: '#4a5568', fontSize: 14 }}>
@@ -282,6 +311,26 @@ export default function AdminRequestPanel({ onDecision }) {
                       <strong>{item.label}:</strong> {item.value}
                     </div>
                   ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, fontWeight: 700, color: '#1f2937' }}>Submitted Service Details</label>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {(() => {
+                    const key = String(editorForm.service || '').trim().toLowerCase();
+                    const fields = SERVICE_FIELDS[key] || [];
+                    if (!fields.length) {
+                      return <div style={{ color: '#718096' }}>No structured fields for this service.</div>;
+                    }
+                    return fields.map(field => (
+                      <div key={field} style={{ display: 'grid', gap: 4 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>{field}</div>
+                        <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', minHeight: 40 }}>
+                          {editorDetailsFields[field] ? String(editorDetailsFields[field]) : '-'}
+                        </div>
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
               <div style={{ border: '1px solid rgba(214,173,96,0.35)', borderRadius: 12, padding: 12, background: 'rgba(248,244,236,0.72)' }}>

@@ -41,6 +41,7 @@ export default {
     list: (params) => api.get('/booking-requests', { params }),
     my: (params) => api.get('/booking-requests/my', { params }),
     count: (params) => api.get('/booking-requests/count', { params }),
+    get: (id) => api.get(`/booking-requests/${id}`),
     update: (id, data) => api.put(`/booking-requests/${id}`, data),
     approve: id => api.post(`/booking-requests/${id}/approve`),
     reject: id => api.post(`/booking-requests/${id}/reject`)

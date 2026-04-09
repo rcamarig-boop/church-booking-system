@@ -752,6 +752,16 @@ app.get('/api/booking-requests/my', auth, async (req, res) => {
   res.json(rows.map(normalizeBookingRequest));
 });
 
+app.get('/api/booking-requests/:id', auth, admin, async (req, res) => {
+  const requestId = Number(req.params.id);
+  if (!Number.isFinite(requestId)) {
+    return res.status(400).json({ error: 'Invalid request id' });
+  }
+  const row = await dbGet('SELECT * FROM booking_requests WHERE id=?', requestId);
+  if (!row) return res.status(404).json({ error: 'Request not found' });
+  res.json(normalizeBookingRequest(row));
+});
+
 app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
   const requestId = Number(req.params.id);
   const row = await dbGet('SELECT * FROM booking_requests WHERE id=?', requestId);
