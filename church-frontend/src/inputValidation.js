@@ -100,5 +100,5 @@ export function isAllowedBookingTime(value) {
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
   const total = hours * 60 + minutes;
-  return total >= 8 * 60 && total <= 18 * 60 && minutes % 30 === 0;
+  return total >= 8 * 60 && total <= 18 * 60;
 }

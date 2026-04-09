@@ -400,7 +400,7 @@ function isAllowedBookingTime(value) {
   const m = text.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
   if (!m) return false;
   const minutes = Number(m[1]) * 60 + Number(m[2]);
-  return minutes >= BOOKING_TIME_MINUTES && minutes <= BOOKING_TIME_MAX_MINUTES && Number(m[2]) % 30 === 0;
+  return minutes >= BOOKING_TIME_MINUTES && minutes <= BOOKING_TIME_MAX_MINUTES;
 }
 
 async function getUserBookingUsage(userId) {
@@ -724,7 +724,7 @@ app.post('/api/bookings', auth, async (req, res) => {
       return res.status(400).json({ error: 'Bookings must be scheduled between tomorrow and 6 months ahead' });
     }
     if (!isAllowedBookingTime(slot)) {
-      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM' });
     }
     const usage = await getUserBookingUsage(req.user.id);
     if (usage.activeCount >= BOOKING_LIMIT) {
@@ -865,7 +865,7 @@ app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
     return res.status(400).json({ error: 'Requests must be scheduled between tomorrow and 6 months ahead' });
   }
   if (!isAllowedBookingTime(slot)) {
-    return res.status(400).json({ error: 'Request time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+    return res.status(400).json({ error: 'Request time must be between 8:00 AM and 6:00 PM' });
   }
   const detailsValidation = validateServiceDetails(service, proposedDetails);
   if (!detailsValidation.ok) {
@@ -1119,24 +1119,74 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
       return res.status(400).json({ error: 'Bookings must be scheduled between tomorrow and 6 months ahead' });
     }
     if (!isAllowedBookingTime(proposedSlot)) {
-      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM' });
     }
     const detailsValidation = validateServiceDetails(current.service, proposedDetails);
     if (!detailsValidation.ok) {
       return res.status(400).json({ error: detailsValidation.reason });
     }
 
-    await dbRun(`
-      UPDATE booking_requests
-      SET date=?, slot=?, details=?
-      WHERE id=?
-    `, proposedDate, proposedSlot, proposedDetails || {}, proposal.bookingRequestId);
+    // Create booking directly when proposal is accepted
+    const createBookingTxn = await transaction(async (conn) => {
+      const cal = await conn.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(proposedDate);
+      const maxSlots = cal?.max_slots ?? DEFAULT_MAX_SLOTS;
+      const booked = cal?.booked ?? 0;
 
-    await dbRun(`
-      UPDATE booking_request_edit_proposals
-      SET status='accepted', user_reply=?, reviewed_at=CURRENT_TIMESTAMP, responded_at=CURRENT_TIMESTAMP
-      WHERE id=?
-    `, replyMessage || null, proposalId);
+      if (booked >= maxSlots) {
+        return { ok: false, reason: 'This day is fully booked' };
+      }
+
+      if (isExclusiveService(current.service) && bookingSlotCol) {
+        const existing = await conn.prepare(
+          `SELECT 1 FROM bookings WHERE date=? AND ${bookingSlotCol}=? LIMIT 1`
+        ).get(proposedDate, proposedSlot);
+        if (existing) {
+          return { ok: false, reason: 'Funeral/Wedding slot is already occupied' };
+        }
+      }
+
+      const cols = [];
+      const vals = [];
+      if (bookingUserIdCol) { cols.push(bookingUserIdCol); vals.push(current.userId); }
+      if (bookingNameCol) { cols.push(bookingNameCol); vals.push(current.name); }
+      if (bookingEmailCol) { cols.push(bookingEmailCol); vals.push(current.email || null); }
+      if (bookingServiceCol) { cols.push(bookingServiceCol); vals.push(current.service); }
+      if (bookingSlotCol) { cols.push(bookingSlotCol); vals.push(proposedSlot); }
+      if (bookingDetailsCol) { cols.push(bookingDetailsCol); vals.push(proposedDetails || null); }
+      cols.push('date'); vals.push(proposedDate);
+
+      const insertResult = await conn.prepare(`
+        INSERT INTO bookings (${cols.join(', ')})
+        VALUES (${cols.map(() => '?').join(', ')})
+        RETURNING id
+      `).run(...vals);
+
+      const bookingId = insertResult.lastInsertRowid || insertResult?.id || insertResult?.rows?.[0]?.id;
+
+      await conn.prepare(`
+        INSERT INTO calendar (date, max_slots, booked)
+        VALUES (?, ?, 1)
+        ON CONFLICT(date) DO UPDATE SET booked = calendar.booked + 1
+      `).run(proposedDate, maxSlots);
+
+      await conn.prepare(`
+        UPDATE booking_requests
+        SET status='approved', date=?, slot=?, details=?, reviewed_by=?, reviewed_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(proposedDate, proposedSlot, proposedDetails || {}, req.user.id, proposal.bookingRequestId);
+
+      await conn.prepare(`
+        UPDATE booking_request_edit_proposals
+        SET status='accepted', user_reply=?, reviewed_at=CURRENT_TIMESTAMP, responded_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(replyMessage || null, proposalId);
+
+      return { ok: true, bookingId };
+    });
+
+    if (!createBookingTxn.ok) {
+      return res.status(409).json({ error: createBookingTxn.reason });
+    }
 
     await addBookingRecord({
       requestId: proposal.bookingRequestId,
@@ -1156,7 +1206,7 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
       await createNotification(
         current.userId,
         'request',
-        `You accepted the booking request change for ${current.service} on ${proposedDate} (${proposedSlot}).`
+        `Your booking has been confirmed for ${current.service} on ${proposedDate} (${proposedSlot}). Accepted booking request change.`
       );
     }
 
@@ -1165,12 +1215,13 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
       await createNotification(
         adminUser.id,
         'request',
-        `Member accepted the booking request change for ${current.service} on ${proposedDate} (${proposedSlot}).${replyMessage ? ` Reply: ${replyMessage}` : ''}`
+        `Member accepted booking request change and booking confirmed for ${current.service} on ${proposedDate} (${proposedSlot}).${replyMessage ? ` Reply: ${replyMessage}` : ''}`
       );
     }
 
-    io.emit('booking_request_updated', { id: proposal.bookingRequestId, status: 'pending', updated: true });
+    io.emit('booking_request_updated', { id: proposal.bookingRequestId, status: 'approved' });
     io.emit('booking_request_edit_proposal_updated', { id: proposalId, status: 'accepted' });
+    io.emit('booking_created', { requestId: proposal.bookingRequestId, bookingId: createBookingTxn.bookingId });
     return res.json({ success: true, status: 'accepted' });
   }
 
@@ -1287,7 +1338,7 @@ app.post('/api/booking-edit-proposals/:id/respond', auth, async (req, res) => {
       return res.status(400).json({ error: 'Bookings must be scheduled between tomorrow and 6 months ahead' });
     }
     if (!isAllowedBookingTime(proposedSlot)) {
-      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM' });
     }
     const detailsValidation = validateServiceDetails(current.service, proposedDetails);
     if (!detailsValidation.ok) {
@@ -1447,7 +1498,7 @@ app.put('/api/bookings/:id', auth, admin, async (req, res) => {
     return res.status(400).json({ error: 'Bookings must be scheduled between tomorrow and 6 months ahead' });
   }
   if (!isAllowedBookingTime(slot)) {
-    return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+    return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM' });
   }
   if (!proposedDetails.chapel) {
     return res.status(400).json({ error: 'Place / chapel is required' });

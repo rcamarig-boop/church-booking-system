@@ -530,7 +530,7 @@ export default function AdminRequestPanel({ onDecision }) {
                       return;
                     }
                     if (!isAllowedBookingTime(editorForm.slot)) {
-                      setEditorError('Preferred time must be between 8:00 AM and 6:00 PM in 30-minute intervals.');
+                      setEditorError('Preferred time must be between 8:00 AM and 6:00 PM.');
                       return;
                     }
                     try {

@@ -136,9 +136,24 @@ export default function CalendarViewNew({
   const sixMonthsAheadIso = getSixMonthsAheadIsoDate();
   const maxSelectableDate = `${sixMonthsAheadIso}T23:59:59`;
 
+  // Parse the valid date range for calendar navigation
+  const tomorrowDate = new Date(tomorrowIso + 'T00:00:00');
+  const sixMonthsAheadDate = new Date(sixMonthsAheadIso + 'T00:00:00');
+  
+  // Calculate earliest and latest valid months
+  const earliestValidMonth = new Date(tomorrowDate.getFullYear(), tomorrowDate.getMonth(), 1);
+  const latestValidMonth = new Date(sixMonthsAheadDate.getFullYear(), sixMonthsAheadDate.getMonth(), 1);
+  
+  // Current viewing month's first day
+  const currentViewMonth = new Date(year, month, 1);
+  
+  // Disable buttons based on valid range
+  const isLeftArrowDisabled = currentViewMonth <= earliestValidMonth;
+  const isRightArrowDisabled = currentViewMonth >= latestValidMonth;
+
   const clampMonthNavigation = (nextDate) => {
     const monthStart = new Date(nextDate.getFullYear(), nextDate.getMonth(), 1);
-    if (monthStart > new Date(maxSelectableDate)) return;
+    if (monthStart > latestValidMonth) return;
     setCurrentDate(monthStart);
   };
 
@@ -238,12 +253,26 @@ export default function CalendarViewNew({
       }}>
       {!compact && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactHeaderMargin, gap: 8, alignItems: 'center' }}>
-          <button style={{ padding: '6px 10px' }} onClick={() => setCurrentDate(new Date(year, month - 1))}>{'\u25C0'}</button>
+          <button
+            style={{ 
+              padding: '6px 10px', 
+              opacity: isLeftArrowDisabled ? 0.5 : 1, 
+              cursor: isLeftArrowDisabled ? 'not-allowed' : 'pointer' 
+            }}
+            onClick={() => !isLeftArrowDisabled && setCurrentDate(new Date(year, month - 1))}
+            disabled={isLeftArrowDisabled}
+          >
+            {'\u25C0'}
+          </button>
           <strong style={{ fontSize: 16 }}>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong>
           <button
-            style={{ padding: '6px 10px' }}
-            onClick={() => clampMonthNavigation(new Date(year, month + 1))}
-            disabled={new Date(year, month + 1, 1) > new Date(maxSelectableDate)}
+            style={{ 
+              padding: '6px 10px',
+              opacity: isRightArrowDisabled ? 0.5 : 1,
+              cursor: isRightArrowDisabled ? 'not-allowed' : 'pointer'
+            }}
+            onClick={() => !isRightArrowDisabled && clampMonthNavigation(new Date(year, month + 1))}
+            disabled={isRightArrowDisabled}
           >
             {'\u25B6'}
           </button>

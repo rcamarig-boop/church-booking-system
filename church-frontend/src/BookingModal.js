@@ -187,7 +187,7 @@ export default function BookingModal({
     }
 
     if (!isAllowedBookingTime(startTime)) {
-      return 'Preferred time must be between 8:00 AM and 6:00 PM in 30-minute intervals';
+      return 'Preferred time must be between 8:00 AM and 6:00 PM';
     }
     return null;
   };
@@ -517,6 +517,7 @@ export default function BookingModal({
               )}
 
               <label style={{ color: palette.ink, fontWeight: 600 }}>Preferred Time</label>
+              <div style={{ color: '#64748b', fontSize: 12, marginBottom: 6 }}>Select a time between 8:00 AM and 6:00 PM</div>
               <input
                 type="time"
                 value={startTime}
