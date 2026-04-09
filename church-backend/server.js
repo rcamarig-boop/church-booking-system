@@ -151,12 +151,12 @@ const normalizeBookingEditProposal = (row) => ({
   bookingId: row.booking_id,
   userId: row.user_id,
   adminId: row.admin_id,
-  currentDate: row.current_date,
-  currentSlot: row.current_slot,
-  currentDetails: safeJsonParse(row.current_details),
-  proposedDate: row.proposed_date,
-  proposedSlot: row.proposed_slot,
-  proposedDetails: safeJsonParse(row.proposed_details),
+  currentDate: row.current_booking_date ?? row.current_date,
+  currentSlot: row.current_booking_slot ?? row.current_slot,
+  currentDetails: safeJsonParse(row.current_booking_details ?? row.current_details),
+  proposedDate: row.proposed_booking_date ?? row.proposed_date,
+  proposedSlot: row.proposed_booking_slot ?? row.proposed_slot,
+  proposedDetails: safeJsonParse(row.proposed_booking_details ?? row.proposed_details),
   adminNote: row.admin_note || '',
   userReply: row.user_reply || '',
   status: row.status || 'pending',
@@ -214,12 +214,12 @@ async function ensureBookingEditProposalsTable() {
       booking_id INTEGER NOT NULL,
       user_id INTEGER,
       admin_id INTEGER,
-      current_date TEXT NOT NULL,
-      current_slot TEXT NOT NULL,
-      current_details JSONB,
-      proposed_date TEXT NOT NULL,
-      proposed_slot TEXT NOT NULL,
-      proposed_details JSONB,
+      current_booking_date TEXT NOT NULL,
+      current_booking_slot TEXT NOT NULL,
+      current_booking_details JSONB,
+      proposed_booking_date TEXT NOT NULL,
+      proposed_booking_slot TEXT NOT NULL,
+      proposed_booking_details JSONB,
       admin_note TEXT,
       user_reply TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
@@ -228,6 +228,30 @@ async function ensureBookingEditProposalsTable() {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  const proposalColumns = await dbAll(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'booking_edit_proposals'
+  `);
+  const proposalColumnNames = new Set(proposalColumns.map(row => row.column_name));
+  if (proposalColumnNames.has('current_date') && !proposalColumnNames.has('current_booking_date')) {
+    await exec('ALTER TABLE booking_edit_proposals RENAME COLUMN "current_date" TO current_booking_date;');
+  }
+  if (proposalColumnNames.has('current_slot') && !proposalColumnNames.has('current_booking_slot')) {
+    await exec('ALTER TABLE booking_edit_proposals RENAME COLUMN current_slot TO current_booking_slot;');
+  }
+  if (proposalColumnNames.has('current_details') && !proposalColumnNames.has('current_booking_details')) {
+    await exec('ALTER TABLE booking_edit_proposals RENAME COLUMN current_details TO current_booking_details;');
+  }
+  if (proposalColumnNames.has('proposed_date') && !proposalColumnNames.has('proposed_booking_date')) {
+    await exec('ALTER TABLE booking_edit_proposals RENAME COLUMN proposed_date TO proposed_booking_date;');
+  }
+  if (proposalColumnNames.has('proposed_slot') && !proposalColumnNames.has('proposed_booking_slot')) {
+    await exec('ALTER TABLE booking_edit_proposals RENAME COLUMN proposed_slot TO proposed_booking_slot;');
+  }
+  if (proposalColumnNames.has('proposed_details') && !proposalColumnNames.has('proposed_booking_details')) {
+    await exec('ALTER TABLE booking_edit_proposals RENAME COLUMN proposed_details TO proposed_booking_details;');
+  }
   await exec(`
     CREATE INDEX IF NOT EXISTS booking_edit_proposals_booking_idx
     ON booking_edit_proposals (booking_id, status, created_at DESC);
@@ -1182,12 +1206,12 @@ app.put('/api/bookings/:id', auth, admin, async (req, res) => {
   const proposalRow = await dbGet(`
     INSERT INTO booking_edit_proposals (
       booking_id, user_id, admin_id,
-      current_date, current_slot, current_details,
-      proposed_date, proposed_slot, proposed_details,
+      current_booking_date, current_booking_slot, current_booking_details,
+      proposed_booking_date, proposed_booking_slot, proposed_booking_details,
       admin_note, status
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-    RETURNING id, booking_id, user_id, admin_id, current_date, current_slot, current_details, proposed_date, proposed_slot, proposed_details, admin_note, user_reply, status, reviewed_at, responded_at, created_at
+    RETURNING id, booking_id, user_id, admin_id, current_booking_date, current_booking_slot, current_booking_details, proposed_booking_date, proposed_booking_slot, proposed_booking_details, admin_note, user_reply, status, reviewed_at, responded_at, created_at
   `,
     bookingId,
     current.userId,

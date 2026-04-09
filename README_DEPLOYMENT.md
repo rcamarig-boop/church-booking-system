@@ -188,6 +188,10 @@ If all ✅, **CONGRATULATIONS! You're live!** 🎉
    - App sleeps after 15 min, wakes on first request
    - Takes 30-60 seconds first time
 
+5. **Quick deploy check**: See [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)
+   - Confirms the frontend and backend env vars are set correctly
+   - Includes the smoke tests to run after deploy
+
 ---
 
 ## 🔒 Security Reminders
