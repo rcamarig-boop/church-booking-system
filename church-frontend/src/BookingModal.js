@@ -667,7 +667,7 @@ export default function BookingModal({
                 boxShadow: cardShadow
               }}
             >
-              Review Submission
+              Send Booking Request
             </button>
             <button
               className="dashboard-action-btn dashboard-action-btn--secondary"
@@ -708,9 +708,9 @@ export default function BookingModal({
               </button>
             </div>
 
-            <h3 className="church-review-title">Review Booking Request</h3>
+            <h3 className="church-review-title">Confirm Booking Details</h3>
             <div className="church-review-subtitle">
-              Please confirm the details before we send your booking request to the parish office.
+              Review the filled-out form below. You can go back and edit it, or confirm to send it to the parish office.
             </div>
 
             <div className="church-review-sheet">
@@ -745,7 +745,7 @@ export default function BookingModal({
               </div>
 
               <div className="church-review-section">
-                <div className="church-review-section-title">Submitted Form</div>
+                <div className="church-review-section-title">Filled Form Preview</div>
                 <div className="church-review-grid">
                   {serviceFields.map((field) => (
                     <div key={field.key} className="church-review-row church-review-row--stacked">
@@ -774,7 +774,7 @@ export default function BookingModal({
                 onClick={confirmBookingSubmission}
                 className="church-review-btn church-review-btn--primary"
               >
-                Confirm Send
+                Send Request
               </button>
             </div>
           </div>
