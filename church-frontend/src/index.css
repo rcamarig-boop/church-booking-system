@@ -242,6 +242,123 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   padding: 6px 10px;
 }
 
+/* ===== Booking Modal Responsive Styles ===== */
+.booking-modal-overlay {
+  padding: 12px;
+}
+
+.booking-modal-content {
+  width: min(460px, 100%);
+}
+
+@media (max-width: 600px) {
+  .booking-modal-overlay {
+    padding: 8px;
+  }
+
+  .booking-modal-content {
+    width: min(100%, calc(100vw - 16px));
+    padding: 16px !important;
+    borderRadius: 12px !important;
+  }
+
+  .booking-modal-content h3 {
+    fontSize: 16px !important;
+  }
+
+  .booking-modal-content input,
+  .booking-modal-content select,
+  .booking-modal-content textarea {
+    fontSize: 16px !important;
+  }
+
+  .booking-modal-content button {
+    fontSize: 14px !important;
+  }
+
+  /* Service form modal within booking modal */
+  .booking-modal-content > div[style*="position: fixed"] {
+    padding: 8px !important;
+  }
+
+  .booking-modal-content > div[style*="position: fixed"] > div {
+    width: min(100%, calc(100vw - 16px)) !important;
+    padding: 14px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .booking-modal-overlay {
+    padding: 6px;
+  }
+
+  .booking-modal-content {
+    width: 100%;
+    max-width: calc(100vw - 12px);
+    padding: 12px !important;
+  }
+
+  .booking-modal-content h3 {
+    fontSize: 14px !important;
+    marginBottom: 10px !important;
+  }
+
+  .booking-modal-content > ul {
+    fontSize: 12px !important;
+  }
+
+  .booking-modal-content > div > label {
+    fontSize: 13px !important;
+  }
+
+  .booking-modal-content input,
+  .booking-modal-content select,
+  .booking-modal-content textarea {
+    fontSize: 16px !important;
+    padding: 10px !important;
+  }
+
+  .booking-modal-content button {
+    fontSize: 13px !important;
+    padding: 10px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .booking-modal-overlay {
+    padding: 4px;
+  }
+
+  .booking-modal-content {
+    width: 100%;
+    max-width: calc(100vw - 8px);
+    padding: 10px !important;
+    borderRadius: 10px !important;
+  }
+
+  .booking-modal-content h3 {
+    fontSize: 13px !important;
+    marginBottom: 8px !important;
+    gap: 4px !important;
+  }
+
+  .booking-modal-content > div {
+    gap: 8px !important;
+  }
+
+  .booking-modal-content input,
+  .booking-modal-content select,
+  .booking-modal-content textarea {
+    fontSize: 16px !important;
+    padding: 8px !important;
+  }
+
+  .booking-modal-content button {
+    fontSize: 12px !important;
+    padding: 8px !important;
+  }
+}
+
 /* ===== Modal Overrides ===== */
 .modal {
   position: fixed;
@@ -1553,6 +1670,41 @@ body.sidebar-drawer-open {
   .church-review-card {
     width: min(100%, calc(100vw - 24px));
     padding: 18px 16px 16px;
+    border-radius: 16px;
+    max-height: calc(90vh - 20px);
+  }
+
+  .church-review-card::before {
+    inset: 8px;
+    border-radius: 12px;
+  }
+
+  .church-review-title {
+    font-size: clamp(18px, 2.5vw, 24px);
+    marginBottom: 6px !important;
+  }
+
+  .church-review-subtitle {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .church-review-section-title {
+    font-size: 12px !important;
+  }
+
+  .church-review-row {
+    gap: 4px !important;
+  }
+
+  .church-review-label,
+  .church-review-value {
+    font-size: 12px !important;
+  }
+
+  .church-review-btn {
+    font-size: 12px !important;
+    padding: 10px !important;
   }
 
   .church-review-row {
@@ -1764,6 +1916,36 @@ body.sidebar-drawer-open {
   .church-review-card {
     padding: 16px 14px 14px;
     border-radius: 18px;
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(90vh - 16px);
+  }
+
+  .church-review-card::before {
+    inset: 6px;
+  }
+
+  .church-review-title {
+    font-size: clamp(16px, 2vw, 20px);
+    marginBottom: 4px !important;
+  }
+
+  .church-review-subtitle {
+    font-size: 11px;
+    margin-bottom: 10px;
+  }
+
+  .church-review-section-title {
+    font-size: 11px !important;
+  }
+
+  .church-review-label,
+  .church-review-value {
+    font-size: 11px !important;
+  }
+
+  .church-review-btn {
+    font-size: 11px !important;
+    padding: 8px !important;
   }
 
   .dashboard-member-grid,
@@ -1818,5 +2000,72 @@ body.sidebar-drawer-open {
   .dashboard-main > section,
   .dashboard-main > div > div {
     border-radius: 12px;
+  }
+
+  /* Booking modal at ultra-small screens */
+  .booking-modal-overlay {
+    padding: 2px !important;
+  }
+
+  .booking-modal-content {
+    width: 100vw !important;
+    padding: 8px !important;
+    borderRadius: 8px !important;
+    maxHeight: calc(100vh - 4px) !important;
+  }
+
+  .booking-modal-content h3 {
+    fontSize: 12px !important;
+  }
+
+  .booking-modal-content > button,
+  .booking-modal-content input,
+  .booking-modal-content select {
+    fontSize: 14px !important;
+  }
+
+  /* Review card at ultra-small screens */
+  .church-review-card {
+    width: 100vw !important;
+    padding: 10px 12px !important;
+    maxHeight: calc(100vh - 8px) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25) !important;
+  }
+
+  .church-review-card::before {
+    inset: 4px;
+    border-radius: 4px;
+  }
+
+  .church-review-title {
+    fontSize: clamp(14px, 1.8vw, 16px) !important;
+    marginBottom: 2px !important;
+  }
+
+  .church-review-subtitle {
+    font-size: 10px;
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+
+  .church-review-section-title {
+    font-size: 10px !important;
+    marginBottom: 6px !important;
+  }
+
+  .church-review-row {
+    gap: 2px !important;
+  }
+
+  .church-review-label,
+  .church-review-value {
+    font-size: 10px !important;
+    padding: 4px 6px !important;
+  }
+
+  .church-review-btn {
+    font-size: 10px !important;
+    padding: 6px 8px !important;
   }
 }

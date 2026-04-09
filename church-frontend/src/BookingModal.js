@@ -271,17 +271,21 @@ export default function BookingModal({
   const cardShadow = '0 14px 38px rgba(0,0,0,0.18)';
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'radial-gradient(circle at 20% 20%, rgba(214,173,96,0.35), transparent 45%), radial-gradient(circle at 80% 30%, rgba(59,91,138,0.25), transparent 55%), rgba(0,0,0,0.35)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000,
-      padding: 12
-    }}>
-      <div style={{
+    <div 
+      className="booking-modal-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'radial-gradient(circle at 20% 20%, rgba(214,173,96,0.35), transparent 45%), radial-gradient(circle at 80% 30%, rgba(59,91,138,0.25), transparent 55%), rgba(0,0,0,0.35)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+        padding: 12
+      }}>
+      <div 
+        className="booking-modal-content"
+        style={{
         background: '#fff',
         padding: 24,
         borderRadius: 16,
