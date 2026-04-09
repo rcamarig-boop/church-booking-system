@@ -79,9 +79,15 @@ flowchart TD
   P -->|Yes| R[Show preview of booking details]
   R --> S[User confirms booking]
   S --> T[Submit booking request]
-  T --> U[Auto-create booking record]
-  U --> V[Notify admin of new booking]
-  V --> W([End])
+  T --> U[Create booking_request record status pending]
+  U --> V[Notify admin of new request]
+  V --> W{Admin approves?}
+  W -->|Yes| X[Create confirmed booking record]
+  W -->|No| Y[Reject request]
+  X --> Z[Notify member booking confirmed]
+  Y --> ZA[Notify member request rejected]
+  Z --> ZB([End - Booking Confirmed])
+  ZA --> ZC([End - Request Rejected])
 ```
 
 ## 3) Sequence Diagram
