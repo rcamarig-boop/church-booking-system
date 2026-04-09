@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import api from './api';
 import { SocketContext } from './App';
-import { BOOKING_TIME_MAX, BOOKING_TIME_MIN, DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, getTomorrowIsoDate, getSixMonthsAheadIsoDate, isAllowedBookingTime, isBookingDateWithinSixMonths, sanitizeFieldValue } from './inputValidation';
+import { BOOKING_TIME_MAX, BOOKING_TIME_MIN, DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, isAllowedBookingTime, isBookingDateWithinSixMonths } from './inputValidation';
 
 const th = {
   padding: 8,
@@ -41,6 +41,7 @@ const SERVICE_FIELDS = {
 };
 
 const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
+const BOOKING_SHARED_DETAIL_KEYS = new Set(['chapel', 'needsChairsTables', 'chairsCount', 'tablesCount']);
 const CHAPEL_OPTIONS = ['Main Chapel', 'Side Chapel #1'];
 
 const actionWrap = {
@@ -101,6 +102,43 @@ export default function AdminRequestPanel({ onDecision }) {
       extrasText: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : ''
     };
   };
+
+  const requestReviewSummary = React.useMemo(() => {
+    if (!editingRequest) return [];
+    const detailsObj = editingRequest.details && typeof editingRequest.details === 'object'
+      ? editingRequest.details
+      : {};
+    const key = String(editingRequest.service || '').trim().toLowerCase();
+    const fields = SERVICE_FIELDS[key] || [];
+    const rows = [
+      { label: 'Request ID', value: editingRequest.id || '-' },
+      { label: 'Name', value: editingRequest.name || '-' },
+      { label: 'Email', value: editingRequest.email || '-' },
+      { label: 'Service', value: editingRequest.service || '-' },
+      { label: 'Date', value: editingRequest.date || '-' },
+      { label: 'Time', value: editingRequest.slot || '-' }
+    ];
+
+    if (detailsObj.chapel) {
+      rows.push({ label: 'Place / Chapel', value: detailsObj.chapel });
+    }
+
+    fields.forEach((field) => {
+      if (field === 'chapel') return;
+      const value = detailsObj[field];
+      if (value === undefined || value === null || String(value).trim() === '') return;
+      rows.push({ label: field, value: String(value) });
+    });
+
+    Object.entries(detailsObj).forEach(([keyName, value]) => {
+      if (BOOKING_SHARED_DETAIL_KEYS.has(keyName)) return;
+      if (fields.includes(keyName)) return;
+      if (value === undefined || value === null || String(value).trim() === '') return;
+      rows.push({ label: keyName, value: String(value) });
+    });
+
+    return rows;
+  }, [editingRequest]);
 
   const [hasMore, setHasMore] = useState(false);
 
@@ -236,6 +274,22 @@ export default function AdminRequestPanel({ onDecision }) {
               </button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#fbfaf7' }}>
+                <div style={{ fontWeight: 800, marginBottom: 8, color: '#1f2937' }}>Original Request</div>
+                <div style={{ display: 'grid', gap: 6, color: '#4a5568', fontSize: 14 }}>
+                  {requestReviewSummary.map(item => (
+                    <div key={item.label}>
+                      <strong>{item.label}:</strong> {item.value}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ border: '1px solid rgba(214,173,96,0.35)', borderRadius: 12, padding: 12, background: 'rgba(248,244,236,0.72)' }}>
+                <div style={{ fontWeight: 800, marginBottom: 8, color: '#1f2937' }}>Editable Fields</div>
+                <div style={{ color: '#4a5568', fontSize: 14, lineHeight: 1.5 }}>
+                  Only the place / chapel and the time can be changed. Everything else is read-only for review.
+                </div>
+              </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Chapel</label>
                 <select
@@ -254,7 +308,7 @@ export default function AdminRequestPanel({ onDecision }) {
                 <input
                   type="text"
                   value={editorForm.service}
-                  onChange={(e) => setEditorForm(f => ({ ...f, service: e.target.value }))}
+                  disabled
                   style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}
                 />
               </div>
@@ -264,9 +318,7 @@ export default function AdminRequestPanel({ onDecision }) {
                   <input
                     type="date"
                     value={editorForm.date}
-                    onChange={(e) => setEditorForm(f => ({ ...f, date: e.target.value }))}
-                    min={getTomorrowIsoDate()}
-                    max={getSixMonthsAheadIsoDate()}
+                    disabled
                     style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}
                   />
                 </div>
@@ -304,8 +356,8 @@ export default function AdminRequestPanel({ onDecision }) {
                             inputMode={PHONE_FIELD_KEYS.has(field) ? 'numeric' : undefined}
                             max={DATE_FIELD_KEYS.has(field) ? getTodayIsoDate() : undefined}
                             maxLength={PHONE_FIELD_KEYS.has(field) ? 11 : NAME_FIELD_KEYS.has(field) ? NAME_MAX_LENGTH : undefined}
-                            onChange={(e) => setEditorDetailsFields(prev => ({ ...prev, [field]: sanitizeFieldValue(field, e.target.value) }))}
-                            style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                            readOnly
+                            style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569' }}
                           />
                         </div>
                       ))}
@@ -318,8 +370,8 @@ export default function AdminRequestPanel({ onDecision }) {
                 <textarea
                   rows={4}
                   value={editorDetailsExtra}
-                  onChange={(e) => setEditorDetailsExtra(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                  readOnly
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569' }}
                 />
               </div>
               {editorError && (
@@ -378,22 +430,20 @@ export default function AdminRequestPanel({ onDecision }) {
                       setEditorError('Preferred time must be between 8:00 AM and 6:00 PM in 30-minute intervals.');
                       return;
                     }
-                    let extra = {};
-                    try {
-                      extra = editorDetailsExtra.trim() ? JSON.parse(editorDetailsExtra) : {};
-                    } catch {
-                      setEditorError('Additional details must be valid JSON.');
-                      return;
-                    }
-                    const details = { chapel: editorChapel, ...extra, ...editorDetailsFields };
                     try {
                       setEditorSaving(true);
                       setEditorError('');
+                      const originalDetails = editingRequest.details && typeof editingRequest.details === 'object'
+                        ? editingRequest.details
+                        : {};
                       await api.bookingRequests.update(editingRequest.id, {
                         service: editorForm.service,
                         date: editorForm.date,
                         slot: editorForm.slot,
-                        details
+                        details: {
+                          ...originalDetails,
+                          chapel: editorChapel
+                        }
                       });
                       setEditorOpen(false);
                       setEditingRequest(null);
