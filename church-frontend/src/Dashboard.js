@@ -80,6 +80,18 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Toggle body class when sidebar opens/closes on mobile
+  useEffect(() => {
+    if (window.innerWidth < 900) {
+      if (sidebarOpen) {
+        document.body.classList.add('sidebar-drawer-open');
+      } else {
+        document.body.classList.remove('sidebar-drawer-open');
+      }
+    }
+    return () => document.body.classList.remove('sidebar-drawer-open');
+  }, [sidebarOpen]);
+
   useEffect(() => {
     if (!profileMenuOpen) return;
     const onKeyDown = (event) => {

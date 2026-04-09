@@ -980,6 +980,17 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   display: flex;
 }
 
+/* Disable interaction with right column when sidebar is open on mobile */
+.dashboard-layout.sidebar-open .dashboard-right-column {
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Prevent body scroll when mobile sidebar is open */
+body.sidebar-drawer-open {
+  overflow: hidden;
+}
+
 .dashboard-layout.sidebar-open .dashboard-right-column,
 .dashboard-layout.sidebar-closed .dashboard-right-column {
   flex: 1 1 100%;
