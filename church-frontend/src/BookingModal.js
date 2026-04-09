@@ -603,7 +603,9 @@ export default function BookingModal({
       </div>
 
       {showServiceForm && (
-        <div style={{
+        <div 
+          className="booking-service-form-overlay"
+          style={{
           position: 'fixed',
           inset: 0,
           background: 'rgba(0,0,0,0.45)',
@@ -613,82 +615,90 @@ export default function BookingModal({
           zIndex: 1001,
           padding: 12
         }}>
-          <div style={{
+          <div 
+            className="booking-service-form-modal"
+            style={{
             background: '#fff',
             borderRadius: 14,
             width: 'min(480px, 100%)',
-            maxHeight: '90vh',
+            maxHeight: 'min(90vh, calc(100vh - 24px))',
             overflowY: 'auto',
             padding: 20,
             boxShadow: cardShadow,
-            border: `1px solid ${palette.mist}`
+            border: `1px solid ${palette.mist}`,
+            display: 'flex',
+            flexDirection: 'column'
           }}>
-            <h3 style={{ marginTop: 0, marginBottom: 12, color: palette.ink }}>{service} Form</h3>
-            {serviceFields.map(field => (
-              <div key={field.key} style={{ marginBottom: 10 }}>
-                <label style={{ display: 'block', marginBottom: 6, color: palette.ink, fontWeight: 600 }}>
-                  {field.label}{field.required ? ' *' : ''}
-                </label>
-                {field.textarea ? (
-                  <textarea
-                    value={serviceFormData[field.key] || ''}
-                    onChange={e => setServiceFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    rows={3}
-                    style={{ width: '100%', padding: 10, border: `1px solid ${palette.mist}`, borderRadius: 8, background: '#fff' }}
-                  />
-                ) : (
-                  <input
-                    type={field.type || (DATE_FIELD_KEYS.has(field.key) ? 'date' : 'text')}
-                    value={serviceFormData[field.key] || ''}
-                    inputMode={PHONE_FIELD_KEYS.has(field.key) ? 'numeric' : undefined}
-                    maxLength={PHONE_FIELD_KEYS.has(field.key) ? PHONE_MAX_LENGTH : NAME_FIELD_KEYS.has(field.key) ? NAME_MAX_LENGTH : undefined}
-                    max={DATE_FIELD_KEYS.has(field.key) ? getTodayIsoDate() : undefined}
-                    onChange={e => {
-                      const nextValue = sanitizeFieldValue(field.key, e.target.value);
-                      setError(null);
-                      setServiceFormData(prev => ({ ...prev, [field.key]: nextValue }));
-                    }}
-                    style={{ width: '100%', padding: 10, border: `1px solid ${palette.mist}`, borderRadius: 8, background: '#fff' }}
-                  />
-                )}
-              </div>
-            ))}
+            <h3 style={{ marginTop: 0, marginBottom: 12, color: palette.ink, flexShrink: 0 }}>{service} Form</h3>
+            
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginBottom: 12 }}>
+              {serviceFields.map(field => (
+                <div key={field.key} style={{ marginBottom: 10 }}>
+                  <label style={{ display: 'block', marginBottom: 6, color: palette.ink, fontWeight: 600 }}>
+                    {field.label}{field.required ? ' *' : ''}
+                  </label>
+                  {field.textarea ? (
+                    <textarea
+                      value={serviceFormData[field.key] || ''}
+                      onChange={e => setServiceFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      rows={3}
+                      style={{ width: '100%', padding: 10, border: `1px solid ${palette.mist}`, borderRadius: 8, background: '#fff', fontFamily: 'inherit' }}
+                    />
+                  ) : (
+                    <input
+                      type={field.type || (DATE_FIELD_KEYS.has(field.key) ? 'date' : 'text')}
+                      value={serviceFormData[field.key] || ''}
+                      inputMode={PHONE_FIELD_KEYS.has(field.key) ? 'numeric' : undefined}
+                      maxLength={PHONE_FIELD_KEYS.has(field.key) ? PHONE_MAX_LENGTH : NAME_FIELD_KEYS.has(field.key) ? NAME_MAX_LENGTH : undefined}
+                      max={DATE_FIELD_KEYS.has(field.key) ? getTodayIsoDate() : undefined}
+                      onChange={e => {
+                        const nextValue = sanitizeFieldValue(field.key, e.target.value);
+                        setError(null);
+                        setServiceFormData(prev => ({ ...prev, [field.key]: nextValue }));
+                      }}
+                      style={{ width: '100%', padding: 10, border: `1px solid ${palette.mist}`, borderRadius: 8, background: '#fff' }}
+                    />
+                  )}
+                </div>
+              ))}
 
-            {error && <p style={{ color: palette.wine }}>{error}</p>}
+              {error && <p style={{ color: palette.wine, marginBottom: 12 }}>{error}</p>}
+            </div>
 
-            <button
-              className="dashboard-action-btn dashboard-action-btn--primary"
-              onClick={submit}
-              style={{
-                width: '100%',
-                padding: 14,
-                borderRadius: 10,
-                border: 'none',
-                background: `linear-gradient(135deg, ${palette.accent}, ${palette.ink})`,
-                color: '#fff',
-                fontWeight: 700,
-                cursor: 'pointer',
-                marginBottom: 10,
-                boxShadow: cardShadow
-              }}
-            >
-              Send Booking Request
-            </button>
-            <button
-              className="dashboard-action-btn dashboard-action-btn--secondary"
-              onClick={() => setShowServiceForm(false)}
-              style={{
-                width: '100%',
-                padding: 12,
-                borderRadius: 8,
-                border: `1px solid ${palette.mist}`,
-                background: palette.stone,
-                color: palette.ink,
-                cursor: 'pointer'
-              }}
-            >
-              Back
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
+              <button
+                className="dashboard-action-btn dashboard-action-btn--primary"
+                onClick={submit}
+                style={{
+                  width: '100%',
+                  padding: 14,
+                  borderRadius: 10,
+                  border: 'none',
+                  background: `linear-gradient(135deg, ${palette.accent}, ${palette.ink})`,
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: cardShadow
+                }}
+              >
+                Send Booking Request
+              </button>
+              <button
+                className="dashboard-action-btn dashboard-action-btn--secondary"
+                onClick={() => setShowServiceForm(false)}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${palette.mist}`,
+                  background: palette.stone,
+                  color: palette.ink,
+                  cursor: 'pointer'
+                }}
+              >
+                Back
+              </button>
+            </div>
           </div>
         </div>
       )}

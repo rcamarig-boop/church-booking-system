@@ -242,6 +242,146 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   padding: 6px 10px;
 }
 
+/* Service form modal within booking modal */
+.booking-service-form-overlay {
+  padding: 12px;
+}
+
+.booking-service-form-modal {
+  min-height: 200px;
+}
+
+.booking-service-form-modal > div:nth-of-type(2) {
+  /* Scrollable form fields container */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(214, 173, 96, 0.4) rgba(214, 173, 96, 0.1);
+}
+
+.booking-service-form-modal > div:nth-of-type(2)::-webkit-scrollbar {
+  width: 6px;
+}
+
+.booking-service-form-modal > div:nth-of-type(2)::-webkit-scrollbar-track {
+  background: rgba(214, 173, 96, 0.1);
+  border-radius: 3px;
+}
+
+.booking-service-form-modal > div:nth-of-type(2)::-webkit-scrollbar-thumb {
+  background: rgba(214, 173, 96, 0.4);
+  border-radius: 3px;
+}
+
+.booking-service-form-modal > div:nth-of-type(2)::-webkit-scrollbar-thumb:hover {
+  background: rgba(214, 173, 96, 0.6);
+}
+
+@media (max-width: 600px) {
+  .booking-service-form-overlay {
+    padding: 8px;
+  }
+
+  .booking-service-form-modal {
+    width: min(100%, calc(100vw - 16px)) !important;
+    padding: 14px !important;
+    borderRadius: 12px !important;
+  }
+
+  .booking-service-form-modal h3 {
+    fontSize: 15px !important;
+    marginBottom: 10px !important;
+  }
+
+  .booking-service-form-modal input,
+  .booking-service-form-modal textarea,
+  .booking-service-form-modal select {
+    fontSize: 16px !important;
+    padding: 8px !important;
+  }
+
+  .booking-service-form-modal label {
+    fontSize: 13px !important;
+  }
+
+  .booking-service-form-modal button {
+    fontSize: 13px !important;
+    padding: 12px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .booking-service-form-overlay {
+    padding: 6px;
+  }
+
+  .booking-service-form-modal {
+    width: 100% !important;
+    max-width: calc(100vw - 12px) !important;
+    padding: 10px !important;
+    borderRadius: 10px !important;
+  }
+
+  .booking-service-form-modal h3 {
+    fontSize: 13px !important;
+    marginBottom: 8px !important;
+  }
+
+  .booking-service-form-modal input,
+  .booking-service-form-modal textarea,
+  .booking-service-form-modal select {
+    fontSize: 16px !important;
+    padding: 6px !important;
+  }
+
+  .booking-service-form-modal label {
+    fontSize: 12px !important;
+    marginBottom: 4px !important;
+  }
+
+  .booking-service-form-modal button {
+    fontSize: 12px !important;
+    padding: 10px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .booking-service-form-overlay {
+    padding: 4px;
+  }
+
+  .booking-service-form-modal {
+    width: 100vw !important;
+    max-width: calc(100vw - 8px) !important;
+    padding: 8px !important;
+    borderRadius: 8px !important;
+  }
+
+  .booking-service-form-modal h3 {
+    fontSize: 12px !important;
+    marginBottom: 6px !important;
+  }
+
+  .booking-service-form-modal input,
+  .booking-service-form-modal textarea,
+  .booking-service-form-modal select {
+    fontSize: 14px !important;
+    padding: 6px !important;
+  }
+
+  .booking-service-form-modal label {
+    fontSize: 11px !important;
+    marginBottom: 3px !important;
+  }
+
+  .booking-service-form-modal button {
+    fontSize: 11px !important;
+    padding: 8px !important;
+  }
+
+  .booking-service-form-modal > div:last-child {
+    gap: 6px !important;
+  }
+}
+
 /* ===== Booking Modal Responsive Styles ===== */
 .booking-modal-overlay {
   padding: 12px;
