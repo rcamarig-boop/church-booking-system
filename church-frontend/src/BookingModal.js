@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from './api';
-import { DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, BOOKING_LIMIT, BOOKING_TIME_MAX, BOOKING_TIME_MIN, isAllowedBookingTime, isBookingDateWithinSixMonths, isFutureIsoDate, sanitizeFieldValue, isValidNameValue, isValidPhoneValue, getTomorrowIsoDate, getSixMonthsAheadIsoDate } from './inputValidation';
+import { DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, BOOKING_LIMIT, BOOKING_TIME_MAX, BOOKING_TIME_MIN, isAllowedBookingTime, isBookingDateWithinSixMonths, isFutureIsoDate, sanitizeFieldValue, isValidNameValue, isValidPhoneValue, getTomorrowIsoDate, getSixMonthsAheadIsoDate, getTodayIsoDate } from './inputValidation';
 
 const SERVICE_OPTIONS = [
   'Counseling',
