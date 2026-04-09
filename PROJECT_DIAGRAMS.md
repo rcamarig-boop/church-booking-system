@@ -57,20 +57,31 @@ flowchart LR
 ```mermaid
 flowchart TD
   A([Start]) --> B[User logs in]
-  B --> C[Open calendar or booking modal]
-  C --> D[Select date, chapel, service, time]
-  D --> E{Need chairs/tables?}
-  E -->|Yes| F[Enter chairs count and tables count]
-  E -->|No| G[Fill service form details]
-  F --> G
-  G --> H[Validate required fields]
-  H --> I{Valid?}
-  I -->|No| J[Show error message]
-  J --> G
-  I -->|Yes| K[Submit booking request]
-  K --> L[Store request and booking record]
-  L --> M[Notify admin]
-  M --> N([End])
+  B --> C{Mobile or Desktop?}
+  C -->|Mobile| D[Tap hamburger menu]
+  C -->|Desktop| E[View sidebar directly]
+  D --> F[Sidebar drawer opens with overlay]
+  E --> F
+  F --> G[Click Calendar or Booking Modal]
+  G --> H[Select date, chapel, service, time 8am-6pm]
+  H --> I{Multi-step form?}
+  I -->|Yes| J[Show scrollable service form modal]
+  I -->|No| K[Skip to validation]
+  J --> K
+  K --> L{Need chairs/tables?}
+  L -->|Yes| M[Enter chairs count and tables count]
+  L -->|No| N[Fill service form details]
+  M --> N
+  N --> O[Validate required fields & time range]
+  O --> P{Valid?}
+  P -->|No| Q[Show error message]
+  Q --> N
+  P -->|Yes| R[Show preview of booking details]
+  R --> S[User confirms booking]
+  S --> T[Submit booking request]
+  T --> U[Auto-create booking record]
+  U --> V[Notify admin of new booking]
+  V --> W([End])
 ```
 
 ## 3) Sequence Diagram
@@ -84,15 +95,18 @@ sequenceDiagram
   participant N as Notification Service
   participant Admin as Admin Dashboard
 
-  Member->>UI: Select date, chapel, service, details
-  UI->>API: POST /api/bookings
-  API->>API: Validate slot and service details
-  API->>DB: Insert booking_request
-  API->>DB: Insert booking_record
-  API->>N: Create notification for admins
-  N-->>Admin: Booking request notification
-  API-->>UI: Success response
-  UI-->>Member: Booking submitted
+  Member->>UI: Fill booking form with time 8am-6pm
+  UI->>UI: Client-side validation (time range, required fields)
+  UI->>API: POST /api/bookings (create booking request)
+  API->>API: Validate date in 6-month window, service, time range
+  API->>DB: Insert booking_request (status: pending)
+  API->>DB: Auto-create booking record (no admin approval)
+  API->>DB: Create corresponding booking (auto-confirmed)
+  API->>N: Notify admin of new booking
+  N-->>Admin: Booking confirmed notification
+  API-->>UI: Success response with booking_id
+  UI-->>Member: Booking confirmed successfully
+  UI->>UI: Update calendar to display new booking
 ```
 
 ## 4) Entity Relationship Diagram
@@ -200,6 +214,7 @@ classDiagram
     +events
     +service
     +serviceFormData
+    +windowWidth
     +submit()
     +validateServiceForm()
   }
@@ -208,6 +223,8 @@ classDiagram
     +bookings
     +events
     +calendarBookings
+    +windowWidth
+    +sidebarOpen
     +loadData()
     +editAcceptedBooking()
   }
@@ -217,6 +234,8 @@ classDiagram
     +records
     +users
     +events
+    +windowWidth
+    +sidebarOpen
     +loadData()
     +editAcceptedBooking()
     +reportData
@@ -265,26 +284,35 @@ classDiagram
 flowchart LR
   subgraph Client["Client Device"]
     Browser["Web Browser"]
+    Mobile["Mobile/Tablet Responsive"]
   end
 
   subgraph Frontend["Frontend Server"]
-    ReactApp["React App\nchurch-frontend"]
+    ReactApp["React App<br/>church-frontend"]
+    Responsive["Responsive Components<br/>7 Breakpoints"]
+    Modal["Booking Modals<br/>Scrollable Dialogs"]
   end
 
   subgraph Backend["Backend Server"]
-    NodeAPI["Node.js / Express API\nchurch-backend"]
+    NodeAPI["Node.js/Express API<br/>church-backend"]
     SocketIO["Socket.IO"]
+    Validation["Validation Layer<br/>8am-6pm, 6-month window"]
   end
 
   subgraph Database["Database Layer"]
-    DB["SQLite / PostgreSQL tables"]
+    DB["SQLite / PostgreSQL<br/>bookings, calendar, users"]
   end
 
   Browser --> ReactApp
+  Mobile --> ReactApp
+  ReactApp --> Responsive
+  ReactApp --> Modal
   ReactApp --> NodeAPI
   ReactApp --> SocketIO
+  NodeAPI --> Validation
   NodeAPI --> DB
   SocketIO --> Browser
+  SocketIO --> Mobile
 ```
 
 ## 7) Algorithmic Process
@@ -425,9 +453,300 @@ Steps:
 5. Save the updated setting to the calendar table.
 6. Re-render the calendar to reflect the new state.
 
-## 10) Notes for the Report
+## 10) Time Validation Algorithm
 
-- The booking `details` field is stored as JSON and can include chapel, service-specific data, and setup requirements.
-- The administrator dashboard now displays chairs and tables directly in the records and reporting sections.
-- The system uses a React frontend, a Node/Express backend, and a database layer containing bookings, booking requests, booking records, users, concerns, events, calendar slots, and notifications.
-- The diagrams are based on the implemented behavior of the project, not only on abstract requirements.
+### A. Time Validation (8am-6pm, Any Minute)
+
+```text
+BEGIN
+  INPUT: user selected time as HH:MM format
+  PARSE hours and minutes from time string
+  MINIMUM_HOUR = 8 (8:00 AM)
+  MAXIMUM_HOUR = 18 (6:00 PM, exclusive end)
+  
+  IF hours >= MINIMUM_HOUR AND hours < MAXIMUM_HOUR THEN
+    ACCEPT time
+    Display: "Time accepted (any minute allowed)"
+  ELSE IF hours = 18 AND minutes = 0 THEN
+    ACCEPT time (exactly 6:00 PM, boundary case)
+  ELSE
+    REJECT time
+    Display: "Time must be between 8:00 AM and 6:00 PM"
+  ENDIF
+END
+```
+
+### B. Calendar Navigation (6-Month Dynamic Window)
+
+```text
+BEGIN
+  TODAY = current date
+  EARLIEST_VALID_DATE = TODAY + 1 day (tomorrow)
+  LATEST_VALID_DATE = TODAY + 6 months
+  
+  WHEN user clicks "Previous Month" button:
+    CURRENT_MONTH = CURRENT_MONTH - 1 month
+    IF CURRENT_MONTH < EARLIEST_VALID_DATE THEN
+      DISABLE previous button (opacity: 0.5, pointer-events: none)
+    ELSE
+      ENABLE previous button
+    ENDIF
+  
+  WHEN user clicks "Next Month" button:
+    CURRENT_MONTH = CURRENT_MONTH + 1 month
+    IF CURRENT_MONTH > LATEST_VALID_DATE THEN
+      DISABLE next button (opacity: 0.5, pointer-events: none)
+    ELSE
+      ENABLE next button
+    ENDIF
+  
+  WHEN user selects date:
+    IF selected_date < EARLIEST_VALID_DATE THEN
+      REJECT with error "Cannot book past or today's date"
+    ELSE IF selected_date > LATEST_VALID_DATE THEN
+      REJECT with error "Can only book up to 6 months in advance"
+    ELSE
+      ACCEPT date
+    ENDIF
+END
+```
+
+### C. Mobile Responsive Layout Algorithm
+
+```text
+BEGIN
+  INITIALIZE windowWidth = window.innerWidth
+  ADD resize event listener to window
+  
+  DEFINE BREAKPOINTS = [390, 420, 520, 600, 680, 900, 1920]
+  
+  ON window resize OR component mount:
+    windowWidth = window.innerWidth
+    
+    IF windowWidth <= 900 THEN
+      SET sidebar mode = "drawer"
+      SET hamburger button = visible
+      SET left column position = fixed, z-index: 990
+      SET left column transform = translateX(-105%)
+      
+      WHEN user clicks hamburger:
+        SET sidebar drawer state = open
+        LEFT column transform = translateX(0)
+        ADD overlay backdrop with z-index 980
+        SET body overflow = hidden (prevent scroll)
+        ADD body class "sidebar-drawer-open"
+      
+      WHEN user clicks overlay OR back button:
+        SET sidebar drawer state = closed
+        LEFT column transform = translateX(-105%)
+        REMOVE body class "sidebar-drawer-open"
+        SET body overflow = auto
+    ELSE
+      SET sidebar mode = "fixed" (always visible)
+      SET hamburger button = hidden
+      SET left column position = relative
+    ENDIF
+    
+    IF windowWidth <= 600 THEN
+      SET main grid = 1 column
+      SET modal width = min(100vw - 16px, 480px)
+      SET modal padding = 8-12px
+      SET font size = 11-13px (scale down)
+    ELSE IF windowWidth <= 900 THEN
+      SET main grid = 1 column
+      SET modal width = min(100vw - 20px, 500px)
+      SET modal padding = 12-16px
+      SET font size = 12-14px
+    ELSE
+      SET main grid = 2 columns (repeat(2, 1fr))
+      SET modal width = 500px
+      SET modal padding = 20-24px
+      SET font size = 14-16px
+    ENDIF
+  END
+END
+```
+
+## 11) Mobile Responsive Design Patterns
+
+### Scrollable Container Pattern (Flexbox with Overflow)
+
+The system uses a critical pattern for handling overflow in modals and scrollable areas:
+
+```css
+.scrollable-content {
+  flex: 1;
+  min-height: 0;  /* Critical: allows flex shrink below content height */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.fixed-footer {
+  flex-shrink: 0;  /* Prevents buttons from shrinking */
+  padding: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+```
+
+**Why This Works:** The `min-height: 0` is essential for flexbox overflow to work correctly. Without it, the flex child won't shrink below its content height, causing overflow problems.
+
+**Applied To:**
+- BookingModal service form (scrollable form with fixed buttons)
+- Dashboard sidebar contact card (scrollable within sidebar)
+- AdminDashboard report sections (scrollable content areas)
+
+### Mobile Drawer Pattern (Fixed Overlay)
+
+```css
+.drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 980;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.drawer-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 280px;
+  z-index: 990;
+  transform: translateX(-105%);
+  transition: transform 0.3s ease;
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+body.sidebar-drawer-open {
+  overflow: hidden;  /* Prevent background scroll when drawer open */
+}
+
+.right-column.drawer-open {
+  pointer-events: none;  /* Disable interaction with right column */
+}
+```
+
+### Unified Card Styling System
+
+All card containers share consistent styling:
+
+```css
+.card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(214, 173, 96, 0.35);
+  border-top: 3px solid #d6ad60;  /* Gold signature accent */
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(31, 42, 68, 0.08);
+  padding: 20px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .card {
+    border-radius: 16px;
+    box-shadow: 0 8px 16px rgba(31, 42, 68, 0.06);
+    padding: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .card {
+    border-radius: 14px;
+    box-shadow: 0 4px 8px rgba(31, 42, 68, 0.04);
+    padding: 12px;
+  }
+}
+```
+
+**Applied Classes:**
+- `.church-card` (notification, concern cards)
+- `.dashboard-dialog-card` (booking confirmation dialogs)
+- `.dashboard-report-card` (admin report sections)
+- `.dashboard-card-container` (generic card wrapper)
+
+### 7 Responsive Breakpoints
+
+| Breakpoint | Devices | Layout | Grid | Font | Purpose |
+|-----------|---------|--------|------|------|---------|
+| 390px | iPhone 12 mini | 1-col drawer | 1fr | 11px | Ultra-compact phones |
+| 420px | iPhone 12/13 | 1-col drawer | 1fr | 12px | Standard phones |
+| 520px | Larger phones | 1-col drawer | 1fr | 13px | Phablet devices |
+| 600px | Tablets/Foldable | 1-col sidebar | 1fr | 14px | Tablet portrait |
+| 680px | iPad mini | 2-col sidebar | repeat(1-2, 1fr) | 14px | Small tablet |
+| 900px | iPad/Desktop | 2-col fixed | repeat(2, 1fr) | 16px | Tablet landscape / small desktop |
+| 1920px+ | Desktop | 2-col fixed | repeat(2, 1fr) | 16px | Large desktop |
+
+## 12) Booking Modal Multi-Step Flow
+
+```mermaid
+sequenceDiagram
+  participant User as User<br/>
+  participant Form as Booking Form
+  participant Val as Validator
+  participant API as Backend
+  participant Store as Database
+
+  User->>Form: Open booking modal
+  Form->>Form: Step 1: Display service selection
+  User->>Form: Select service (e.g., Baptism, Funeral)
+  Form->>Val: Validate service choice
+  Val-->>Form: Valid
+  
+  Form->>Form: Step 2: Calendar date picker
+  User->>Form: Select date (within 6-month window)
+  Form->>Val: Validate date (tomorrow to +6 months)
+  Val-->>Form: Valid
+  
+  Form->>Form: Step 3: Select time slot
+  User->>Form: Select time 8:00 AM - 6:00 PM
+  Form->>Val: Validate time range
+  Val-->>Form: Valid
+  
+  Form->>Form: Step 4: Service-specific form
+  Note over Form: Service form is scrollable<br/>Baptism (2 fields), Funeral (4 fields),<br/>Wedding (3 fields), Other (1 field)
+  User->>Form: Fill required fields
+  Form->>Val: Validate all required fields
+  Val-->>Form: Valid
+  
+  Form->>Form: Step 5: Optional chairs/tables
+  User->>Form: Enter chairs (optional) and tables (optional)
+  
+  Form->>Form: Step 6: Preview and confirm
+  Form->>User: Display booking summary
+  User->>Form: Click "Confirm Booking"
+  
+  Form->>API: POST /api/bookings
+  API->>Store: Auto-create booking_record
+  API->>Store: Auto-create booking (confirmed)
+  API-->>Form: Success response
+  Form->>User: Show success notification
+  User->>User: Redirect to dashboard
+```
+
+## 13) Notes for the Report
+
+- **Time Validation**: Bookings are restricted to 8:00 AM - 6:00 PM with no 30-minute interval restrictions. Any minute value is allowed within this range (e.g., 8:15 AM, 2:47 PM, 6:00 PM are all valid).
+- **Calendar Navigation**: Past months are automatically disabled. Users can only view and book within a dynamic 6-month forward-looking window (tomorrow through 6 months ahead). Month navigation buttons disable gracefully at window boundaries.
+- **Auto-Booking System**: When a user submits a booking request, the system automatically creates the booking record without waiting for admin approval, improving user experience and reducing booking uncertainty.
+- **Mobile Responsiveness**: The system implements a mobile-first responsive design with 7 key breakpoints (390px, 420px, 520px, 600px, 680px, 900px, 1920px+). Sidebar transforms into a full-screen drawer overlay on mobile with backdrop overlay and body scroll-lock.
+- **Responsive Modals**: Booking modals are fully responsive with scrollable content areas and fixed action buttons. Service forms handle 2-4 fields without layout overflow using the flexbox `flex: 1, min-height: 0` pattern.
+- **Sidebar Features**: Left sidebar is independently scrollable to ensure contact information (email, phone, Facebook) is always accessible. On mobile, hamburger menu opens drawer with fixed positioning and z-index layering. Right column interaction is disabled while drawer is open.
+- **Consistent Card Design**: All white container cards use unified design system: semi-transparent white background, 1px outer border, **3px gold top accent border** (visual signature), rounded corners (responsive: 18px base, 16px @600px, 14px @420px, 12px @390px), and subtle shadows that scale down on mobile.
+- **Responsive Grid System**: Dashboard uses conditional `gridTemplateColumns` React state. Desktop (900px+): `repeat(2, 1fr)` two columns. Tablet (600-900px): `1fr` single column (sidebar + main). Mobile (<600px): `1fr` single column with drawer sidebar.
+- **Data Storage**: The booking `details` field is stored as JSON and includes chapel selection, service-specific data (couple names for weddings, deceased info for funerals), chairs/tables quantities, and setup notes.
+- **Notification System**: Real-time notifications via Socket.IO for all booking actions (new bookings, confirmations, cancellations), proposal responses, and concern status updates.
+- **Architecture**: React frontend with responsive hooks (useState, useEffect, useCallback, useMemo) and dynamic resize listeners. Node/Express backend with validation layer enforcing business rules. SQLite database with normalized schema. Components: Dashboard, AdminDashboard, BookingModal (scrollable service form), CalendarViewNew, NotificationCenter, PageWrapper, authenticated routing with role-based access control.
