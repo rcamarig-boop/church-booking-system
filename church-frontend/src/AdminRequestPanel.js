@@ -1,6 +1,7 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import api from './api';
 import { SocketContext } from './App';
+import { BOOKING_TIME_MAX, BOOKING_TIME_MIN, DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, getTomorrowIsoDate, getSixMonthsAheadIsoDate, isAllowedBookingTime, isBookingDateWithinSixMonths, sanitizeFieldValue } from './inputValidation';
 
 const th = {
   padding: 8,
@@ -264,6 +265,8 @@ export default function AdminRequestPanel({ onDecision }) {
                     type="date"
                     value={editorForm.date}
                     onChange={(e) => setEditorForm(f => ({ ...f, date: e.target.value }))}
+                    min={getTomorrowIsoDate()}
+                    max={getSixMonthsAheadIsoDate()}
                     style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}
                   />
                 </div>
@@ -274,6 +277,8 @@ export default function AdminRequestPanel({ onDecision }) {
                     value={editorForm.slot}
                     onChange={(e) => setEditorForm(f => ({ ...f, slot: e.target.value }))}
                     step="1800"
+                    min={BOOKING_TIME_MIN}
+                    max={BOOKING_TIME_MAX}
                     style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}
                   />
                 </div>
@@ -294,9 +299,12 @@ export default function AdminRequestPanel({ onDecision }) {
                             {field}
                           </label>
                           <input
-                            type="text"
+                            type={DATE_FIELD_KEYS.has(field) ? 'date' : 'text'}
                             value={editorDetailsFields[field] || ''}
-                            onChange={(e) => setEditorDetailsFields(prev => ({ ...prev, [field]: e.target.value }))}
+                            inputMode={PHONE_FIELD_KEYS.has(field) ? 'numeric' : undefined}
+                            max={DATE_FIELD_KEYS.has(field) ? getTodayIsoDate() : undefined}
+                            maxLength={PHONE_FIELD_KEYS.has(field) ? 11 : NAME_FIELD_KEYS.has(field) ? NAME_MAX_LENGTH : undefined}
+                            onChange={(e) => setEditorDetailsFields(prev => ({ ...prev, [field]: sanitizeFieldValue(field, e.target.value) }))}
                             style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}
                           />
                         </div>
@@ -353,10 +361,22 @@ export default function AdminRequestPanel({ onDecision }) {
                         setEditorError(`Missing required field: ${f}`);
                         return;
                       }
+                      if (DATE_FIELD_KEYS.has(f) && isFutureIsoDate(val)) {
+                        setEditorError(`${f} cannot be in the future.`);
+                        return;
+                      }
                       if (NUMERIC_ONLY_FIELDS.has(f) && !/^\d+$/.test(val)) {
                         setEditorError(`${f} must contain numbers only.`);
                         return;
                       }
+                    }
+                    if (!isBookingDateWithinSixMonths(editorForm.date)) {
+                      setEditorError('Bookings must be scheduled between tomorrow and 6 months ahead.');
+                      return;
+                    }
+                    if (!isAllowedBookingTime(editorForm.slot)) {
+                      setEditorError('Preferred time must be between 8:00 AM and 6:00 PM in 30-minute intervals.');
+                      return;
                     }
                     let extra = {};
                     try {

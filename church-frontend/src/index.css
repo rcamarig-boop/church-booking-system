@@ -328,6 +328,202 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   box-shadow: 0 12px 28px rgba(31,42,68,0.08);
 }
 
+.church-review-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background:
+    radial-gradient(circle at top left, rgba(214,173,96,0.24), transparent 42%),
+    radial-gradient(circle at bottom right, rgba(59,91,138,0.16), transparent 44%),
+    rgba(15,23,42,0.5);
+  backdrop-filter: blur(3px);
+  z-index: 10040;
+}
+
+.church-review-card {
+  width: min(640px, 100%);
+  max-height: min(90vh, 920px);
+  overflow-y: auto;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,244,236,0.98)),
+    #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(214,173,96,0.42);
+  box-shadow: 0 24px 60px rgba(31,42,68,0.22);
+  padding: 22px 22px 20px;
+  position: relative;
+}
+
+.church-review-card::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(214,173,96,0.18);
+  pointer-events: none;
+}
+
+.church-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.church-review-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b8872c;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.church-review-title {
+  margin: 4px 0 8px;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(24px, 3vw, 30px);
+  line-height: 1.1;
+}
+
+.church-review-subtitle {
+  color: #5b6477;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.church-review-close {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(214,173,96,0.35);
+  background: rgba(255,255,255,0.94);
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.08);
+}
+
+.church-review-close:hover {
+  transform: translateY(-1px);
+  background: #fff;
+}
+
+.church-review-sheet {
+  display: grid;
+  gap: 14px;
+}
+
+.church-review-section {
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(214,173,96,0.24);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+.church-review-section-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: #7c5e1f;
+  margin-bottom: 10px;
+}
+
+.church-review-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.church-review-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.church-review-row--stacked {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.church-review-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #5b6477;
+}
+
+.church-review-value {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.church-review-value--boxed {
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #fff, #faf7ef);
+  border: 1px solid rgba(214,173,96,0.24);
+  border-radius: 12px;
+  font-weight: 500;
+  white-space: pre-wrap;
+}
+
+.church-review-error {
+  margin: 14px 0 0;
+  color: #b0413e;
+  font-weight: 700;
+  line-height: 1.5;
+  background: #fff5f5;
+  border: 1px solid #f5c2c7;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.church-review-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.church-review-btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  border: 1px solid transparent;
+  box-shadow: 0 10px 22px rgba(31,42,68,0.12);
+}
+
+.church-review-btn--soft {
+  background: linear-gradient(135deg, #f7e8c8, #ffffff);
+  color: #1f2a44;
+  border-color: rgba(214,173,96,0.4);
+}
+
+.church-review-btn--primary {
+  background: linear-gradient(135deg, #1f2a44, #3b5b8a);
+  color: #fff;
+  border-color: #d6ad60;
+}
+
 /* ===== Dashboard Tabs ===== */
 .dashboard-layout {
   display: flex;
@@ -791,23 +987,38 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
 }
 
 .dashboard-drawer-close-btn {
-  margin: 10px auto 0;
-  display: inline-flex;
+  margin: 0 0 12px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(214,173,96,0.45);
-  background: #fff;
+  gap: 8px;
+  width: fit-content;
+  min-width: clamp(96px, 24vw, 140px);
+  max-width: 100%;
+  border: 1px solid rgba(214,173,96,0.38);
+  background: linear-gradient(135deg, rgba(248,244,236,0.98), rgba(255,255,255,0.98));
   color: #1f2a44;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-size: 12px;
+  border-radius: 14px;
+  padding: clamp(8px, 1.4vw, 10px) clamp(12px, 1.8vw, 16px);
+  font-size: clamp(12px, 1.4vw, 13px);
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 6px 16px rgba(0,0,0,0.08);
+  text-align: left;
 }
 
 .dashboard-drawer-close-btn:hover {
-  background: #f9fafb;
+  background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(250,247,239,0.98));
+  transform: translateY(-1px);
+}
+
+.dashboard-drawer-close-arrow {
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+.dashboard-drawer-close-text {
+  white-space: nowrap;
 }
 
 .dashboard-sidebar-contact {
@@ -904,6 +1115,14 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   overflow: hidden;
 }
 
+.landing-cross,
+.landing-header,
+.landing-features,
+.landing-actions,
+.landing-footer {
+  flex: 0 0 auto;
+}
+
 .landing-feature-card {
   text-align: left;
   min-width: 0;
@@ -927,85 +1146,92 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
 @media (max-width: 680px) {
   .page-wrapper {
     align-items: flex-start;
-    padding: 10px;
+    padding: 8px;
   }
 
   .page-container {
-    padding: 14px;
+    padding: 12px;
     border-radius: 10px;
   }
 
   .landing-card {
     max-width: 100% !important;
-    padding: 28px 18px !important;
+    padding: 20px 14px !important;
     border-radius: 18px !important;
   }
 
   .landing-header {
-    margin-bottom: 24px !important;
+    margin-bottom: 12px !important;
   }
 
   .landing-cross {
-    font-size: 44px !important;
-    margin-bottom: 10px !important;
+    font-size: 38px !important;
+    margin-bottom: 6px !important;
   }
 
   .landing-header h1 {
-    font-size: clamp(2.1rem, 11vw, 2.8rem) !important;
+    font-size: clamp(1.9rem, 10vw, 2.4rem) !important;
     letter-spacing: 1px !important;
+    margin-bottom: 8px !important;
   }
 
   .landing-header p {
-    font-size: 13px !important;
-    line-height: 1.5 !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    margin-bottom: 8px !important;
   }
 
   .landing-quote {
-    padding: 14px !important;
-    font-size: 13px !important;
-    line-height: 1.6 !important;
+    padding: 12px !important;
+    font-size: 12px !important;
+    line-height: 1.45 !important;
+    margin-top: 10px !important;
   }
 
   .landing-features {
-    margin-bottom: 24px !important;
-    gap: 10px !important;
+    margin-bottom: 12px !important;
+    gap: 8px !important;
+    order: 3;
   }
 
   .landing-feature-card {
-    padding: 14px 14px !important;
-    gap: 10px !important;
+    padding: 12px 12px !important;
+    gap: 8px !important;
     align-items: flex-start !important;
     text-align: left !important;
   }
 
   .landing-feature-card span:first-child {
-    font-size: 24px !important;
+    font-size: 22px !important;
     line-height: 1 !important;
     flex: 0 0 auto;
     margin-top: 1px;
   }
 
   .landing-feature-card span:last-child {
-    font-size: 13px !important;
-    line-height: 1.45 !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
   }
 
   .landing-actions {
     grid-template-columns: 1fr !important;
-    gap: 10px !important;
-    margin-bottom: 18px !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+    order: 2;
   }
 
   .landing-primary-btn,
   .landing-secondary-btn {
-    padding: 14px 18px !important;
-    font-size: 14px !important;
+    padding: 13px 16px !important;
+    font-size: 13px !important;
     letter-spacing: 0.3px !important;
   }
 
   .landing-footer {
-    font-size: 12px !important;
-    line-height: 1.6 !important;
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+    padding-top: 12px !important;
+    order: 4;
   }
 }
 
@@ -1019,20 +1245,30 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   }
 
   .landing-card {
-    padding: 24px 14px !important;
+    padding: 18px 12px !important;
     border-radius: 16px !important;
   }
 
   .landing-header h1 {
-    font-size: clamp(1.9rem, 10vw, 2.3rem) !important;
+    font-size: clamp(1.8rem, 9vw, 2.1rem) !important;
   }
 
   .landing-header p {
-    font-size: 12px !important;
+    font-size: 11px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .landing-quote {
+    padding: 10px !important;
+    font-size: 11px !important;
+  }
+
+  .landing-feature-card {
+    padding: 10px 10px !important;
   }
 
   .landing-feature-card span:last-child {
-    font-size: 12px !important;
+    font-size: 11px !important;
   }
 }
 
@@ -1213,6 +1449,24 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
     flex: 1 1 120px;
   }
 
+  .church-review-card {
+    width: min(100%, calc(100vw - 24px));
+    padding: 18px 16px 16px;
+  }
+
+  .church-review-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .church-review-actions {
+    justify-content: stretch;
+  }
+
+  .church-review-actions > button {
+    flex: 1 1 120px;
+  }
+
   .dashboard-page {
     min-height: auto;
   }
@@ -1251,6 +1505,16 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
 
   .dashboard-left-panel {
     border-radius: 10px;
+  }
+
+  .dashboard-drawer-close-btn {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .dashboard-drawer-close-text {
+    display: inline;
   }
 
   .dashboard-left-panel.collapsed {
@@ -1308,6 +1572,17 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   .dashboard-tab-btn--admin > div:last-child > div:first-child {
     font-size: 12px !important;
     line-height: 1.1 !important;
+  }
+
+  .dashboard-drawer-close-text {
+    display: none;
+  }
+
+  .dashboard-drawer-close-btn {
+    width: 46px;
+    min-width: 46px;
+    padding: 10px;
+    justify-content: center;
   }
 
   .dashboard-sidebar-contact {
@@ -1421,6 +1696,11 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   .dashboard-active-tab {
     font-size: 13px;
     padding: 6px 8px;
+  }
+
+  .church-review-card {
+    padding: 16px 14px 14px;
+    border-radius: 18px;
   }
 
   .sidebar-toggle-btn {

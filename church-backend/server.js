@@ -46,6 +46,7 @@ async function initDatabase() {
   // This function is kept for reference but does nothing
   // All tables exist in PostgreSQL/Supabase
   await detectUserTableShape();
+  await ensureBookingEditProposalsTable();
   console.log('Database: Using existing PostgreSQL/Supabase tables');
 }
 
@@ -145,6 +146,25 @@ const normalizeBookingRequest = (r) => ({
   createdAt: r.created_at || null
 });
 
+const normalizeBookingEditProposal = (row) => ({
+  id: row.id,
+  bookingId: row.booking_id,
+  userId: row.user_id,
+  adminId: row.admin_id,
+  currentDate: row.current_date,
+  currentSlot: row.current_slot,
+  currentDetails: safeJsonParse(row.current_details),
+  proposedDate: row.proposed_date,
+  proposedSlot: row.proposed_slot,
+  proposedDetails: safeJsonParse(row.proposed_details),
+  adminNote: row.admin_note || '',
+  userReply: row.user_reply || '',
+  status: row.status || 'pending',
+  reviewedAt: row.reviewed_at || null,
+  respondedAt: row.responded_at || null,
+  createdAt: row.created_at || null
+});
+
 async function detectUserTableShape() {
   try {
     const tableColumns = async (tableName) => {
@@ -187,6 +207,37 @@ async function detectUserTableShape() {
   }
 }
 
+async function ensureBookingEditProposalsTable() {
+  await exec(`
+    CREATE TABLE IF NOT EXISTS booking_edit_proposals (
+      id SERIAL PRIMARY KEY,
+      booking_id INTEGER NOT NULL,
+      user_id INTEGER,
+      admin_id INTEGER,
+      current_date TEXT NOT NULL,
+      current_slot TEXT NOT NULL,
+      current_details JSONB,
+      proposed_date TEXT NOT NULL,
+      proposed_slot TEXT NOT NULL,
+      proposed_details JSONB,
+      admin_note TEXT,
+      user_reply TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_at TIMESTAMP NULL,
+      responded_at TIMESTAMP NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS booking_edit_proposals_booking_idx
+    ON booking_edit_proposals (booking_id, status, created_at DESC);
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS booking_edit_proposals_user_idx
+    ON booking_edit_proposals (user_id, status, created_at DESC);
+  `);
+}
+
 const LEGACY_SLOT_OPTIONS = ['AM', 'PM'];
 const CUSTOM_SLOT_PATTERN = /^([01]\d|2[0-3]):(00|30)$/;
 const EXCLUSIVE_SERVICES = new Set(['funeral', 'wedding']);
@@ -199,6 +250,77 @@ const SERVICE_REQUIRED_FIELDS = {
   christening: ['chapel', 'childName', 'guardianName', 'contactNumber']
 };
 const NUMERIC_ONLY_FIELDS = new Set(['phone', 'contactNumber', 'familyContact']);
+const NAME_INPUT_FIELDS = new Set([
+  'name',
+  'fullName',
+  'childName',
+  'parentNames',
+  'groomName',
+  'brideName',
+  'personName',
+  'deceasedName',
+  'guardianName'
+]);
+const NAME_MAX_LENGTH = 40;
+const PHONE_MAX_LENGTH = 11;
+const BOOKING_LIMIT = 9;
+const CONCERN_LIMIT = 10;
+const NAME_VALID_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M}\s.'-]{0,39}$/u;
+const DATE_FIELD_KEYS = new Set(['birthDate', 'deceasedBirthDate', 'dateOfDeath']);
+const BOOKING_TIME_MINUTES = 8 * 60;
+const BOOKING_TIME_MAX_MINUTES = 18 * 60;
+
+function getTodayIsoDate() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+}
+
+function getTomorrowIsoDate() {
+  const base = new Date(`${getTodayIsoDate()}T00:00:00+08:00`);
+  base.setDate(base.getDate() + 1);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(base);
+}
+
+function getSixMonthsAheadIsoDate() {
+  const base = new Date(`${getTodayIsoDate()}T00:00:00+08:00`);
+  base.setMonth(base.getMonth() + 6);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(base);
+}
+
+function isBookingDateAtLeastTomorrow(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) && text >= getTomorrowIsoDate();
+}
+
+function isBookingDateWithinSixMonths(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) && text >= getTomorrowIsoDate() && text <= getSixMonthsAheadIsoDate();
+}
+
+function isAllowedBookingTime(value) {
+  const text = String(value || '').trim();
+  const m = text.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!m) return false;
+  const minutes = Number(m[1]) * 60 + Number(m[2]);
+  return minutes >= BOOKING_TIME_MINUTES && minutes <= BOOKING_TIME_MAX_MINUTES && Number(m[2]) % 30 === 0;
+}
+
+async function getUserBookingUsage(userId) {
+  const bookingCountRow = bookingUserIdCol
+    ? await dbGet(`SELECT COUNT(*) AS count FROM bookings WHERE ${bookingUserIdCol}=?`, userId)
+    : { count: 0 };
+  const pendingRequestCountRow = requestUserIdCol
+    ? await dbGet(`SELECT COUNT(*) AS count FROM booking_requests WHERE ${requestUserIdCol}=? AND status='pending'`, userId)
+    : { count: 0 };
+  const bookingCount = Number(bookingCountRow?.count ?? 0);
+  const pendingRequestCount = Number(pendingRequestCountRow?.count ?? 0);
+  return {
+    limit: BOOKING_LIMIT,
+    bookingCount,
+    pendingRequestCount,
+    activeCount: bookingCount + pendingRequestCount,
+    remaining: Math.max(0, BOOKING_LIMIT - (bookingCount + pendingRequestCount))
+  };
+}
 
 function safeJsonParse(value) {
   if (!value) return null;
@@ -244,11 +366,60 @@ function validateServiceDetails(service, details) {
     if (typeof val !== 'string' || !val.trim()) {
       return { ok: false, reason: `Missing required field: ${field}` };
     }
-    if (NUMERIC_ONLY_FIELDS.has(field) && !/^\d+$/.test(val.trim())) {
-      return { ok: false, reason: `${field} must contain numbers only` };
+    const trimmed = val.trim();
+    if (NAME_INPUT_FIELDS.has(field)) {
+      if (trimmed.length > NAME_MAX_LENGTH || !NAME_VALID_PATTERN.test(trimmed)) {
+        return { ok: false, reason: `${field} must be ${NAME_MAX_LENGTH} characters or fewer and use letters, spaces, apostrophes, or hyphens only` };
+      }
+    }
+    if (NUMERIC_ONLY_FIELDS.has(field) && !/^\d{11}$/.test(trimmed)) {
+      return { ok: false, reason: `${field} must contain exactly 11 digits` };
+    }
+    if (DATE_FIELD_KEYS.has(field)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return { ok: false, reason: `${field} must be a valid date` };
+      }
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+      if (trimmed > today) {
+        return { ok: false, reason: `${field} cannot be in the future` };
+      }
+    }
+  }
+  if (key === 'funeral') {
+    const birthDate = String(details.deceasedBirthDate || '').trim();
+    const deathDate = String(details.dateOfDeath || '').trim();
+    if (birthDate && deathDate && birthDate > deathDate) {
+      return { ok: false, reason: 'dateOfDeath cannot be earlier than deceasedBirthDate' };
     }
   }
   return { ok: true };
+}
+
+function sanitizeNameInput(value) {
+  return String(value || '')
+    .replace(/[^\p{L}\p{M}\s.'-]/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .slice(0, NAME_MAX_LENGTH);
+}
+
+function sanitizePhoneInput(value) {
+  return String(value || '')
+    .replace(/\D/g, '')
+    .slice(0, PHONE_MAX_LENGTH);
+}
+
+function normalizeServiceDetailsForStorage(details) {
+  if (!details || typeof details !== 'object') return {};
+  const normalized = { ...details };
+  for (const key of Object.keys(normalized)) {
+    if (NAME_INPUT_FIELDS.has(key)) {
+      normalized[key] = sanitizeNameInput(normalized[key]);
+    }
+    if (NUMERIC_ONLY_FIELDS.has(key)) {
+      normalized[key] = sanitizePhoneInput(normalized[key]);
+    }
+  }
+  return normalized;
 }
 
 function normalizeDetailsPayload(details) {
@@ -319,8 +490,12 @@ app.post('/api/auth/register', async (req, res) => {
   const { name, email, password, role } = req.body;
 
   try {
-    if (!name || !email || !password) {
+    const normalizedName = sanitizeNameInput(name).trim();
+    if (!normalizedName || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
+    }
+    if (!NAME_VALID_PATTERN.test(normalizedName)) {
+      return res.status(400).json({ error: `Name must be ${NAME_MAX_LENGTH} characters or fewer and use letters, spaces, apostrophes, or hyphens only` });
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -328,15 +503,15 @@ app.post('/api/auth/register', async (req, res) => {
       ? `name, email, ${passwordColumn}, phone, role`
       : `name, email, ${passwordColumn}, role`;
     const values = hasPhoneColumn
-      ? [name, email, hashed, '', role || 'member']
-      : [name, email, hashed, role || 'member'];
+      ? [normalizedName, email, hashed, '', role || 'member']
+      : [normalizedName, email, hashed, role || 'member'];
     const result = await dbRun(
       `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')}) RETURNING id`,
       ...values
     );
 
     const userId = result.lastInsertRowid || result?.id || result?.rows?.[0]?.id;
-    const user = { id: userId, name, email, role: role || 'member' };
+    const user = { id: userId, name: normalizedName, email, role: role || 'member' };
     const token = jwt.sign(user, JWT_SECRET);
 
     res.json({ token, user });
@@ -431,17 +606,31 @@ app.get('/api/bookings/slots', auth, async (_, res) => {
   res.json(rows);
 });
 
+app.get('/api/bookings/usage', auth, async (req, res) => {
+  const usage = await getUserBookingUsage(req.user.id);
+  res.json(usage);
+});
+
 app.post('/api/bookings', auth, async (req, res) => {
   const { date, service } = req.body;
   const slot = normalizeSlot(req.body.slot);
-  const details = req.body.details;
+  const details = normalizeServiceDetailsForStorage(normalizeDetailsPayload(req.body.details));
 
   try {
     if (!date || !slot || !service) {
       return res.status(400).json({ error: 'Missing date/slot/service' });
     }
-    if (!isValidSlot(slot)) {
-      return res.status(400).json({ error: 'Booking slot must be AM/PM or HH:MM in 30-minute intervals' });
+    if (!isBookingDateWithinSixMonths(date)) {
+      return res.status(400).json({ error: 'Bookings must be scheduled between tomorrow and 6 months ahead' });
+    }
+    if (!isAllowedBookingTime(slot)) {
+      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+    }
+    const usage = await getUserBookingUsage(req.user.id);
+    if (usage.activeCount >= BOOKING_LIMIT) {
+      return res.status(409).json({
+        error: `You have reached the booking limit of ${BOOKING_LIMIT} active bookings or pending requests. Please cancel one first.`
+      });
     }
     const cal = await dbGet('SELECT max_slots FROM calendar WHERE date=?', date);
     if ((cal?.max_slots ?? DEFAULT_MAX_SLOTS) <= 0) {
@@ -550,15 +739,18 @@ app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
   const date = req.body.date || current.date;
   const service = req.body.service || current.service;
   const slot = normalizeSlot(req.body.slot || current.slot);
-  const details = normalizeDetailsPayload(
+  const details = normalizeServiceDetailsForStorage(normalizeDetailsPayload(
     req.body.details !== undefined ? req.body.details : current.details
-  );
+  ));
 
   if (!date || !service || !slot) {
     return res.status(400).json({ error: 'Missing date/slot/service' });
   }
-  if (!isValidSlot(slot)) {
-    return res.status(400).json({ error: 'Request has invalid slot' });
+  if (!isBookingDateWithinSixMonths(date)) {
+    return res.status(400).json({ error: 'Requests must be scheduled between tomorrow and 6 months ahead' });
+  }
+  if (!isAllowedBookingTime(slot)) {
+    return res.status(400).json({ error: 'Request time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
   }
   const detailsValidation = validateServiceDetails(service, details);
   if (!detailsValidation.ok) {
@@ -599,7 +791,10 @@ app.post('/api/booking-requests/:id/approve', auth, admin, async (req, res) => {
 
   const request = normalizeBookingRequest(row);
   const slot = normalizeSlot(request.slot);
-  if (!isValidSlot(slot)) {
+  if (!isBookingDateWithinSixMonths(request.date)) {
+    return res.status(400).json({ error: 'Requests must be scheduled between tomorrow and 6 months ahead' });
+  }
+  if (!isAllowedBookingTime(slot) && !isValidSlot(slot)) {
     return res.status(400).json({ error: 'Request has invalid slot' });
   }
 
@@ -761,6 +956,182 @@ app.get('/api/booking-records', auth, admin, async (_, res) => {
   })));
 });
 
+app.get('/api/booking-edit-proposals/my', auth, async (req, res) => {
+  const rows = await dbAll(
+    `SELECT *
+     FROM booking_edit_proposals
+     WHERE user_id=?
+     ORDER BY id DESC`,
+    req.user.id
+  );
+  res.json(rows.map(normalizeBookingEditProposal));
+});
+
+app.post('/api/booking-edit-proposals/:id/respond', auth, async (req, res) => {
+  const proposalId = Number(req.params.id);
+  const decision = String(req.body.decision || '').trim().toLowerCase();
+  const replyMessage = String(req.body.reply_message || '').trim();
+
+  const row = await dbGet('SELECT * FROM booking_edit_proposals WHERE id=?', proposalId);
+  if (!row) return res.status(404).json({ error: 'Proposal not found' });
+  if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+  if ((row.status || 'pending') !== 'pending') {
+    return res.status(409).json({ error: 'This booking change has already been handled' });
+  }
+  if (!['accept', 'reject'].includes(decision)) {
+    return res.status(400).json({ error: 'Decision must be accept or reject' });
+  }
+
+  const proposal = normalizeBookingEditProposal(row);
+  const booking = await dbGet('SELECT * FROM bookings WHERE id=?', proposal.bookingId);
+  if (!booking) return res.status(404).json({ error: 'Booking not found' });
+  const current = normalizeBooking(booking);
+  const proposedDetails = proposal.proposedDetails || {};
+  const proposedDate = proposal.proposedDate;
+  const proposedSlot = normalizeSlot(proposal.proposedSlot);
+  const currentDate = current.date;
+  const currentDetails = normalizeServiceDetailsForStorage(normalizeDetailsPayload(current.details));
+
+  if (decision === 'accept') {
+    if (!isBookingDateWithinSixMonths(proposedDate)) {
+      return res.status(400).json({ error: 'Bookings must be scheduled between tomorrow and 6 months ahead' });
+    }
+    if (!isAllowedBookingTime(proposedSlot)) {
+      return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+    }
+    const detailsValidation = validateServiceDetails(current.service, proposedDetails);
+    if (!detailsValidation.ok) {
+      return res.status(400).json({ error: detailsValidation.reason });
+    }
+
+    const applied = await transaction(async (conn) => {
+      if (isExclusiveService(current.service) && bookingSlotCol) {
+        const conflict = await conn.prepare(
+          `SELECT 1 FROM bookings WHERE id<>? AND date=? AND ${bookingSlotCol}=? LIMIT 1`
+        ).get(booking.id, proposedDate, proposedSlot);
+        if (conflict) {
+          return { ok: false, reason: 'Funeral/Wedding slot is already occupied' };
+        }
+      }
+
+      if (proposedDate !== currentDate) {
+        const cal = await conn.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(proposedDate);
+        const maxSlots = cal?.max_slots ?? DEFAULT_MAX_SLOTS;
+        const booked = cal?.booked ?? 0;
+        if (booked >= maxSlots) {
+          return { ok: false, reason: 'Target date is fully booked' };
+        }
+
+        await conn.prepare(
+          'UPDATE calendar SET booked = CASE WHEN booked > 0 THEN booked - 1 ELSE 0 END WHERE date=?'
+        ).run(currentDate);
+        await conn.prepare(`
+          INSERT INTO calendar (date, max_slots, booked)
+          VALUES (?, ?, 1)
+          ON CONFLICT(date) DO UPDATE SET booked = booked + 1
+        `).run(proposedDate, maxSlots);
+      }
+
+      const serviceCol = bookingServiceCol || 'service';
+      const slotCol = bookingSlotCol || 'slot';
+      const detailsCol = bookingDetailsCol || 'details';
+
+      await conn.prepare(`
+        UPDATE bookings
+        SET date=?, ${serviceCol}=?, ${slotCol}=?, ${detailsCol}=?
+        WHERE id=?
+      `).run(proposedDate, current.service, proposedSlot, proposedDetails || {}, booking.id);
+
+      await conn.prepare(`
+        UPDATE booking_edit_proposals
+        SET status='accepted', user_reply=?, reviewed_at=CURRENT_TIMESTAMP, responded_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(replyMessage || null, proposalId);
+
+      await addBookingRecord({
+        bookingId: booking.id,
+        userId: current.userId,
+        name: current.name,
+        email: current.email,
+        service: current.service,
+        date: proposedDate,
+        slot: proposedSlot,
+        details: proposedDetails,
+        action: 'booking_edit_accepted',
+        note: replyMessage || null,
+        actionBy: req.user.id
+      }, conn);
+
+      return { ok: true };
+    });
+
+    if (!applied.ok) {
+      return res.status(409).json({ error: applied.reason });
+    }
+
+    if (current.userId) {
+      await createNotification(
+        current.userId,
+        'booking_edit',
+        `You accepted the booking change for ${current.service} on ${proposedDate} (${proposedSlot}).`
+      );
+    }
+
+    const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+    for (const adminUser of admins) {
+      await createNotification(
+        adminUser.id,
+        'booking_edit',
+        `Member accepted the booking change for ${current.service} on ${proposedDate} (${proposedSlot}).${replyMessage ? ` Reply: ${replyMessage}` : ''}`
+      );
+    }
+
+    io.emit('booking_updated', { id: booking.id, date: proposedDate, slot: proposedSlot, service: current.service });
+    io.emit('booking_edit_proposal_updated', { id: proposalId, status: 'accepted' });
+    return res.json({ success: true, status: 'accepted' });
+  }
+
+  await dbRun(`
+    UPDATE booking_edit_proposals
+    SET status='rejected', user_reply=?, reviewed_at=CURRENT_TIMESTAMP, responded_at=CURRENT_TIMESTAMP
+    WHERE id=?
+  `, replyMessage || null, proposalId);
+
+  await addBookingRecord({
+    bookingId: booking.id,
+    userId: current.userId,
+    name: current.name,
+    email: current.email,
+    service: current.service,
+    date: current.date,
+    slot: current.slot,
+    details: currentDetails,
+    action: 'booking_edit_rejected',
+    note: replyMessage || null,
+    actionBy: req.user.id
+  });
+
+  if (current.userId) {
+    await createNotification(
+      current.userId,
+      'booking_edit',
+      `You rejected the booking change for ${current.service} on ${currentDate}.`
+    );
+  }
+
+  const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  for (const adminUser of admins) {
+    await createNotification(
+      adminUser.id,
+      'booking_edit',
+      `Member rejected the booking change for ${current.service} on ${currentDate}.${replyMessage ? ` Reply: ${replyMessage}` : ''}`
+    );
+  }
+
+  io.emit('booking_edit_proposal_updated', { id: proposalId, status: 'rejected' });
+  res.json({ success: true, status: 'rejected' });
+});
+
 app.put('/api/bookings/:id', auth, admin, async (req, res) => {
   const bookingId = Number(req.params.id);
   const row = await dbGet('SELECT * FROM bookings WHERE id=?', bookingId);
@@ -770,78 +1141,90 @@ app.put('/api/bookings/:id', auth, admin, async (req, res) => {
   const date = req.body.date || current.date;
   const service = req.body.service || current.service;
   const slot = normalizeSlot(req.body.slot || current.slot);
-  const details = normalizeDetailsPayload(
+  const currentDetails = normalizeServiceDetailsForStorage(normalizeDetailsPayload(current.details));
+  const incomingDetails = normalizeServiceDetailsForStorage(normalizeDetailsPayload(
     req.body.details !== undefined ? req.body.details : current.details
-  );
+  ));
+  const proposedDetails = {
+    ...currentDetails,
+    chapel: String(incomingDetails.chapel || currentDetails.chapel || '').trim()
+  };
 
   if (!date || !service || !slot) {
     return res.status(400).json({ error: 'Missing date/slot/service' });
   }
-  if (!isValidSlot(slot)) {
-    return res.status(400).json({ error: 'Booking has invalid slot' });
+  if (!isBookingDateWithinSixMonths(date)) {
+    return res.status(400).json({ error: 'Bookings must be scheduled between tomorrow and 6 months ahead' });
   }
-  const detailsValidation = validateServiceDetails(service, details);
+  if (!isAllowedBookingTime(slot)) {
+    return res.status(400).json({ error: 'Booking time must be between 8:00 AM and 6:00 PM in 30-minute intervals' });
+  }
+  if (!proposedDetails.chapel) {
+    return res.status(400).json({ error: 'Place / chapel is required' });
+  }
+  const detailsValidation = validateServiceDetails(service, proposedDetails);
   if (!detailsValidation.ok) {
     return res.status(400).json({ error: detailsValidation.reason });
   }
 
-  const result = await transaction(async (conn) => {
-    if (isExclusiveService(service) && bookingSlotCol) {
-      const conflict = await conn.prepare(
-        `SELECT 1 FROM bookings WHERE id<>? AND date=? AND ${bookingSlotCol}=? LIMIT 1`
-      ).get(bookingId, date, slot);
-      if (conflict) {
-        return { ok: false, reason: 'Funeral/Wedding slot is already occupied' };
-      }
-    }
+  if (date === current.date && slot === current.slot && proposedDetails.chapel === (currentDetails.chapel || '')) {
+    return res.status(400).json({ error: 'No booking changes were detected' });
+  }
 
-    if (date !== current.date) {
-      const cal = await conn.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(date);
-      const maxSlots = cal?.max_slots ?? DEFAULT_MAX_SLOTS;
-      const booked = cal?.booked ?? 0;
-      if (booked >= maxSlots) {
-        return { ok: false, reason: 'Target date is fully booked' };
-      }
+  const existingPending = await dbGet(
+    `SELECT id FROM booking_edit_proposals WHERE booking_id=? AND status='pending' ORDER BY id DESC LIMIT 1`,
+    bookingId
+  );
+  if (existingPending) {
+    return res.status(409).json({ error: 'A booking edit proposal is already pending approval' });
+  }
 
-      await conn.prepare(
-        'UPDATE calendar SET booked = CASE WHEN booked > 0 THEN booked - 1 ELSE 0 END WHERE date=?'
-      ).run(current.date);
-      await conn.prepare(`
-        INSERT INTO calendar (date, max_slots, booked)
-        VALUES (?, ?, 1)
-        ON CONFLICT(date) DO UPDATE SET booked = booked + 1
-      `).run(date, maxSlots);
-    }
+  const proposalRow = await dbGet(`
+    INSERT INTO booking_edit_proposals (
+      booking_id, user_id, admin_id,
+      current_date, current_slot, current_details,
+      proposed_date, proposed_slot, proposed_details,
+      admin_note, status
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    RETURNING id, booking_id, user_id, admin_id, current_date, current_slot, current_details, proposed_date, proposed_slot, proposed_details, admin_note, user_reply, status, reviewed_at, responded_at, created_at
+  `,
+    bookingId,
+    current.userId,
+    req.user.id,
+    current.date,
+    current.slot,
+    currentDetails,
+    date,
+    slot,
+    proposedDetails,
+    String(req.body.note || '').trim() || null
+  );
 
-    const serviceCol = bookingServiceCol || 'service';
-    const slotCol = bookingSlotCol || 'slot';
-    const detailsCol = bookingDetailsCol || 'details';
-
-    await conn.prepare(`
-      UPDATE bookings
-      SET date=?, ${serviceCol}=?, ${slotCol}=?, ${detailsCol}=?
-      WHERE id=?
-    `).run(date, service, slot, details || {}, bookingId);
-
-    await addBookingRecord({
-      bookingId,
-      userId: current.userId,
-      name: current.name,
-      email: current.email,
-      service,
-      date,
-      slot,
-      details,
-      action: 'booking_edited',
-      actionBy: req.user.id
-    }, conn);
-
-    return { ok: true };
+  await addBookingRecord({
+    bookingId,
+    userId: current.userId,
+    name: current.name,
+    email: current.email,
+    service,
+    date,
+    slot,
+    details: proposedDetails,
+    action: 'booking_edit_proposed',
+    note: String(req.body.note || '').trim() || null,
+    actionBy: req.user.id
   });
-  if (!result.ok) return res.status(409).json({ error: result.reason });
 
-  io.emit('booking_updated', { id: bookingId, date, slot, service });
-  res.json({ success: true });
+  if (current.userId) {
+    await createNotification(
+      current.userId,
+      'booking_edit',
+      `A change was proposed for your booking on ${current.date}. Please review the updated place/time.`
+    );
+  }
+
+  io.emit('booking_edit_proposed', { id: proposalRow?.id || null, bookingId });
+  res.json({ success: true, proposal: normalizeBookingEditProposal(proposalRow) });
 });
 
 app.delete('/api/bookings/:id', auth, async (req, res) => {
@@ -1002,6 +1385,18 @@ app.post('/api/concerns', auth, async (req, res) => {
   if (!subject || !message) {
     return res.status(400).json({ error: 'Subject and message are required' });
   }
+  const usageRow = await dbGet(`
+    SELECT COUNT(*) AS count
+    FROM concerns
+    WHERE ${concernUserIdCol || '"userId"'} = ?
+      AND LOWER(COALESCE(status, '')) <> 'resolved'
+  `, req.user.id);
+  const activeCount = Number(usageRow?.count || 0);
+  if (activeCount >= CONCERN_LIMIT) {
+    return res.status(400).json({
+      error: `You have reached the limit of ${CONCERN_LIMIT} active concerns. Please close one first.`
+    });
+  }
   await dbRun(
     `INSERT INTO concerns (${concernUserIdCol || '"userId"'}, name, email, subject, message, status)
      VALUES (?, ?, ?, ?, ?, 'open')`,
@@ -1069,6 +1464,21 @@ app.get('/api/concerns/my', auth, async (req, res) => {
     ${limit ? `LIMIT ${limit} OFFSET ${offset}` : ''}
   `, req.user.id, ...params);
   res.json(rows);
+});
+
+app.get('/api/concerns/usage', auth, async (req, res) => {
+  const row = await dbGet(`
+    SELECT COUNT(*) AS count
+    FROM concerns
+    WHERE ${concernUserIdCol || '"userId"'} = ?
+      AND LOWER(COALESCE(status, '')) <> 'resolved'
+  `, req.user.id);
+  const activeCount = Number(row?.count || 0);
+  res.json({
+    limit: CONCERN_LIMIT,
+    activeCount,
+    remaining: Math.max(0, CONCERN_LIMIT - activeCount)
+  });
 });
 
 app.put('/api/concerns/:id', auth, admin, async (req, res) => {
@@ -1172,6 +1582,11 @@ app.put('/api/users/me', auth, async (req, res) => {
   const updates = [];
   const values = [];
 
+  const normalizedName = name === undefined ? undefined : sanitizeNameInput(name).trim();
+  if (name !== undefined && (!normalizedName || !NAME_VALID_PATTERN.test(normalizedName))) {
+    return res.status(400).json({ error: `Name must be ${NAME_MAX_LENGTH} characters or fewer and use letters, spaces, apostrophes, or hyphens only` });
+  }
+
   if (email && email !== existing.email) {
     const duplicate = await dbGet('SELECT id FROM users WHERE email=? AND id<>?', email, userId);
     if (duplicate) return res.status(409).json({ error: 'Email already in use' });
@@ -1179,9 +1594,9 @@ app.put('/api/users/me', auth, async (req, res) => {
     values.push(email);
   }
 
-  if (name && name !== existing.name) {
+  if (normalizedName && normalizedName !== existing.name) {
     updates.push('name=?');
-    values.push(name);
+    values.push(normalizedName);
   }
 
   if (password) {

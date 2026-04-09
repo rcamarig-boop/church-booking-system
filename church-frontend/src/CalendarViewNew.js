@@ -2,6 +2,7 @@
 import api from './api';
 import BookingModal from './BookingModal';
 import { SocketContext } from './App';
+import { getTomorrowIsoDate, getSixMonthsAheadIsoDate } from './inputValidation';
 
 const STATUS_COLORS = {
   green:  { bg: 'rgba(72,196,17,0.15)', border: '#11c411' },
@@ -131,6 +132,15 @@ export default function CalendarViewNew({
   const compactGridGap = compactLayout ? 3 : 4;
   const compactShellPadding = compactLayout ? 8 : 10;
   const compactHeaderMargin = compactLayout ? 10 : 16;
+  const tomorrowIso = getTomorrowIsoDate();
+  const sixMonthsAheadIso = getSixMonthsAheadIsoDate();
+  const maxSelectableDate = `${sixMonthsAheadIso}T23:59:59`;
+
+  const clampMonthNavigation = (nextDate) => {
+    const monthStart = new Date(nextDate.getFullYear(), nextDate.getMonth(), 1);
+    if (monthStart > new Date(maxSelectableDate)) return;
+    setCurrentDate(monthStart);
+  };
 
   const bookingsByDate = useMemo(() => {
     const map = {};
@@ -230,9 +240,86 @@ export default function CalendarViewNew({
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactHeaderMargin, gap: 8, alignItems: 'center' }}>
           <button style={{ padding: '6px 10px' }} onClick={() => setCurrentDate(new Date(year, month - 1))}>{'\u25C0'}</button>
           <strong style={{ fontSize: 16 }}>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong>
-          <button style={{ padding: '6px 10px' }} onClick={() => setCurrentDate(new Date(year, month + 1))}>{'\u25B6'}</button>
+          <button
+            style={{ padding: '6px 10px' }}
+            onClick={() => clampMonthNavigation(new Date(year, month + 1))}
+            disabled={new Date(year, month + 1, 1) > new Date(maxSelectableDate)}
+          >
+            {'\u25B6'}
+          </button>
         </div>
       )}
+
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 8,
+        alignItems: 'center',
+        marginBottom: 10,
+        fontSize: 12,
+        color: '#4a5568'
+      }}>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 8px',
+          borderRadius: 999,
+          background: STATUS_COLORS.green.bg,
+          border: `1px solid ${STATUS_COLORS.green.border}`
+        }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: STATUS_COLORS.green.border }} />
+          Open
+        </span>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 8px',
+          borderRadius: 999,
+          background: STATUS_COLORS.yellow.bg,
+          border: `1px solid ${STATUS_COLORS.yellow.border}`
+        }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: STATUS_COLORS.yellow.border }} />
+          Filling
+        </span>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 8px',
+          borderRadius: 999,
+          background: STATUS_COLORS.orange.bg,
+          border: `1px solid ${STATUS_COLORS.orange.border}`
+        }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: STATUS_COLORS.orange.border }} />
+          Near full
+        </span>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 8px',
+          borderRadius: 999,
+          background: STATUS_COLORS.red.bg,
+          border: `1px solid ${STATUS_COLORS.red.border}`
+        }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: STATUS_COLORS.red.border }} />
+          Full
+        </span>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 8px',
+          borderRadius: 999,
+          background: STATUS_COLORS.gray.bg,
+          border: `1px solid ${STATUS_COLORS.gray.border}`
+        }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: STATUS_COLORS.gray.border }} />
+          Out of range
+        </span>
+      </div>
 
       <div
         style={{
@@ -250,12 +337,19 @@ export default function CalendarViewNew({
           if (!day) return <div key={i} />;
           const dateStr = formatDate(year, month, day);
           const status = getLoadStatus(dateStr);
-          const isFuture = new Date(dateStr) >= new Date().setHours(0,0,0,0);
+          const isFuture = dateStr >= tomorrowIso && dateStr <= sixMonthsAheadIso;
           const max = dateMap[dateStr]?.max_slots ?? DEFAULT_MAX_SLOTS;
           const booked = bookingsByDate[dateStr] || 0;
           const isClosed = max <= 0;
           const isSelectable = isFuture && !isClosed;
           const palette = isSelectable ? STATUS_COLORS[status] : STATUS_COLORS.gray;
+          const unavailableLabel = dateStr < tomorrowIso
+            ? 'Too soon'
+            : dateStr > sixMonthsAheadIso
+              ? '6-mo limit'
+              : isClosed
+                ? 'Closed'
+                : 'Unavailable';
 
           return (
             <div
@@ -274,7 +368,7 @@ export default function CalendarViewNew({
               <div style={{ fontWeight: 700, fontSize: compactLayout ? 12 : 15 }}>{day}</div>
               {!compactLayout && (
                 <div style={{ fontSize: 12, marginTop: 6 }}>
-                  {booked}/{max} booked
+                  {isSelectable ? `${booked}/${max} booked` : unavailableLabel}
                 </div>
               )}
             </div>

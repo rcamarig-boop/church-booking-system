@@ -27,7 +27,9 @@ export default function LandingPage({ onChooseLogin, onChooseRegister }) {
           padding: '60px 45px',
           border: `2px solid ${gold}`,
           boxShadow: '0 25px 70px rgba(0,0,0,0.12)',
-          textAlign: 'center'
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column'
         }}>
           {/* Sacred Cross Symbol */}
           <div className="landing-cross" style={{

@@ -3,6 +3,7 @@ import api from './api';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
 import { loadSidebarContact } from './sidebarContact';
+import { NAME_MAX_LENGTH, isValidNameValue, sanitizeNameInput } from './inputValidation';
 
 const stone = '#f8f4ec';
 const ink = '#1f2a44';
@@ -31,11 +32,14 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   const socket = useContext(SocketContext);
 
   const [bookings, setBookings] = useState([]);
+  const [bookingUsage, setBookingUsage] = useState(null);
+  const [concernUsage, setConcernUsage] = useState(null);
   const [bookingRequests, setBookingRequests] = useState([]);
   const [events, setEvents] = useState([]);
   const [calendarBookings, setCalendarBookings] = useState([]);
   const [calendarConfig, setCalendarConfig] = useState({});
   const [myConcerns, setMyConcerns] = useState([]);
+  const [bookingEditProposals, setBookingEditProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('calendar'); // events | bookings | requests | calendar | concerns | tracking
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -54,6 +58,35 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   const [profileError, setProfileError] = useState('');
   const [timeTrigger, setTimeTrigger] = useState(0);
   const [sidebarContact, setSidebarContact] = useState(loadSidebarContact());
+  const [bookingProposalOpen, setBookingProposalOpen] = useState(false);
+  const [bookingProposalReply, setBookingProposalReply] = useState('');
+  const [bookingProposalSaving, setBookingProposalSaving] = useState(false);
+  const [bookingProposalError, setBookingProposalError] = useState('');
+  const [selectedBookingProposal, setSelectedBookingProposal] = useState(null);
+  const [concernPreviewOpen, setConcernPreviewOpen] = useState(false);
+  const [concernDraft, setConcernDraft] = useState(null);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [profileMenuOpen]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [sidebarOpen]);
 
   useEffect(() => {
     if (!user) return;
@@ -70,21 +103,27 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
   const loadData = useCallback(async () => {
     try {
-      const [b, br, e, c, s, myc] = await Promise.all([
+      const [b, usage, br, e, c, s, myc, edits, concernUsageRes] = await Promise.all([
         api.bookings.list(),
+        api.bookings.usage(),
         api.bookingRequests.my(),
         api.events.list(),
         api.calendar.get(),
         api.bookings.slots(),
-        api.concerns.my()
+        api.concerns.my(),
+        api.bookingEditProposals.my(),
+        api.concerns.usage()
       ]);
 
       setBookings(b.data || []);
+      setBookingUsage(usage.data || null);
       setBookingRequests(br.data || []);
       setEvents(e.data || []);
       setCalendarConfig(c.data || {});
       setCalendarBookings(s.data || []);
       setMyConcerns(myc.data || []);
+      setBookingEditProposals(edits.data || []);
+      setConcernUsage(concernUsageRes.data || null);
     } catch (err) {
       console.error('Dashboard load failed', err);
     } finally {
@@ -103,6 +142,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     socket.on('booking_deleted', refresh);
     socket.on('booking_request_created', refresh);
     socket.on('booking_request_updated', refresh);
+    socket.on('booking_edit_proposed', refresh);
+    socket.on('booking_edit_proposal_updated', refresh);
     socket.on('event_created', refresh);
     socket.on('event_updated', refresh);
     socket.on('event_deleted', refresh);
@@ -114,6 +155,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
       socket.off('booking_deleted', refresh);
       socket.off('booking_request_created', refresh);
       socket.off('booking_request_updated', refresh);
+      socket.off('booking_edit_proposed', refresh);
+      socket.off('booking_edit_proposal_updated', refresh);
       socket.off('event_created', refresh);
       socket.off('event_updated', refresh);
       socket.off('event_deleted', refresh);
@@ -146,6 +189,15 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     () => bookings.filter(b => b.date === todayStr).length,
     [bookings, todayStr]
   );
+  const pendingBookingProposalByBookingId = useMemo(() => {
+    const map = new Map();
+    bookingEditProposals.forEach((proposal) => {
+      if (proposal?.status === 'pending' && proposal.bookingId != null && !map.has(proposal.bookingId)) {
+        map.set(proposal.bookingId, proposal);
+      }
+    });
+    return map;
+  }, [bookingEditProposals]);
 
   const normalizeSlotToTime = (slot) => {
     const raw = String(slot || '').trim();
@@ -238,6 +290,64 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
       return at - bt;
     });
   }, [events, bookings, timeTrigger]);
+
+  const openBookingProposal = (proposal) => {
+    setSelectedBookingProposal(proposal);
+    setBookingProposalReply('');
+    setBookingProposalError('');
+    setBookingProposalOpen(true);
+  };
+
+  const openConcernPreview = async () => {
+    const subject = concernSubject.trim();
+    const message = concernMessage.trim();
+    if (!subject || !message) {
+      setConcernError('Subject and message are required.');
+      return;
+    }
+
+    try {
+      const usageRes = await api.concerns.usage();
+      const usage = usageRes.data || {};
+      if (Number(usage.activeCount || 0) >= Number(usage.limit || 10)) {
+        const messageText = `You have reached the limit of ${Number(usage.limit || 10)} active concerns. Please close one first.`;
+        setConcernError(messageText);
+        window.alert(messageText);
+        return;
+      }
+      setConcernUsage(usage);
+      setConcernDraft({ subject, message, usage });
+      setConcernError('');
+      setConcernPreviewOpen(true);
+    } catch (err) {
+      setConcernError(err.response?.data?.error || 'Could not verify your concern limit.');
+    }
+  };
+
+  const confirmConcernSend = async () => {
+    if (!concernDraft) return;
+    try {
+      setConcernSaving(true);
+      setConcernError('');
+      const usage = concernDraft.usage || concernUsage || {};
+      if (Number(usage.activeCount || 0) >= Number(usage.limit || 10)) {
+        const messageText = `You have reached the limit of ${Number(usage.limit || 10)} active concerns. Please close one first.`;
+        setConcernError(messageText);
+        window.alert(messageText);
+        return;
+      }
+      await api.concerns.create(concernDraft);
+      setConcernSubject('');
+      setConcernMessage('');
+      setConcernPreviewOpen(false);
+      setConcernOpen(false);
+      setConcernDraft(null);
+    } catch (err) {
+      setConcernError(err.response?.data?.error || 'Failed to send concern.');
+    } finally {
+      setConcernSaving(false);
+    }
+  };
 
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
@@ -392,7 +502,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   borderRadius: 12,
                   boxShadow: '0 12px 26px rgba(0,0,0,0.12)',
                   overflow: 'hidden',
-                  zIndex: 9991,
+                  zIndex: 9992,
                   minWidth: 200
                 }}>
                   <div style={{ padding: '12px 16px', borderBottom: `1px solid ${mist}` }}>
@@ -443,7 +553,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
       {profileEditorOpen && (
         <div
-          className="dashboard-dialog-overlay"
+          className="church-review-overlay dashboard-dialog-overlay"
           role="dialog"
           aria-modal="true"
           style={{
@@ -465,20 +575,20 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
           }}
         >
           <div
-            className="dashboard-dialog-card"
+            className="dashboard-dialog-card church-review-card"
             style={{
               width: '100%',
               maxWidth: 520,
-              background: '#fff',
-              borderRadius: 16,
-              padding: 20,
-              border: `1px solid ${mist}`,
-              boxShadow: '0 20px 50px rgba(0,0,0,0.18)'
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,244,236,0.98))',
+              borderRadius: 20,
+              padding: 22,
+              border: `1px solid rgba(214,173,96,0.42)`,
+              boxShadow: '0 24px 60px rgba(31,42,68,0.22)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ margin: 0, color: ink }}>Edit Profile</h3>
+            <div className="church-review-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div className="church-review-kicker">✦ Profile Settings</div>
               <button
                 onClick={() => {
                   if (profileSaving) return;
@@ -487,25 +597,25 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   setProfilePassword('');
                   setProfileConfirm('');
                 }}
-                style={{
-                  all: 'unset',
-                  cursor: 'pointer',
-                  color: '#64748b',
-                  fontWeight: 700,
-                  padding: '4px 8px'
-                }}
+                className="church-review-close"
+                style={{ cursor: 'pointer' }}
               >
-                âœ•
+                ×
               </button>
             </div>
-            <div style={{ display: 'grid', gap: 12 }}>
+            <h3 className="church-review-title">Edit Profile</h3>
+            <div className="church-review-subtitle">
+              Keep your parish account details current. Name and email are required, and password changes are optional.
+            </div>
+          <div className="church-review-sheet" style={{ display: 'grid', gap: 12 }}>
               <div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Name</label>
                 <input
                   type="text"
                   value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  maxLength={NAME_MAX_LENGTH}
+                  onChange={(e) => setProfileName(sanitizeNameInput(e.target.value))}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
                 />
               </div>
               <div>
@@ -514,7 +624,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   type="email"
                   value={profileEmail}
                   onChange={(e) => setProfileEmail(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
                 />
               </div>
               <div>
@@ -523,7 +633,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   type="password"
                   value={profilePassword}
                   onChange={(e) => setProfilePassword(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
                 />
               </div>
               <div>
@@ -532,13 +642,13 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   type="password"
                   value={profileConfirm}
                   onChange={(e) => setProfileConfirm(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
                 />
               </div>
               {profileError && (
-                <div style={{ color: '#b0413e', fontWeight: 600 }}>{profileError}</div>
+                <div className="church-review-error">{profileError}</div>
               )}
-              <div className="dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="church-review-actions dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => {
                     if (profileSaving) return;
@@ -547,12 +657,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                     setProfilePassword('');
                     setProfileConfirm('');
                   }}
-                  style={{
-                    background: '#e2e8f0',
-                    color: '#1f2937',
-                    borderRadius: 10,
-                    padding: '8px 12px'
-                  }}
+                  className="church-review-btn church-review-btn--soft"
                 >
                   Cancel
                 </button>
@@ -566,6 +671,10 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                     }
                     if (!profileName.trim() || !profileEmail.trim()) {
                       setProfileError('Name and email are required.');
+                      return;
+                    }
+                    if (!isValidNameValue(profileName)) {
+                      setProfileError(`Name must be ${NAME_MAX_LENGTH} characters or fewer and use letters, spaces, apostrophes, or hyphens only.`);
                       return;
                     }
                     try {
@@ -585,12 +694,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                       setProfileSaving(false);
                     }
                   }}
-                  style={{
-                    background: '#1f2a44',
-                    color: '#fff',
-                    borderRadius: 10,
-                    padding: '8px 12px'
-                  }}
+                  className="church-review-btn church-review-btn--primary"
                 >
                   {profileSaving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -672,6 +776,19 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
                 />
               </div>
+              {concernUsage && (
+                <div style={{
+                  fontSize: 12,
+                  color: concernUsage.activeCount >= concernUsage.limit ? '#b0413e' : '#64748b',
+                  background: concernUsage.activeCount >= concernUsage.limit ? '#fef2f2' : '#f8fafc',
+                  border: `1px solid ${concernUsage.activeCount >= concernUsage.limit ? '#fecaca' : '#e2e8f0'}`,
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  lineHeight: 1.4
+                }}>
+                  You have {concernUsage.activeCount}/{concernUsage.limit || 10} active concerns.
+                </div>
+              )}
               {concernError && (
                 <div style={{ color: '#b0413e', fontWeight: 600 }}>{concernError}</div>
               )}
@@ -693,26 +810,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                 </button>
                 <button
                   disabled={concernSaving}
-                  onClick={async () => {
-                    const subject = concernSubject.trim();
-                    const message = concernMessage.trim();
-                    if (!subject || !message) {
-                      setConcernError('Subject and message are required.');
-                      return;
-                    }
-                    try {
-                      setConcernSaving(true);
-                      setConcernError('');
-                      await api.concerns.create({ subject, message });
-                      setConcernSubject('');
-                      setConcernMessage('');
-                      setConcernOpen(false);
-                    } catch (err) {
-                      setConcernError(err.response?.data?.error || 'Failed to send concern.');
-                    } finally {
-                      setConcernSaving(false);
-                    }
-                  }}
+                  onClick={openConcernPreview}
                   style={{
                     background: accentBlue,
                     color: '#fff',
@@ -720,9 +818,257 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                     padding: '8px 12px'
                   }}
                 >
-                  {concernSaving ? 'Sending...' : 'Send Concern'}
+                  Review Concern
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {concernPreviewOpen && concernDraft && (
+        <div
+          className="church-review-overlay dashboard-dialog-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!concernSaving) {
+              setConcernPreviewOpen(false);
+            }
+          }}
+        >
+          <div
+            className="dashboard-dialog-card church-review-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="church-review-header">
+              <div className="church-review-kicker">✦ Parish Concern</div>
+              <button
+                onClick={() => setConcernPreviewOpen(false)}
+                className="church-review-close"
+                aria-label="Close concern preview"
+              >
+                ×
+              </button>
+            </div>
+
+            <h3 className="church-review-title">Review Concern</h3>
+            <div className="church-review-subtitle">
+              Please confirm the concern before sending it to the parish office.
+            </div>
+
+            <div className="church-review-sheet">
+              <div className="church-review-section">
+                <div className="church-review-section-title">Message Preview</div>
+                <div className="church-review-grid">
+                  <div className="church-review-row church-review-row--stacked">
+                    <span className="church-review-label">Subject</span>
+                    <span className="church-review-value">{concernDraft.subject}</span>
+                  </div>
+                  <div className="church-review-row church-review-row--stacked">
+                    <span className="church-review-label">Message</span>
+                    <span className="church-review-value church-review-value--boxed">
+                      {concernDraft.message}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {concernError && (
+              <div className="church-review-error">{concernError}</div>
+            )}
+            <div className="dashboard-dialog-actions church-review-actions">
+              <button
+                onClick={() => setConcernPreviewOpen(false)}
+                className="church-review-btn church-review-btn--soft"
+              >
+                Edit
+              </button>
+              <button
+                disabled={concernSaving}
+                onClick={confirmConcernSend}
+                className="church-review-btn church-review-btn--primary"
+              >
+                {concernSaving ? 'Sending...' : 'Confirm Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bookingProposalOpen && selectedBookingProposal && (
+        <div
+          className="church-review-overlay dashboard-dialog-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!bookingProposalSaving) {
+              setBookingProposalOpen(false);
+              setSelectedBookingProposal(null);
+              setBookingProposalReply('');
+              setBookingProposalError('');
+            }
+          }}
+        >
+          <div
+            className="dashboard-dialog-card church-review-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="church-review-header">
+              <div className="church-review-kicker">✦ Booking Proposal</div>
+              <button
+                onClick={() => {
+                  if (bookingProposalSaving) return;
+                  setBookingProposalOpen(false);
+                  setSelectedBookingProposal(null);
+                  setBookingProposalReply('');
+                  setBookingProposalError('');
+                }}
+                className="church-review-close"
+                aria-label="Close booking change review"
+              >
+                ×
+              </button>
+            </div>
+
+            <h3 className="church-review-title">Review Booking Change</h3>
+            <div className="church-review-subtitle">
+              The parish office proposed a place or time update. You can accept, reject, or send a message back.
+            </div>
+
+            <div className="church-review-sheet">
+              <div className="church-review-section">
+                <div className="church-review-section-title">Current Booking</div>
+                <div className="church-review-grid">
+                  <div className="church-review-row">
+                    <span className="church-review-label">Service</span>
+                    <span className="church-review-value">
+                      {selectedBookingProposal.currentDetails?.service || selectedBookingProposal.service || selectedBookingProposal.currentDetails?.serviceName || selectedBookingProposal.currentDetails?.title || 'Booking'}
+                    </span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Date</span>
+                    <span className="church-review-value">{selectedBookingProposal.currentDate || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Time</span>
+                    <span className="church-review-value">{selectedBookingProposal.currentSlot || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Place / Chapel</span>
+                    <span className="church-review-value">{selectedBookingProposal.currentDetails?.chapel || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="church-review-section">
+                <div className="church-review-section-title">Proposed Change</div>
+                <div className="church-review-grid">
+                  <div className="church-review-row">
+                    <span className="church-review-label">Date</span>
+                    <span className="church-review-value">{selectedBookingProposal.proposedDate || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Time</span>
+                    <span className="church-review-value">{selectedBookingProposal.proposedSlot || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Place / Chapel</span>
+                    <span className="church-review-value">{selectedBookingProposal.proposedDetails?.chapel || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="church-review-section">
+                <div className="church-review-section-title">Admin Reply</div>
+                <div className="church-review-row church-review-row--stacked">
+                  <span className="church-review-label">Message to Member</span>
+                  <textarea
+                    rows={4}
+                    value={bookingProposalReply}
+                    onChange={(e) => setBookingProposalReply(e.target.value)}
+                    placeholder="Write a short reply to the parish office..."
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      borderRadius: 12,
+                      border: `1px solid rgba(214,173,96,0.35)`,
+                      background: '#fff',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {bookingProposalError && (
+              <div className="church-review-error">
+                {bookingProposalError}
+              </div>
+            )}
+
+            <div className="church-review-actions dashboard-dialog-actions">
+              <button
+                onClick={() => {
+                  if (bookingProposalSaving) return;
+                  setBookingProposalOpen(false);
+                  setSelectedBookingProposal(null);
+                  setBookingProposalReply('');
+                  setBookingProposalError('');
+                }}
+                className="church-review-btn church-review-btn--soft"
+              >
+                Back
+              </button>
+                <button
+                  onClick={async () => {
+                    if (bookingProposalSaving) return;
+                    try {
+                      setBookingProposalSaving(true);
+                      setBookingProposalError('');
+                      await api.bookingEditProposals.respond(selectedBookingProposal.id, {
+                        decision: 'reject',
+                        reply_message: bookingProposalReply.trim()
+                      });
+                      setBookingProposalOpen(false);
+                      setSelectedBookingProposal(null);
+                      setBookingProposalReply('');
+                      await loadData();
+                    } catch (err) {
+                      setBookingProposalError(err.response?.data?.error || 'Failed to reject the booking change.');
+                    } finally {
+                      setBookingProposalSaving(false);
+                    }
+                  }}
+                  className="church-review-btn church-review-btn--soft"
+                >
+                  Reject Change
+                </button>
+                <button
+                  onClick={async () => {
+                    if (bookingProposalSaving) return;
+                    try {
+                      setBookingProposalSaving(true);
+                      setBookingProposalError('');
+                      await api.bookingEditProposals.respond(selectedBookingProposal.id, {
+                        decision: 'accept',
+                        reply_message: bookingProposalReply.trim()
+                      });
+                      setBookingProposalOpen(false);
+                      setSelectedBookingProposal(null);
+                      setBookingProposalReply('');
+                      await loadData();
+                    } catch (err) {
+                      setBookingProposalError(err.response?.data?.error || 'Failed to accept the booking change.');
+                    } finally {
+                      setBookingProposalSaving(false);
+                    }
+                  }}
+                  className="church-review-btn church-review-btn--primary"
+                >
+                  {bookingProposalSaving ? 'Saving...' : 'Accept Change'}
+                </button>
             </div>
           </div>
         </div>
@@ -732,6 +1078,16 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
         <div className="dashboard-left-column">
           <aside className="dashboard-sidebar dashboard-left-panel" style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
             <div className="dashboard-sidebar-header" style={{ paddingBottom: 12, borderBottom: `2px solid ${gold}`, position: 'relative' }}>
+              <button
+                type="button"
+                className="dashboard-drawer-close-btn"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close navigation panel"
+                style={{ position: 'static' }}
+              >
+                <span className="dashboard-drawer-close-arrow">←</span>
+                <span className="dashboard-drawer-close-text">Back</span>
+              </button>
               <h3 style={{ margin: '8px 0 0 0', color: ink, textAlign: 'center', fontSize: 17, fontWeight: 800 }}>✦ Member Panel ✦</h3>
               <div style={{ fontSize: 12, textAlign: 'center', color: gold, marginTop: 4 }}>Parish Community</div>
             </div>
@@ -885,7 +1241,22 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'bookings' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ My Bookings</h2>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16, borderBottom: `3px solid ${gold}`, paddingBottom: 8 }}>
+                  <h2 style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}>✦ My Bookings</h2>
+                  {bookingUsage && (
+                    <div style={{
+                      padding: '6px 10px',
+                      borderRadius: 999,
+                      background: bookingUsage.activeCount >= 9 ? '#fef2f2' : '#f8fafc',
+                      border: `1px solid ${bookingUsage.activeCount >= 9 ? '#fecaca' : '#e2e8f0'}`,
+                      color: bookingUsage.activeCount >= 9 ? '#b0413e' : '#64748b',
+                      fontSize: 12,
+                      fontWeight: 700
+                    }}>
+                      {bookingUsage.activeCount}/9 active
+                    </div>
+                  )}
+                </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -904,6 +1275,23 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                         <td style={td}>{b.slot}</td>
                         <td style={td}>{b.chapel || b.details?.chapel || '-'}</td>
                         <td style={td}>
+                          {pendingBookingProposalByBookingId.has(b.id) && (
+                            <button
+                              style={{
+                                padding: '6px 10px',
+                                background: '#3b5b8a',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                boxShadow: '0 3px 10px rgba(0,0,0,0.12)',
+                                marginRight: 8
+                              }}
+                              onClick={() => openBookingProposal(pendingBookingProposalByBookingId.get(b.id))}
+                            >
+                              Review Change
+                            </button>
+                          )}
                           <button
                             style={{
                               padding: '6px 10px',
@@ -998,7 +1386,32 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'concerns' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ My Concerns</h2>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  borderBottom: `3px solid ${gold}`,
+                  paddingBottom: 8,
+                  marginBottom: 16
+                }}>
+                  <h2 style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}>✦ My Concerns</h2>
+                  {concernUsage && (
+                    <div style={{
+                      fontSize: 12,
+                      color: concernUsage.activeCount >= concernUsage.limit ? '#b0413e' : '#64748b',
+                      background: concernUsage.activeCount >= concernUsage.limit ? '#fef2f2' : '#f8fafc',
+                      border: `1px solid ${concernUsage.activeCount >= concernUsage.limit ? '#fecaca' : '#e2e8f0'}`,
+                      borderRadius: 999,
+                      padding: '6px 10px',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {concernUsage.activeCount}/{concernUsage.limit || 10} active
+                    </div>
+                  )}
+                </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>

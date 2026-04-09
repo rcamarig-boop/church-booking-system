@@ -68,6 +68,17 @@ export default function NotificationCenter({
     });
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen]);
+
   return (
     <div style={{
       position: 'fixed',
@@ -127,22 +138,35 @@ export default function NotificationCenter({
       </button>
 
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: isNarrow ? 68 : 80,
-            right: 0,
-            width: isNarrow ? 'min(360px, calc(100vw - 24px))' : 360,
-            maxWidth: 'calc(100vw - 24px)',
-            maxHeight: '70vh',
-            background: '#fff',
-            borderRadius: 12,
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
+        <>
+          <div
+            aria-hidden="true"
+            onClick={() => setIsOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'transparent',
+              zIndex: 998
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              bottom: isNarrow ? 68 : 80,
+              right: 0,
+              width: isNarrow ? 'min(360px, calc(100vw - 24px))' : 360,
+              maxWidth: 'calc(100vw - 24px)',
+              maxHeight: '70vh',
+              background: '#fff',
+              borderRadius: 12,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              zIndex: 999
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
           <div
             style={{
               padding: 14,
@@ -276,7 +300,8 @@ export default function NotificationCenter({
               )}
             </>
           )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

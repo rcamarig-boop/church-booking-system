@@ -5,6 +5,7 @@ import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
 import AdminRequestPanel from './AdminRequestPanel';
 import { loadSidebarContact, saveSidebarContact } from './sidebarContact';
+import { BOOKING_TIME_MAX, BOOKING_TIME_MIN, DATE_FIELD_KEYS, NAME_MAX_LENGTH, getTomorrowIsoDate, isAllowedBookingTime, isFutureIsoDate, isValidNameValue, sanitizeFieldValue, sanitizeNameInput, PHONE_FIELD_KEYS, NAME_FIELD_KEYS } from './inputValidation';
 
 /* ---------- shared styles (parish palette) ---------- */
 const stone = '#f8f4ec';
@@ -135,6 +136,28 @@ export default function AdminDashboard({ user, onLogout }) {
   const [contactDraft, setContactDraft] = useState(loadSidebarContact());
   const [contactError, setContactError] = useState('');
 
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [profileMenuOpen]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [sidebarOpen]);
+
   const buildDetailsState = (service, detailsObj) => {
     const key = String(service || '').trim().toLowerCase();
     const fields = SERVICE_FIELDS[key] || [];
@@ -244,6 +267,36 @@ export default function AdminDashboard({ user, onLogout }) {
     setBookingError('');
     setBookingEditorOpen(true);
   };
+
+  const bookingDetailsSummary = useMemo(() => {
+    if (!editingBooking) return [];
+    const detailsObj = editingBooking.details && typeof editingBooking.details === 'object'
+      ? editingBooking.details
+      : {};
+    const key = String(editingBooking.service || '').trim().toLowerCase();
+    const fields = SERVICE_FIELDS[key] || [];
+    const lines = [
+      { label: 'Service', value: editingBooking.service || '-' },
+      { label: 'Date', value: editingBooking.date || '-' },
+      { label: 'Time', value: editingBooking.slot || '-' },
+      { label: 'Requester', value: editingBooking.name || editingBooking.email || '-' }
+    ];
+
+    if (detailsObj.chapel) {
+      lines.push({ label: 'Current Place / Chapel', value: detailsObj.chapel });
+    }
+    if (detailsObj.needsChairsTables) {
+      lines.push({ label: 'Chairs Needed', value: detailsObj.chairsCount || '0' });
+      lines.push({ label: 'Tables Needed', value: detailsObj.tablesCount || '0' });
+    }
+    fields.forEach((field) => {
+      if (field === 'chapel') return;
+      const value = detailsObj[field];
+      if (value === undefined || value === null || String(value).trim() === '') return;
+      lines.push({ label: field, value: String(value) });
+    });
+    return lines;
+  }, [editingBooking]);
 
   /* ---------- load all admin data ---------- */
   const loadData = async () => {
@@ -917,7 +970,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     border: `1px solid ${mist}`,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                     minWidth: 200,
-                    zIndex: 9991
+                    zIndex: 9992
                   }}
                 >
                   <div style={{ padding: '12px 16px', borderBottom: `1px solid ${mist}` }}>
@@ -973,7 +1026,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
       {profileEditorOpen && (
         <div
-          className="dashboard-dialog-overlay"
+          className="church-review-overlay dashboard-dialog-overlay"
           role="dialog"
           aria-modal="true"
           style={{
@@ -995,20 +1048,20 @@ export default function AdminDashboard({ user, onLogout }) {
           }}
         >
           <div
-            className="dashboard-dialog-card"
+            className="dashboard-dialog-card church-review-card"
             style={{
               width: '100%',
               maxWidth: 520,
-              background: '#fff',
-              borderRadius: 16,
-              padding: 20,
-              border: `1px solid ${mist}`,
-              boxShadow: '0 20px 50px rgba(0,0,0,0.18)'
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,244,236,0.98))',
+              borderRadius: 20,
+              padding: 22,
+              border: `1px solid rgba(214,173,96,0.42)`,
+              boxShadow: '0 24px 60px rgba(31,42,68,0.22)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ margin: 0, color: ink }}>Edit Profile</h3>
+            <div className="church-review-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div className="church-review-kicker">✦ Profile Settings</div>
               <button
                 onClick={() => {
                   if (profileSaving) return;
@@ -1017,25 +1070,25 @@ export default function AdminDashboard({ user, onLogout }) {
                   setProfilePassword('');
                   setProfileConfirm('');
                 }}
-                style={{
-                  all: 'unset',
-                  cursor: 'pointer',
-                  color: '#64748b',
-                  fontWeight: 700,
-                  padding: '4px 8px'
-                }}
+                className="church-review-close"
+                style={{ cursor: 'pointer' }}
               >
-                ✕
+                ×
               </button>
             </div>
-            <div style={{ display: 'grid', gap: 12 }}>
+            <h3 className="church-review-title">Edit Profile</h3>
+            <div className="church-review-subtitle">
+              Keep your parish account details current. Name and email are required, and password changes are optional.
+            </div>
+            <div className="church-review-sheet" style={{ display: 'grid', gap: 12 }}>
               <div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Name</label>
                 <input
                   type="text"
                   value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  maxLength={NAME_MAX_LENGTH}
+                  onChange={(e) => setProfileName(sanitizeNameInput(e.target.value))}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
                 />
               </div>
               <div>
@@ -1066,9 +1119,9 @@ export default function AdminDashboard({ user, onLogout }) {
                 />
               </div>
               {profileError && (
-                <div style={{ color: '#b0413e', fontWeight: 600 }}>{profileError}</div>
+                <div className="church-review-error">{profileError}</div>
               )}
-              <div className="dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="church-review-actions dashboard-dialog-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => {
                     if (profileSaving) return;
@@ -1077,12 +1130,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     setProfilePassword('');
                     setProfileConfirm('');
                   }}
-                  style={{
-                    background: '#e2e8f0',
-                    color: '#1f2937',
-                    borderRadius: 10,
-                    padding: '8px 12px'
-                  }}
+                  className="church-review-btn church-review-btn--soft"
                 >
                   Cancel
                 </button>
@@ -1096,6 +1144,10 @@ export default function AdminDashboard({ user, onLogout }) {
                     }
                     if (!profileName.trim() || !profileEmail.trim()) {
                       setProfileError('Name and email are required.');
+                      return;
+                    }
+                    if (!isValidNameValue(profileName)) {
+                      setProfileError(`Name must be ${NAME_MAX_LENGTH} characters or fewer and use letters, spaces, apostrophes, or hyphens only.`);
                       return;
                     }
                     try {
@@ -1115,12 +1167,7 @@ export default function AdminDashboard({ user, onLogout }) {
                       setProfileSaving(false);
                     }
                   }}
-                  style={{
-                    background: '#1f2a44',
-                    color: '#fff',
-                    borderRadius: 10,
-                    padding: '8px 12px'
-                  }}
+                  className="church-review-btn church-review-btn--primary"
                 >
                   {profileSaving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -1155,17 +1202,26 @@ export default function AdminDashboard({ user, onLogout }) {
             className="dashboard-dialog-card"
             style={{
               width: '100%',
-              maxWidth: 620,
+              maxWidth: 760,
               background: '#fff',
               borderRadius: 16,
               padding: 20,
               border: `1px solid ${mist}`,
-              boxShadow: '0 20px 50px rgba(0,0,0,0.18)'
+              boxShadow: '0 20px 50px rgba(0,0,0,0.18)',
+              maxHeight: 'calc(100vh - 32px)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ margin: 0, color: ink }}>Edit Booking</h3>
+              <div>
+                <h3 style={{ margin: 0, color: ink }}>Propose Booking Change</h3>
+                <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+                  Review the original request, then adjust only the place and time.
+                </div>
+              </div>
               <button
                 onClick={() => {
                   if (bookingSaving) return;
@@ -1180,75 +1236,50 @@ export default function AdminDashboard({ user, onLogout }) {
                   fontWeight: 700,
                   padding: '4px 8px'
                 }}
-              >
+                >
                 ✕
               </button>
             </div>
-            <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ overflowY: 'auto', paddingRight: 4, display: 'grid', gap: 14 }}>
+              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                <div style={{ border: `1px solid ${mist}`, borderRadius: 12, padding: 12, background: '#fbfaf7' }}>
+                  <div style={{ fontWeight: 800, marginBottom: 8, color: ink }}>Booking Review</div>
+                  <div style={{ display: 'grid', gap: 6, color: '#4a5568', fontSize: 14 }}>
+                    {bookingDetailsSummary.map(item => (
+                      <div key={item.label}>
+                        <strong>{item.label}:</strong> {item.value}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ border: `1px solid ${gold}55`, borderRadius: 12, padding: 12, background: 'rgba(248,244,236,0.72)' }}>
+                  <div style={{ fontWeight: 800, marginBottom: 8, color: ink }}>Editable Fields</div>
+                  <div style={{ color: '#4a5568', fontSize: 14, lineHeight: 1.5 }}>
+                    Only the place / chapel and the time can be changed. Everything else is shown below for review.
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Chapel</label>
                 <select
                   value={bookingChapel}
                   onChange={(e) => setBookingChapel(e.target.value)}
                   style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}`, background: '#fff' }}
-                  >
+                >
                   <option value="">Select a chapel</option>
                   {CHAPEL_OPTIONS.map(option => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
               </div>
-              <div style={{ display: 'grid', gap: 10 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: ink }}>
-                  <input
-                    type="checkbox"
-                    checked={bookingNeedsChairsTables}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setBookingNeedsChairsTables(checked);
-                      if (!checked) {
-                        setBookingChairsCount('');
-                        setBookingTablesCount('');
-                      }
-                    }}
-                    style={{ width: 16, height: 16, margin: 0 }}
-                  />
-                  Need chairs and tables?
-                </label>
-                {bookingNeedsChairsTables && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: 6 }}>Chairs Needed</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={bookingChairsCount}
-                        onChange={(e) => setBookingChairsCount(e.target.value)}
-                        style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: 6 }}>Tables Needed</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={bookingTablesCount}
-                        onChange={(e) => setBookingTablesCount(e.target.value)}
-                        style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Service</label>
                 <input
                   type="text"
                   value={bookingForm.service}
-                  onChange={(e) => setBookingForm(f => ({ ...f, service: e.target.value }))}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  disabled
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}`, background: '#f8fafc', color: '#475569' }}
                 />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
@@ -1257,23 +1288,25 @@ export default function AdminDashboard({ user, onLogout }) {
                   <input
                     type="date"
                     value={bookingForm.date}
-                    onChange={(e) => setBookingForm(f => ({ ...f, date: e.target.value }))}
-                    style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                    disabled
+                    style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}`, background: '#f8fafc', color: '#475569' }}
                   />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: 6 }}>Preferred Time</label>
-                  <input
-                    type="time"
-                    value={bookingForm.slot}
-                    onChange={(e) => setBookingForm(f => ({ ...f, slot: e.target.value }))}
-                    step="1800"
-                    style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
-                  />
-                </div>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: 6 }}>Service Details</label>
+                <label style={{ display: 'block', marginBottom: 6 }}>Preferred Time</label>
+                <input
+                  type="time"
+                  value={bookingForm.slot}
+                  onChange={(e) => setBookingForm(f => ({ ...f, slot: e.target.value }))}
+                  step="1800"
+                  min={BOOKING_TIME_MIN}
+                  max={BOOKING_TIME_MAX}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
+                />
+              </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Service Details for Review</label>
                 {(() => {
                   const key = String(bookingForm.service || '').trim().toLowerCase();
                   const fields = SERVICE_FIELDS[key] || [];
@@ -1288,10 +1321,13 @@ export default function AdminDashboard({ user, onLogout }) {
                             {field}
                           </label>
                           <input
-                            type="text"
+                            type={DATE_FIELD_KEYS.has(field) ? 'date' : 'text'}
                             value={bookingDetailsFields[field] || ''}
-                            onChange={(e) => setBookingDetailsFields(prev => ({ ...prev, [field]: e.target.value }))}
-                            style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                            disabled
+                            inputMode={PHONE_FIELD_KEYS.has(field) ? 'numeric' : undefined}
+                            max={DATE_FIELD_KEYS.has(field) ? getTodayIsoDate() : undefined}
+                            maxLength={PHONE_FIELD_KEYS.has(field) ? 11 : NAME_FIELD_KEYS.has(field) ? NAME_MAX_LENGTH : undefined}
+                            style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}`, background: '#f8fafc', color: '#475569' }}
                           />
                         </div>
                       ))}
@@ -1300,12 +1336,12 @@ export default function AdminDashboard({ user, onLogout }) {
                 })()}
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: 6 }}>Additional Details</label>
+                <label style={{ display: 'block', marginBottom: 6 }}>Additional Details for Review</label>
                 <textarea
                   rows={4}
                   value={bookingDetailsExtra}
-                  onChange={(e) => setBookingDetailsExtra(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  disabled
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}`, background: '#f8fafc', color: '#475569' }}
                 />
               </div>
               {bookingError && (
@@ -1328,7 +1364,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 >
                   Cancel
                 </button>
-              <button
+                <button
                 className="dashboard-action-btn dashboard-action-btn--primary"
                 disabled={bookingSaving}
                   onClick={async () => {
@@ -1340,72 +1376,24 @@ export default function AdminDashboard({ user, onLogout }) {
                       setBookingError('Chapel is required.');
                       return;
                     }
-                    if (bookingNeedsChairsTables) {
-                      if (!String(bookingChairsCount || '').trim()) {
-                        setBookingError('Chairs count is required when chairs and tables are needed.');
-                        return;
-                      }
-                      if (!String(bookingTablesCount || '').trim()) {
-                        setBookingError('Tables count is required when chairs and tables are needed.');
-                        return;
-                      }
-                      if (!/^\d+$/.test(String(bookingChairsCount || '').trim())) {
-                        setBookingError('Chairs count must contain numbers only.');
-                        return;
-                      }
-                      if (!/^\d+$/.test(String(bookingTablesCount || '').trim())) {
-                        setBookingError('Tables count must contain numbers only.');
-                        return;
-                      }
-                    }
-                    const key = String(bookingForm.service || '').trim().toLowerCase();
-                    const fields = SERVICE_FIELDS[key] || [];
-                    for (const f of fields) {
-                      const val = String(bookingDetailsFields[f] || '').trim();
-                      if (!val) {
-                        setBookingError(`Missing required field: ${f}`);
-                        return;
-                      }
-                      if (NUMERIC_ONLY_FIELDS.has(f) && !/^\d+$/.test(val)) {
-                        setBookingError(`${f} must contain numbers only.`);
-                        return;
-                      }
-                    }
-                    let extra = {};
-                    try {
-                      extra = bookingDetailsExtra.trim() ? JSON.parse(bookingDetailsExtra) : {};
-                    } catch {
-                      setBookingError('Additional details must be valid JSON.');
+                    if (!isAllowedBookingTime(bookingForm.slot)) {
+                      setBookingError('Preferred time must be between 8:00 AM and 6:00 PM in 30-minute intervals.');
                       return;
                     }
-                    const details = {
-                      chapel: bookingChapel,
-                      needsChairsTables: bookingNeedsChairsTables,
-                      chairsCount: bookingNeedsChairsTables ? bookingChairsCount : '',
-                      tablesCount: bookingNeedsChairsTables ? bookingTablesCount : '',
-                      ...extra,
-                      ...bookingDetailsFields
-                    };
                     try {
                       setBookingSaving(true);
                       setBookingError('');
                       await api.bookings.update(editingBooking.id, {
-                        service: bookingForm.service,
-                        date: bookingForm.date,
+                        details: { chapel: bookingChapel },
                         slot: bookingForm.slot,
-                        details
+                        note: `Proposed by admin for review.`
                       });
                       setBookingEditorOpen(false);
                       setEditingBooking(null);
                       setBookingChapel('');
-                      setBookingNeedsChairsTables(false);
-                      setBookingChairsCount('');
-                      setBookingTablesCount('');
-                      setBookingDetailsExtra('');
-                      setBookingDetailsFields({});
                       await loadData();
                     } catch (err) {
-                      setBookingError(err.response?.data?.error || 'Failed to edit booking.');
+                      setBookingError(err.response?.data?.error || 'Failed to send booking change proposal.');
                     } finally {
                       setBookingSaving(false);
                     }
@@ -1417,7 +1405,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     padding: '8px 12px'
                   }}
                 >
-                  {bookingSaving ? 'Saving...' : 'Save Changes'}
+                  {bookingSaving ? 'Sending...' : 'Send Proposal'}
                 </button>
               </div>
             </div>
@@ -1490,7 +1478,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 <select
                   value={replyStatus}
                   onChange={(e) => setReplyStatus(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
                 >
                   <option value="open">Open</option>
                   <option value="resolved">Resolved</option>
@@ -1503,7 +1491,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     type="text"
                     value={replyResolutionNote}
                     onChange={(e) => setReplyResolutionNote(e.target.value)}
-                    style={{ width: '100%', padding: 10, borderRadius: 8, border: `1px solid ${mist}` }}
+                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
                   />
                 </div>
               )}
@@ -1586,6 +1574,16 @@ export default function AdminDashboard({ user, onLogout }) {
       <div className="dashboard-left-column">
       <aside className="dashboard-sidebar dashboard-left-panel" style={{ background: '#fff', borderRadius: 14, boxShadow: '0 10px 26px rgba(0,0,0,0.1)', border: `1px solid ${mist}` }}>
         <div className="dashboard-sidebar-header" style={{ paddingBottom: 12, borderBottom: `2px solid ${gold}`, position: 'relative' }}>
+          <button
+            type="button"
+            className="dashboard-drawer-close-btn"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close navigation panel"
+            style={{ position: 'static' }}
+          >
+            <span className="dashboard-drawer-close-arrow">←</span>
+            <span className="dashboard-drawer-close-text">Back</span>
+          </button>
           <h3 style={{ margin: '8px 0 0 0', color: ink, textAlign: 'center', fontSize: 17, fontWeight: 800 }}>✦ Admin Panel ✦</h3>
           <div style={{ fontSize: 12, textAlign: 'center', color: gold, marginTop: 4 }}>Parish Management</div>
         </div>

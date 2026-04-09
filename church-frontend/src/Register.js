@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import api from './api';
 import PageWrapper from './PageWrapper';
+import { NAME_MAX_LENGTH, isValidNameValue, sanitizeNameInput } from './inputValidation';
 
 const stone = '#f8f4ec';
 const ink = '#1f2a44';
@@ -19,6 +20,10 @@ export default function Register({ onLogin, onBack }) {
   const submit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
       setError('Please fill in all fields');
+      return;
+    }
+    if (!isValidNameValue(name)) {
+      setError(`Full name must be ${NAME_MAX_LENGTH} characters or fewer and use letters, spaces, apostrophes, or hyphens only.`);
       return;
     }
     if (password !== confirmPassword) {
@@ -107,11 +112,12 @@ export default function Register({ onLogin, onBack }) {
             }}>
               Full Name
             </label>
-            <input
+              <input
               type="text"
               placeholder="John Doe"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              maxLength={NAME_MAX_LENGTH}
+              onChange={(e) => setName(sanitizeNameInput(e.target.value))}
               onKeyPress={handleKeyPress}
               style={{
                 width: '100%',

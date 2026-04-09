@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from './api';
+import { DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, BOOKING_LIMIT, BOOKING_TIME_MAX, BOOKING_TIME_MIN, isAllowedBookingTime, isBookingDateWithinSixMonths, isFutureIsoDate, sanitizeFieldValue, isValidNameValue, isValidPhoneValue, getTomorrowIsoDate, getSixMonthsAheadIsoDate } from './inputValidation';
 
 const SERVICE_OPTIONS = [
   'Counseling',
@@ -102,6 +103,9 @@ export default function BookingModal({
   const [currentMode, setCurrentMode] = useState(mode);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [serviceFormData, setServiceFormData] = useState(defaultFormState('Counseling'));
+  const [bookingUsage, setBookingUsage] = useState(null);
+  const [showSubmitPreview, setShowSubmitPreview] = useState(false);
+  const [draftSubmission, setDraftSubmission] = useState(null);
 
   const serviceFields = useMemo(
     () => SERVICE_FORM_FIELDS[service] || [],
@@ -116,7 +120,25 @@ export default function BookingModal({
     setServiceFormData(prev => defaultFormState(service, prev));
   }, [service]);
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api.bookings.usage();
+        if (alive) setBookingUsage(res.data || null);
+      } catch {
+        if (alive) setBookingUsage(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const validateServiceForm = () => {
+    if (!isBookingDateWithinSixMonths(date)) {
+      return 'Bookings must be scheduled between tomorrow and 6 months ahead';
+    }
     if (!String(serviceFormData.chapel || '').trim()) {
       return 'Chapel is required';
     }
@@ -147,12 +169,36 @@ export default function BookingModal({
         return `${field.label} is required`;
       }
 
+      if (PHONE_FIELD_KEYS.has(field.key) && !isValidPhoneValue(strValue)) {
+        return `${field.label} must contain exactly 11 digits`;
+      }
+
+      if (NAME_FIELD_KEYS.has(field.key) && !isValidNameValue(strValue)) {
+        return `${field.label} must be 40 characters or fewer and use letters, spaces, apostrophes, or hyphens only`;
+      }
+
+      if (DATE_FIELD_KEYS.has(field.key) && isFutureIsoDate(strValue)) {
+        return `${field.label} cannot be in the future`;
+      }
+
       if (strValue && NUMERIC_ONLY_FIELDS.has(field.key) && !/^\d+$/.test(strValue)) {
         return `${field.label} must contain numbers only`;
       }
     }
+
+    if (!isAllowedBookingTime(startTime)) {
+      return 'Preferred time must be between 8:00 AM and 6:00 PM in 30-minute intervals';
+    }
     return null;
   };
+
+  const buildSubmissionDraft = () => ({
+    service,
+    date,
+    slot: startTime,
+    details: serviceFormData,
+    usage: bookingUsage
+  });
 
   const submit = async () => {
     const formError = validateServiceForm();
@@ -162,12 +208,43 @@ export default function BookingModal({
     }
 
     try {
+      const usageRes = await api.bookings.usage();
+      const usage = usageRes.data || {};
+      if (Number(usage.activeCount || 0) >= BOOKING_LIMIT) {
+        const message = `You have reached the limit of ${BOOKING_LIMIT} active bookings or pending requests. Please cancel one before making a new request.`;
+        setError(message);
+        window.alert(message);
+        return;
+      }
+      const nextDraft = buildSubmissionDraft();
+      setDraftSubmission({ ...nextDraft, usage });
+      setShowSubmitPreview(true);
       setError(null);
+    } catch (e) {
+      setError(
+        e.response?.data?.error ||
+        e.message ||
+        'Booking request failed. Please check backend is running and try again.'
+      );
+    }
+  };
+
+  const confirmBookingSubmission = async () => {
+    if (!draftSubmission) return;
+    try {
+      setError(null);
+      const usage = draftSubmission.usage || bookingUsage || {};
+      if (Number(usage.activeCount || 0) >= BOOKING_LIMIT) {
+        const message = `You have reached the limit of ${BOOKING_LIMIT} active bookings or pending requests. Please cancel one before making a new request.`;
+        setError(message);
+        window.alert(message);
+        return;
+      }
       await api.bookings.create({
-        service,
-        date,
-        slot: startTime,
-        details: serviceFormData
+        service: draftSubmission.service,
+        date: draftSubmission.date,
+        slot: draftSubmission.slot,
+        details: draftSubmission.details
       });
       onBooked && onBooked();
       onClose();
@@ -445,6 +522,8 @@ export default function BookingModal({
                 value={startTime}
                 onChange={e => setStartTime(e.target.value)}
                 step="1800"
+                min={BOOKING_TIME_MIN}
+                max={BOOKING_TIME_MAX}
                 style={{
                   width: '100%',
                   padding: 12,
@@ -453,6 +532,24 @@ export default function BookingModal({
                   background: '#fff'
                 }}
               />
+
+              {bookingUsage && (
+                <div style={{
+                  fontSize: 12,
+                  color: bookingUsage.activeCount >= BOOKING_LIMIT ? '#b0413e' : '#64748b',
+                  background: bookingUsage.activeCount >= BOOKING_LIMIT ? '#fef2f2' : '#f8fafc',
+                  border: `1px solid ${bookingUsage.activeCount >= BOOKING_LIMIT ? '#fecaca' : '#e2e8f0'}`,
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  lineHeight: 1.4
+                }}>
+                  You have {bookingUsage.activeCount}/{BOOKING_LIMIT} active bookings or pending requests.
+                </div>
+              )}
+
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: -2 }}>
+                Booking dates are open from {getTomorrowIsoDate()} to {getSixMonthsAheadIsoDate()}.
+              </div>
             </div>
 
             {error && (
@@ -536,15 +633,13 @@ export default function BookingModal({
                   />
                 ) : (
                   <input
-                    type={field.type || 'text'}
+                    type={field.type || (DATE_FIELD_KEYS.has(field.key) ? 'date' : 'text')}
                     value={serviceFormData[field.key] || ''}
-                    inputMode={NUMERIC_ONLY_FIELDS.has(field.key) ? 'numeric' : undefined}
+                    inputMode={PHONE_FIELD_KEYS.has(field.key) ? 'numeric' : undefined}
+                    maxLength={PHONE_FIELD_KEYS.has(field.key) ? PHONE_MAX_LENGTH : NAME_FIELD_KEYS.has(field.key) ? NAME_MAX_LENGTH : undefined}
+                    max={DATE_FIELD_KEYS.has(field.key) ? getTodayIsoDate() : undefined}
                     onChange={e => {
-                      const nextValue = e.target.value;
-                      if (NUMERIC_ONLY_FIELDS.has(field.key) && /[^0-9]/.test(nextValue)) {
-                        setError(`${field.label} must contain numbers only`);
-                        return;
-                      }
+                      const nextValue = sanitizeFieldValue(field.key, e.target.value);
                       setError(null);
                       setServiceFormData(prev => ({ ...prev, [field.key]: nextValue }));
                     }}
@@ -572,7 +667,7 @@ export default function BookingModal({
                 boxShadow: cardShadow
               }}
             >
-              Submit Request
+              Review Submission
             </button>
             <button
               className="dashboard-action-btn dashboard-action-btn--secondary"
@@ -589,6 +684,99 @@ export default function BookingModal({
             >
               Back
             </button>
+          </div>
+        </div>
+      )}
+
+      {showSubmitPreview && draftSubmission && (
+        <div
+          className="church-review-overlay"
+          onClick={() => setShowSubmitPreview(false)}
+        >
+          <div
+            className="church-review-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="church-review-header">
+              <div className="church-review-kicker">✦ Parish Booking</div>
+              <button
+                onClick={() => setShowSubmitPreview(false)}
+                className="church-review-close"
+                aria-label="Close booking preview"
+              >
+                ×
+              </button>
+            </div>
+
+            <h3 className="church-review-title">Review Booking Request</h3>
+            <div className="church-review-subtitle">
+              Please confirm the details before we send your booking request to the parish office.
+            </div>
+
+            <div className="church-review-sheet">
+              <div className="church-review-section">
+                <div className="church-review-section-title">Booking Details</div>
+                <div className="church-review-grid">
+                  <div className="church-review-row">
+                    <span className="church-review-label">Service</span>
+                    <span className="church-review-value">{draftSubmission.service}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Date</span>
+                    <span className="church-review-value">{draftSubmission.date}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Time</span>
+                    <span className="church-review-value">{draftSubmission.slot}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Chapel</span>
+                    <span className="church-review-value">{draftSubmission.details.chapel || '-'}</span>
+                  </div>
+                  <div className="church-review-row">
+                    <span className="church-review-label">Chairs / Tables</span>
+                    <span className="church-review-value">
+                      {draftSubmission.details.needsChairsTables
+                        ? `${draftSubmission.details.chairsCount || 0} chairs, ${draftSubmission.details.tablesCount || 0} tables`
+                        : 'No'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="church-review-section">
+                <div className="church-review-section-title">Submitted Form</div>
+                <div className="church-review-grid">
+                  {serviceFields.map((field) => (
+                    <div key={field.key} className="church-review-row church-review-row--stacked">
+                      <span className="church-review-label">{field.label}</span>
+                      <span className="church-review-value">
+                        {String(draftSubmission.details[field.key] || '-')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <p className="church-review-error">{error}</p>
+            )}
+
+            <div className="church-review-actions">
+              <button
+                onClick={() => setShowSubmitPreview(false)}
+                className="church-review-btn church-review-btn--soft"
+              >
+                Edit
+              </button>
+              <button
+                onClick={confirmBookingSubmission}
+                className="church-review-btn church-review-btn--primary"
+              >
+                Confirm Send
+              </button>
+            </div>
           </div>
         </div>
       )}

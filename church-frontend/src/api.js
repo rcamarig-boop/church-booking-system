@@ -31,6 +31,7 @@ export default {
   bookings: {
     list: (params) => api.get('/bookings', { params }),
     slots: () => api.get('/bookings/slots'),
+    usage: () => api.get('/bookings/usage'),
     create: data => api.post('/bookings', data),
     update: (id, data) => api.put(`/bookings/${id}`, data),
     remove: id => api.delete(`/bookings/${id}`)
@@ -47,6 +48,11 @@ export default {
 
   bookingRecords: {
     list: (params) => api.get('/booking-records', { params })
+  },
+
+  bookingEditProposals: {
+    my: () => api.get('/booking-edit-proposals/my'),
+    respond: (id, data) => api.post(`/booking-edit-proposals/${id}/respond`, data)
   },
 
   events: {
@@ -66,6 +72,7 @@ export default {
     list: (params) => api.get('/concerns', { params }),
     my: (params) => api.get('/concerns/my', { params }),
     count: (params) => api.get('/concerns/count', { params }),
+    usage: () => api.get('/concerns/usage'),
     update: (id, data) => api.put(`/concerns/${id}`, data),
     close: (id) => api.put(`/concerns/${id}/close`),
     delete: (id) => api.delete(`/concerns/${id}`)
