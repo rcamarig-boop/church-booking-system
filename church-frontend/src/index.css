@@ -1064,6 +1064,12 @@ hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
   background: #f9fafb;
 }
 
+/* Ensure sidebar scrollable content can overflow properly on mobile drawer */
+.dashboard-sidebar-content {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
 /* ===== Responsive tweaks ===== */
 .auth-form-shell {
   width: 100%;

@@ -1596,7 +1596,7 @@ export default function AdminDashboard({ user, onLogout }) {
           <div style={{ fontSize: 12, textAlign: 'center', color: gold, marginTop: 4 }}>Parish Management</div>
         </div>
         {/* Tab buttons on expandable sidebar */}
-          <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <div style={{ background: '#f9fafb', borderRadius: 16, padding: 12, display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0, overflowY: 'auto' }} className="dashboard-sidebar-content">
 
           <div className="dashboard-admin-grid" style={{
             display: 'grid',
