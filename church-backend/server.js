@@ -2419,7 +2419,7 @@ io.on('connection', () => {
 });
 
 /* ===================== START SERVER ===================== */
-const PORT = Number(process.env.PORT) || 4000;
+const PORT = Number(process.env.PORT) || 5000;
 
 (async () => {
   await initDatabase();
