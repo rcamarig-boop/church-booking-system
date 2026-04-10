@@ -8,11 +8,110 @@ const { Server } = require('socket.io');
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction } = db;
 
+/* ========== SECURITY HARDENING - Phase 1 ========== */
+// Rate limiting implementation
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+
+// Import validation and monitoring
+const validation = require('./validation');
+const { PerformanceMonitor, performanceMiddleware } = require('./performance');
+
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, { cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'] } });
 
-app.use(cors());
+// Initialize performance monitor
+const perfMonitor = new PerformanceMonitor();
+
+/* ========== SECURITY MIDDLEWARE ========== */
+
+// Helmet: Set security HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", 'https:', 'wss:']
+    }
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
+
+// CORS with restricted origins
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || 
+  ['http://localhost:3000', 'http://localhost:5000', 'https://church-booking-system.vercel.app'];
+
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Data sanitization - prevent NoSQL injection
+app.use(mongoSanitize({
+  replaceWith: '_',
+  onSanitize: ({ req, key }) => {
+    console.warn(`⚠️ Potential injection detected in ${key}. Sanitized.`);
+  }
+}));
+
+// JSON payload limiting
+app.use(express.json({ limit: '10kb' }));
+
+// Rate limiting tiers
+const createRateLimiter = (windowMs, max, message) => 
+  rateLimit({
+    windowMs,
+    max,
+    message: { error: message, retryAfter: Math.ceil(windowMs / 1000) },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.user?.role === 'admin', // Admins bypass rate limits
+    keyGenerator: (req) => req.user?.id || req.ip
+  });
+
+// Global rate limiter: 100 requests per 15 minutes
+const globalLimiter = createRateLimiter(15 * 60 * 1000, 100, 'Too many requests, please try again later');
+
+// Auth rate limiter: 5 requests per 15 minutes per IP (prevent brute force)
+const authLimiter = createRateLimiter(15 * 60 * 1000, 5, 'Too many login attempts, please try again in 15 minutes');
+
+// API rate limiter: 30 requests per minute per user
+const apiLimiter = createRateLimiter(60 * 1000, 30, 'Rate limit exceeded. Please slow down');
+
+app.use('/api/', globalLimiter);
+app.use('/api/login', authLimiter);
+app.use('/api/register', authLimiter);
+app.use(apiLimiter);
+
+/* ========== PERFORMANCE MONITORING ========== */
+app.use(performanceMiddleware(perfMonitor));
+
+/* ========== SECURITY LOGGING ========== */
+app.use((req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    // Log suspicious activities
+    if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 400) {
+      console.log(`[SECURITY] ${req.method} ${req.path} - ${res.statusCode} (${duration}ms) - IP: ${req.ip}`);
+    }
+  });
+  
+  next();
+});
+
+/* ============================================ */
+
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'SUPER_SECRET_KEY';
@@ -2411,6 +2510,64 @@ app.delete('/api/notifications/:id', auth, async (req, res) => {
 app.delete('/api/notifications', auth, async (req, res) => {
   await dbRun(`DELETE FROM notifications WHERE ${notificationUserIdCol || '"userId"'}=?`, req.user.id);
   res.json({ success: true });
+});
+
+/* ===================== MONITORING & HEALTH CHECK ===================== */
+
+/**
+ * Health check endpoint - used by Render/uptime monitoring
+ */
+app.get('/health', (req, res) => {
+  const health = perfMonitor.getHealthStatus();
+  const statusCode = health.healthy ? 200 : 503;
+  
+  res.status(statusCode).json({
+    status: health.healthy ? 'healthy' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime: Math.round((Date.now() - perfMonitor.startTime) / 1000),
+    diagnostics: health
+  });
+});
+
+/**
+ * Performance metrics endpoint - visible to admin only
+ */
+app.get('/api/metrics', auth, async (req, res) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  res.json(perfMonitor.getReport());
+});
+
+/**
+ * System info endpoint
+ */
+app.get('/api/system-info', auth, async (req, res) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  const health = perfMonitor.getHealthStatus();
+  const uptime = Date.now() - perfMonitor.startTime;
+  
+  res.json({
+    system: 'Church Booking System',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'production',
+    uptime: Math.round(uptime / 1000),
+    health: health,
+    database: {
+      type: 'PostgreSQL (Supabase)',
+      status: 'connected'
+    },
+    features: {
+      authentication: 'JWT',
+      rateLimiting: 'enabled',
+      security: 'hardened',
+      monitoring: 'active'
+    }
+  });
 });
 
 /* ===================== SOCKET ===================== */
