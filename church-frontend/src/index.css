@@ -2285,3 +2285,472 @@ body.sidebar-drawer-open {
     padding: 8px !important;
   }
 }
+
+/* ============= COMPREHENSIVE MOBILE RESPONSIVENESS FEATURE #19 ============= */
+
+/* Touch-friendly Target Sizes */
+button, 
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+.btn,
+.dashboard-tab-btn,
+.booking-modal-btn {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent font scaling on iOS orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
+/* Better touch spacing for interactive elements */
+a, 
+button,
+input,
+select,
+textarea {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 7 Responsive Breakpoint System */
+
+/* ===== 390px: Ultra-compact phones (iPhone 12 mini) ===== */
+@media (max-width: 390px) {
+  * { --responsive-scale: 0.85; }
+  
+  body { font-size: 11px; }
+  h1 { font-size: 18px; }
+  h2 { font-size: 16px; }
+  h3 { font-size: 14px; }
+  
+  button, .btn {
+    padding: 8px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+  
+  input, select, textarea {
+    padding: 8px 10px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+  
+  .modal-dialog, .booking-modal-content {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    margin: 0 8px !important;
+  }
+  
+  .dashboard-main { padding: 6px; gap: 6px; }
+  .dashboard-card-container { padding: 8px; gap: 8px; margin-bottom: 6px; }
+  
+  label { font-size: 12px; }
+  .form-group { gap: 6px; }
+  .form-row { gap: 6px; }
+}
+
+/* ===== 420px: Standard phones (iPhone 12/13) ===== */
+@media (max-width: 420px) {
+  * { --responsive-scale: 0.90; }
+  
+  body { font-size: 12px; }
+  h1 { font-size: 19px; }
+  h2 { font-size: 17px; }
+  h3 { font-size: 15px; }
+  
+  button, .btn {
+    padding: 9px 14px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+  
+  input, select, textarea {
+    padding: 9px 11px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+  
+  .modal-dialog, .booking-modal-content {
+    width: calc(100vw - 16px) !important;
+    max-width: min(100vw - 16px, 420px) !important;
+    margin: 0 8px !important;
+  }
+  
+  .dashboard-main { padding: 8px; gap: 8px; }
+  .dashboard-card-container { padding: 10px; gap: 8px; margin-bottom: 8px; }
+  
+  label { font-size: 13px; }
+  .form-group { gap: 8px; }
+  .form-row { gap: 8px; }
+}
+
+/* ===== 520px: Larger phones (Phablets) ===== */
+@media (max-width: 520px) {
+  * { --responsive-scale: 0.95; }
+  
+  body { font-size: 13px; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 16px; }
+  
+  button, .btn {
+    padding: 10px 16px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+  
+  input, select, textarea {
+    padding: 10px 12px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+  
+  .modal-dialog, .booking-modal-content {
+    width: calc(100vw - 20px) !important;
+    max-width: min(100vw - 20px, 480px) !important;
+    margin: 0 10px !important;
+  }
+  
+  .dashboard-main { padding: 10px; gap: 10px; }
+  .dashboard-card-container { padding: 12px; gap: 10px; margin-bottom: 10px; }
+  
+  label { font-size: 13px; }
+  .form-group { gap: 8px; }
+  .form-row { gap: 8px; }
+}
+
+/* ===== 600px: Tablets in Portrait (Foldable devices) ===== */
+@media (max-width: 600px) {
+  * { --responsive-scale: 1.0; }
+  
+  body { font-size: 14px; }
+  h1 { font-size: 22px; }
+  h2 { font-size: 19px; }
+  h3 { font-size: 16px; }
+  
+  button, .btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+  
+  input, select, textarea {
+    padding: 10px 12px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+  
+  .modal-dialog, .booking-modal-content {
+    width: calc(100vw - 20px) !important;
+    max-width: min(100vw - 20px, 480px) !important;
+    margin: 0 10px !important;
+  }
+  
+  .dashboard-main { 
+    padding: 12px; 
+    gap: 12px;
+    grid-template-columns: 1fr !important;
+  }
+  .dashboard-card-container { 
+    padding: 14px; 
+    gap: 12px; 
+    margin-bottom: 12px; 
+  }
+  
+  label { font-size: 14px; }
+  .form-group { gap: 10px; }
+  .form-row { gap: 8px; flex-direction: column; }
+  .form-row > * { width: 100%; }
+}
+
+/* ===== 680px: iPad mini (Small tablets) ===== */
+@media (max-width: 680px) {
+  * { --responsive-scale: 1.05; }
+  
+  body { font-size: 14px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 20px; }
+  h3 { font-size: 17px; }
+  
+  button, .btn {
+    padding: 11px 18px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+  
+  input, select, textarea {
+    padding: 10px 12px;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+  
+  .modal-dialog, .booking-modal-content {
+    width: calc(100vw - 20px) !important;
+    max-width: min(100vw - 20px, 500px) !important;
+    margin: 0 10px !important;
+  }
+  
+  .dashboard-main { 
+    padding: 14px; 
+    gap: 14px;
+    grid-template-columns: 1fr !important;
+  }
+  .dashboard-card-container { 
+    padding: 16px; 
+    gap: 14px; 
+    margin-bottom: 12px; 
+  }
+  
+  label { font-size: 14px; }
+  .form-group { gap: 10px; }
+  .form-row { gap: 10px; flex-direction: row; }
+  .form-row > * { flex: 1; }
+}
+
+/* ===== 900px: iPad/Desktop (Tablet landscape / small desktop) ===== */
+@media (max-width: 900px) {
+  * { --responsive-scale: 1.1; }
+  
+  body { font-size: 15px; }
+  h1 { font-size: 26px; }
+  h2 { font-size: 21px; }
+  h3 { font-size: 18px; }
+  
+  button, .btn {
+    padding: 12px 20px;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+  
+  input, select, textarea {
+    padding: 10px 12px;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+  
+  .modal-dialog, .booking-modal-content {
+    width: 500px !important;
+    max-width: 90vw !important;
+  }
+  
+  .dashboard-main { 
+    padding: 16px; 
+    gap: 16px;
+    grid-template-columns: 1fr !important;
+  }
+  .dashboard-card-container { 
+    padding: 18px; 
+    gap: 16px; 
+    margin-bottom: 14px; 
+  }
+  
+  label { font-size: 15px; }
+  .form-group { gap: 12px; }
+  .form-row { gap: 12px; }
+}
+
+/* ===== 1920px+: Large desktop ===== */
+@media (min-width: 1920px) {
+  * { --responsive-scale: 1.15; }
+  
+  body { font-size: 16px; }
+  h1 { font-size: 28px; }
+  h2 { font-size: 22px; }
+  h3 { font-size: 19px; }
+  
+  button, .btn {
+    padding: 12px 22px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+  
+  input, select, textarea {
+    padding: 10px 12px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+  
+  .modal-dialog, .booking-modal-content {
+    width: 550px !important;
+    max-width: 80vw !important;
+  }
+  
+  .dashboard-main { 
+    padding: 20px; 
+    gap: 20px;
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .dashboard-card-container { 
+    padding: 24px; 
+    gap: 20px; 
+    margin-bottom: 16px; 
+  }
+  
+  label { font-size: 16px; }
+  .form-group { gap: 14px; }
+  .form-row { gap: 16px; }
+}
+
+/* Mobile Drawer Pattern - Fixed Overlay */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 980;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.drawer-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Scrollable Modals with Fixed Buttons */
+.modal-content-scrollable {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-shrink: 0;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+}
+
+.modal-actions button {
+  flex: 1;
+  margin: 0;
+}
+
+/* Scrollbar styling for mobile */
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 10px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+/* Touch-optimized form layout */
+@media (max-width: 900px) {
+  .form-row {
+    flex-direction: column;
+  }
+  
+  .form-row > * {
+    width: 100%;
+  }
+  
+  .form-two-col {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .form-two-col.desktop {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Optimized table scrolling on mobile */
+@media (max-width: 900px) {
+  table {
+    font-size: 13px;
+  }
+  
+  th, td {
+    padding: 8px;
+  }
+  
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Better touch spacing for list items */
+.list-item, 
+.notification-item,
+.record-row {
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (max-width: 600px) {
+  .list-item, 
+  .notification-item,
+  .record-row {
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+  }
+}
+
+/* Loading state improvements */
+.loading-spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@media (max-width: 600px) {
+  .loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 2px solid #e5e7eb;
+    border-top: 2px solid #3b82f6;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Prevent layout shift on scroll */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Improve text rendering on mobile */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
