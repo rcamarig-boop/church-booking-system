@@ -8,6 +8,8 @@ import AdminDashboard from './AdminDashboard';
 import NotificationCenter from './NotificationCenter';
 import { ToastProvider } from './ToastNotification';
 import api from './api';
+import ErrorBoundary from './ErrorBoundary';
+import { SessionSecurityManager, APIErrorLogger } from './FrontendSecurity';
 
 export const SocketContext = createContext();
 const DEFAULT_SOCKET_URL = 'http://localhost:4000';
@@ -33,6 +35,8 @@ export default function App() {
   const userRef = useRef(null);
   const recentNotificationMapRef = useRef(new Map());
   const eventRefreshTimerRef = useRef(null);
+  const sessionManagerRef = useRef(null);
+  const [sessionWarning, setSessionWarning] = useState(null);
 
   useEffect(() => {
     userRef.current = user;
@@ -275,6 +279,17 @@ export default function App() {
     localStorage.setItem('church_user', JSON.stringify(u));
     api.setToken(token);
     notifiedEventIdsRef.current = new Set();
+    
+    // Initialize session security manager
+    if (sessionManagerRef.current) sessionManagerRef.current.destroy();
+    const manager = new SessionSecurityManager();
+    manager.onSessionExpired = () => handleLogout();
+    manager.onSessionWarning = (secondsRemaining) => {
+      setSessionWarning(Math.round(secondsRemaining / 60));
+      setTimeout(() => setSessionWarning(null), 5000);
+    };
+    sessionManagerRef.current = manager;
+    
     setUser(u);
     setCurrentPage('dashboard');
   };
@@ -287,17 +302,59 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    if (sessionManagerRef.current) {
+      sessionManagerRef.current.destroy();
+      sessionManagerRef.current = null;
+    }
     localStorage.removeItem('church_user');
     api.setToken(null);
     setUser(null);
     setEventsForNotify([]);
     notifiedEventIdsRef.current = new Set();
     setCurrentPage('landing');
+    setSessionWarning(null);
   };
 
+  // Session warning notification
+  useEffect(() => {
+    if (sessionWarning && user) {
+      addNotification({
+        type: 'warning',
+        text: `Your session will expire in ${sessionWarning} minutes due to inactivity. Click anywhere to stay logged in.`,
+        dedupeKey: 'session_warning'
+      });
+    }
+  }, [sessionWarning, user, addNotification]);
+
+  // Reset session activity on any interaction
+  useEffect(() => {
+    if (!user || !sessionManagerRef.current) return;
+    
+    const handleActivity = () => {
+      sessionManagerRef.current.resetSession();
+    };
+    
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
+    
+    return () => {
+      events.forEach(e => window.removeEventListener(e, handleActivity));
+    };
+  }, [user]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (sessionManagerRef.current) {
+        sessionManagerRef.current.destroy();
+      }
+    };
+  }, []);
+
   return (
-    <ToastProvider>
-      <SocketContext.Provider value={socket}>
+    <ErrorBoundary>
+      <ToastProvider>
+        <SocketContext.Provider value={socket}>
       {currentPage === 'landing' && (
         <LandingPage
           onChooseLogin={() => setCurrentPage('login')}
@@ -333,5 +390,6 @@ export default function App() {
       )}
       </SocketContext.Provider>
     </ToastProvider>
+    </ErrorBoundary>
   );
 }
