@@ -1071,15 +1071,6 @@ export default function AdminDashboard({ user, onLogout }) {
           >
             ⚙️ Settings
           </button>
-          <div style={{ 
-            paddingLeft: 12,
-            borderLeft: `2px solid ${mist}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}>
-            <PermissionDisplay role={user?.role || 'member'} />
-          </div>
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setProfileMenuOpen(v => !v)}
