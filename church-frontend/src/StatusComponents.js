@@ -72,7 +72,7 @@ export function StatusTimeline({ currentStatus, allStatuses }) {
 }
 
 // Permission display component
-export function PermissionDisplay({ userRole }) {
+export function PermissionDisplay({ role }) {
   const permissions = {
     admin: {
       can: ['Approve applications', 'Reject applications', 'Create services', 'Delete services', 'Edit bookings', 'Export reports', 'View all records'],
@@ -88,12 +88,12 @@ export function PermissionDisplay({ userRole }) {
     }
   };
 
-  const userPerms = permissions[userRole?.toLowerCase()] || permissions.member;
+  const userPerms = permissions[role?.toLowerCase()] || permissions.member;
 
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: '#1f2937', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-        🔐 <span>Your Permissions ({userRole})</span>
+        🔐 <span>Your Permissions ({role})</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div>
