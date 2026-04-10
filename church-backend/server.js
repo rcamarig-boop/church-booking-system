@@ -1804,9 +1804,9 @@ app.get('/api/mass-services', auth, async (req, res) => {
   
   let filterClause = '';
   if (filter === 'upcoming') {
-    filterClause = `"date" >= CAST(now() AS date)`;
+    filterClause = `"date" >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`;
   } else if (filter === 'past') {
-    filterClause = `"date" < CAST(now() AS date)`;
+    filterClause = `"date" < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`;
   }
 
   const rows = await dbAll(`
