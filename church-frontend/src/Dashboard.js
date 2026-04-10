@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState, useContext, useCallback, useMemo } from 'react';
 import api from './api';
 import CalendarViewNew from './CalendarViewNew';
+import MassServiceApplyModal from './MassServiceApplyModal';
 import { SocketContext } from './App';
 import { loadSidebarContact } from './sidebarContact';
 import { NAME_MAX_LENGTH, isValidNameValue, sanitizeNameInput } from './inputValidation';
@@ -36,11 +37,15 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   const [concernUsage, setConcernUsage] = useState(null);
   const [bookingRequests, setBookingRequests] = useState([]);
   const [events, setEvents] = useState([]);
+  const [massServices, setMassServices] = useState([]);
+  const [myMassApplications, setMyMassApplications] = useState([]);
   const [calendarBookings, setCalendarBookings] = useState([]);
   const [calendarConfig, setCalendarConfig] = useState({});
   const [myConcerns, setMyConcerns] = useState([]);
   const [bookingEditProposals, setBookingEditProposals] = useState([]);
   const [bookingRequestEditProposals, setBookingRequestEditProposals] = useState([]);
+  const [applyModalOpen, setApplyModalOpen] = useState(false);
+  const [selectedMassService, setSelectedMassService] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('calendar'); // events | bookings | requests | calendar | concerns | tracking
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -129,7 +134,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
   const loadData = useCallback(async () => {
     try {
-      const [b, usage, br, e, c, s, myc, edits, brEdits, concernUsageRes] = await Promise.all([
+      const [b, usage, br, e, c, s, myc, edits, brEdits, concernUsageRes, ms, myApps] = await Promise.all([
         api.bookings.list(),
         api.bookings.usage(),
         api.bookingRequests.my(),
@@ -139,7 +144,9 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
         api.concerns.my(),
         api.bookingEditProposals.my(),
         api.bookingRequestEditProposals.my(),
-        api.concerns.usage()
+        api.concerns.usage(),
+        api.massServices.list({ filter: 'upcoming' }),
+        api.massServices.getMyApplications()
       ]);
 
       setBookings(b.data || []);
@@ -152,6 +159,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
       setBookingEditProposals(edits.data || []);
       setBookingRequestEditProposals(brEdits.data || []);
       setConcernUsage(concernUsageRes.data || null);
+      setMassServices(ms.data || []);
+      setMyMassApplications(myApps.data || []);
     } catch (err) {
       console.error('Dashboard load failed', err);
     } finally {
@@ -1442,7 +1451,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                     }}>
                       <div style={{ fontWeight: 700 }}>{event.title}</div>
                       <div style={{ color: '#4a5568', fontSize: 14 }}>
-                        {event.date} {event.time ? `â€¢ ${event.time}` : ''}
+                        {event.date} {event.time ? `• ${event.time}` : ''}
                       </div>
                       {event.description && (
                         <div style={{ color: '#718096', marginTop: 6 }}>{event.description}</div>
@@ -1451,6 +1460,79 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   ))}
                   {events.length === 0 && <div style={{ color: '#718096' }}>No events yet.</div>}
                 </div>
+
+                {/* Mass Services Section */}
+                {massServices.length > 0 && (
+                  <div style={{ marginTop: 24, paddingTop: 24, borderTop: `2px solid ${mist}` }}>
+                    <h3 style={{ color: ink, marginBottom: 12, fontWeight: 700, fontSize: 16 }}>
+                      🎫 Mass Services Available
+                    </h3>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      {massServices.map((service) => {
+                        const userApplication = myMassApplications.find(a => a.mass_service_id === service.id && a.status !== 'rejected' && a.status !== 'cancelled');
+                        return (
+                          <div key={service.id} style={{
+                            padding: 12,
+                            border: `2px solid #d1d5db`,
+                            borderLeft: `4px solid #3b82f6`,
+                            borderRadius: 10,
+                            background: '#f9fafb',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            gap: 12
+                          }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 700, color: ink }}>{service.service_type}</div>
+                              <div style={{ color: '#4a5568', fontSize: 14 }}>
+                                {service.date} • {service.time}
+                              </div>
+                              <div style={{ color: '#718096', fontSize: 13, marginTop: 4 }}>
+                                📍 {service.chapel}
+                              </div>
+                              {service.capacity && (
+                                <div style={{ color: '#718096', fontSize: 13, marginTop: 2 }}>
+                                  Capacity: Limited
+                                </div>
+                              )}
+                              {service.description && (
+                                <div style={{ color: '#718096', fontSize: 13, marginTop: 4 }}>
+                                  {service.description}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (userApplication) {
+                                  // Show application status or cancellation option
+                                  alert(`Application Status: ${userApplication.status}`);
+                                } else {
+                                  setSelectedMassService(service);
+                                  setApplyModalOpen(true);
+                                }
+                              }}
+                              style={{
+                                padding: '8px 14px',
+                                backgroundColor: userApplication ? '#e8e8e8' : '#3b82f6',
+                                color: userApplication ? '#666' : '#fff',
+                                border: 'none',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                fontSize: 13,
+                                whiteSpace: 'nowrap',
+                                marginTop: 4
+                              }}
+                            >
+                              {userApplication ? `Applied (${userApplication.status})` : 'Apply'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1924,6 +2006,19 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
             </div>
           </div>
         </section>
+
+        {/* Mass Service Apply Modal */}
+        <MassServiceApplyModal
+          service={selectedMassService}
+          isOpen={applyModalOpen}
+          onClose={() => {
+            setApplyModalOpen(false);
+            setSelectedMassService(null);
+          }}
+          onApplied={() => {
+            loadData();
+          }}
+        />
       </div>
     </div>
   );

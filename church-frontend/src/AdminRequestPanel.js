@@ -1,7 +1,13 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import api from './api';
 import { SocketContext } from './App';
-import { BOOKING_TIME_MAX, BOOKING_TIME_MIN, DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, isAllowedBookingTime, isBookingDateWithinSixMonths } from './inputValidation';
+import { BOOKING_TIME_MAX, BOOKING_TIME_MIN, DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, isAllowedBookingTime, isBookingDateWithinSixMonths, getTodayIsoDate, isFutureIsoDate } from './inputValidation';
+import { useToast } from './ToastNotification';
+import { STATUS_COLORS, HELP_TEXT } from './systemConstants';
+import { StatusBadge } from './StatusComponents';
+import { HelpIcon } from './HelpSystem';
+import { QuickFilters, BulkActionsToolbar, SelectCheckbox } from './FormComponents';
+import { ConfirmationDialog } from './StatusComponents';
 
 const th = {
   padding: 8,
@@ -131,6 +137,7 @@ function buildDetailEntries(request) {
 
 export default function AdminRequestPanel({ onDecision }) {
   const socket = useContext(SocketContext);
+  const { addToast } = useToast();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
@@ -150,6 +157,66 @@ export default function AdminRequestPanel({ onDecision }) {
   });
   const [editorDetailsFields, setEditorDetailsFields] = useState({});
   const [editorChapel, setEditorChapel] = useState('');
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [conflictData, setConflictData] = useState(null);
+  const [pendingApprovalId, setPendingApprovalId] = useState(null);
+  
+  // New UX state
+  const [selectedRequestIds, setSelectedRequestIds] = useState(new Set());
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [requestFilters, setRequestFilters] = useState('all');
+
+  // Bulk action handlers
+  const handleSelectAll = () => {
+    if (selectedRequestIds.size === requests.length) {
+      setSelectedRequestIds(new Set());
+    } else {
+      setSelectedRequestIds(new Set(requests.map(r => r.id)));
+    }
+  };
+
+  const handleSelectOne = (id) => {
+    const newSet = new Set(selectedRequestIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedRequestIds(newSet);
+  };
+
+  const handleBulkApprove = async () => {
+    setDeleteConfirm({ action: 'bulk-approve', count: selectedRequestIds.size });
+  };
+
+  const handleBulkReject = async () => {
+    setDeleteConfirm({ action: 'bulk-reject', count: selectedRequestIds.size });
+  };
+
+  const confirmBulkAction = async () => {
+    const action = deleteConfirm.action;
+    const ids = Array.from(selectedRequestIds);
+    try {
+      setProcessingId('bulk');
+      for (const id of ids) {
+        if (action === 'bulk-approve') {
+          await api.bookingRequests.approve(id);
+        } else if (action === 'bulk-reject') {
+          await api.bookingRequests.reject(id);
+        }
+      }
+      await loadRequests();
+      setSelectedRequestIds(new Set());
+      addToast(`${ids.length} request(s) ${action === 'bulk-approve' ? 'approved' : 'rejected'} successfully!`, 'success');
+      onDecision && onDecision();
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to process bulk action.';
+      addToast(errorMsg, 'error');
+    } finally {
+      setProcessingId(null);
+      setDeleteConfirm(null);
+    }
+  };
 
   const buildDetailsState = (service, detailsObj) => {
     const key = String(service || '').trim().toLowerCase();
@@ -245,14 +312,47 @@ export default function AdminRequestPanel({ onDecision }) {
       setProcessingId(requestId);
       setError(null);
       if (action === 'approve') {
+        // Check for conflicts first
+        const conflictRes = await api.bookingRequests.checkConflicts(requestId);
+        if (conflictRes.data.hasConflicts) {
+          // Show conflict modal
+          setConflictData(conflictRes.data);
+          setPendingApprovalId(requestId);
+          setConflictModalOpen(true);
+          setProcessingId(null);
+          return;
+        }
+        // No conflicts, proceed with approval
         await api.bookingRequests.approve(requestId);
+        addToast('Request approved successfully!', 'success');
       } else {
         await api.bookingRequests.reject(requestId);
+        addToast('Request rejected.', 'success');
       }
       await loadRequests();
       onDecision && onDecision();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to process booking request.');
+      const errorMsg = err.response?.data?.error || 'Failed to process booking request.';
+      setError(errorMsg);
+      addToast(errorMsg, 'error');
+      setProcessingId(null);
+    }
+  };
+
+  const handleConfirmApprovalWithConflict = async () => {
+    try {
+      setProcessingId(pendingApprovalId);
+      setConflictModalOpen(false);
+      setConflictData(null);
+      await api.bookingRequests.approve(pendingApprovalId);
+      await loadRequests();
+      setPendingApprovalId(null);
+      addToast('Request approved successfully!', 'success');
+      onDecision && onDecision();
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to approve booking request.';
+      setError(errorMsg);
+      addToast(errorMsg, 'error');
     } finally {
       setProcessingId(null);
     }
@@ -298,12 +398,23 @@ export default function AdminRequestPanel({ onDecision }) {
 
   if (loading) return <div>Loading booking requests...</div>;
 
-
   return (
     <div>
-      <h2 className="admin-request-title">Booking Request Panel</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <h2 className="admin-request-title" style={{ margin: 0 }}>Booking Request Panel</h2>
+        <HelpIcon 
+          title="Booking Requests Help"
+          description={HELP_TEXT.requests}
+          steps={[
+            'Review pending booking requests from members',
+            'Check for date/time conflicts with green warning',
+            'Use bulk actions to approve/reject multiple requests',
+            'Edit time or chapel if needed before approval'
+          ]}
+        />
+      </div>
       {error && (
-        <div style={{ marginBottom: 12, color: '#e53e3e' }}>{error}</div>
+        <div style={{ marginBottom: 12, color: '#e53e3e', padding: 12, borderRadius: 8, background: '#fee2e2' }}>{error}</div>
       )}
       {editorOpen && (
         <div
@@ -550,7 +661,6 @@ export default function AdminRequestPanel({ onDecision }) {
                       });
                       setEditorOpen(false);
                       setEditingRequest(null);
-                      setEditorDetailsExtra('');
                       setEditorChapel('');
                       setEditorDetailsFields({});
                       await loadRequests();
@@ -575,10 +685,50 @@ export default function AdminRequestPanel({ onDecision }) {
           </div>
         </div>
       )}
+      
+      {/* Quick Filters */}
+      <QuickFilters 
+        filters={[
+          { label: 'All', value: 'all', active: requestFilters === 'all', onClick: () => setRequestFilters('all') },
+          { label: 'Pending', value: 'pending', active: requestFilters === 'pending', onClick: () => setRequestFilters('pending') },
+        ]}
+      />
+
+      {/* Bulk Actions Toolbar */}
+      {selectedRequestIds.size > 0 && (
+        <BulkActionsToolbar
+          selectedCount={selectedRequestIds.size}
+          onSelectAll={handleSelectAll}
+          allSelected={selectedRequestIds.size === requests.length}
+          onApprove={handleBulkApprove}
+          onReject={handleBulkReject}
+          onClear={() => setSelectedRequestIds(new Set())}
+        />
+      )}
+
+      {/* Confirmation Dialog for Bulk Actions */}
+      {deleteConfirm && (
+        <ConfirmationDialog
+          title={deleteConfirm.action === 'bulk-approve' ? 'Approve Multiple Requests?' : 'Reject Multiple Requests?'}
+          message={`Are you sure you want to ${deleteConfirm.action === 'bulk-approve' ? 'approve' : 'reject'} ${deleteConfirm.count} request(s)?`}
+          isDangerous={deleteConfirm.action === 'bulk-reject'}
+          onConfirm={confirmBulkAction}
+          onCancel={() => setDeleteConfirm(null)}
+          confirmText={deleteConfirm.action === 'bulk-approve' ? 'Approve All' : 'Reject All'}
+          loading={processingId === 'bulk'}
+        />
+      )}
+      
       <div className="admin-request-table-wrap">
         <table className="admin-request-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ background: '#eee' }}>
+            <th style={{ ...th, width: 40, padding: 8, textAlign: 'center' }}>
+              <SelectCheckbox 
+                checked={requests.length > 0 && selectedRequestIds.size === requests.length}
+                onChange={handleSelectAll}
+              />
+            </th>
             <th style={th}>ID</th>
             <th style={th}>Name</th>
             <th style={th}>Email</th>
@@ -586,6 +736,7 @@ export default function AdminRequestPanel({ onDecision }) {
             <th style={th}>Date</th>
             <th style={th}>Slot</th>
             <th style={th}>Place / Chapel</th>
+            <th style={th}>Status</th>
             <th style={th}>Details</th>
             <th style={{ ...th, ...actionsColStyle }}>Actions</th>
           </tr>
@@ -595,7 +746,13 @@ export default function AdminRequestPanel({ onDecision }) {
             (() => {
               const detailEntries = buildDetailEntries(r);
               return (
-            <tr key={r.id}>
+            <tr key={r.id} style={{ background: selectedRequestIds.has(r.id) ? '#f0f4ff' : undefined }}>
+              <td style={{ ...td, textAlign: 'center', width: 40 }}>
+                <SelectCheckbox 
+                  checked={selectedRequestIds.has(r.id)}
+                  onChange={() => handleSelectOne(r.id)}
+                />
+              </td>
               <td style={td}>{r.id}</td>
               <td style={td}>{r.name || '-'}</td>
               <td style={td}>{r.email || '-'}</td>
@@ -603,6 +760,9 @@ export default function AdminRequestPanel({ onDecision }) {
               <td style={td}>{r.date || '-'}</td>
               <td style={td}>{r.slot || '-'}</td>
               <td style={td}>{r.chapel || r.details?.chapel || '-'}</td>
+              <td style={td}>
+                <StatusBadge status="pending" />
+              </td>
               <td style={{ ...td, minWidth: 280 }}>
                 {detailEntries.length ? (
                   <div style={{ display: 'grid', gap: 4, lineHeight: 1.35 }}>
@@ -665,12 +825,178 @@ export default function AdminRequestPanel({ onDecision }) {
           ))}
           {requests.length === 0 && (
             <tr>
-              <td style={td} colSpan={9}>No pending booking requests.</td>
+              <td style={td} colSpan={11}>No pending booking requests.</td>
             </tr>
           )}
         </tbody>
         </table>
       </div>
+
+      {/* Conflict Warning Modal */}
+      {conflictModalOpen && conflictData && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: 8,
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+            maxWidth: 700,
+            maxHeight: '80vh',
+            overflow: 'auto',
+            padding: 30
+          }}>
+            <h2 style={{ color: '#d97706', marginTop: 0, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+              ⚠️ Booking Conflict Warning
+            </h2>
+            
+            <p style={{ color: '#555', marginBottom: 20, lineHeight: 1.6 }}>
+              There's already an accepted booking at the same <strong>date and time</strong>. Please review both bookings before proceeding:
+            </p>
+
+            {/* Booking Request Being Accepted */}
+            <div style={{ 
+              padding: 15, 
+              backgroundColor: '#e0f2fe', 
+              borderLeft: '4px solid #0284c7',
+              borderRadius: 4,
+              marginBottom: 20
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#0c4a6e' }}>📝 Booking Request (Being Accepted)</h4>
+              <table style={{ width: '100%', fontSize: 14, lineHeight: 1.8 }}>
+                <tbody>
+                  <tr>
+                    <td style={{ fontWeight: 600, width: '35%', color: '#333' }}>Service:</td>
+                    <td style={{ color: '#555' }}>{conflictData.requestData.service}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 600, color: '#333' }}>Date:</td>
+                    <td style={{ color: '#555' }}>{conflictData.requestData.date}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 600, color: '#333' }}>Time:</td>
+                    <td style={{ color: '#555' }}>{conflictData.requestData.slot}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 600, color: '#333' }}>Name:</td>
+                    <td style={{ color: '#555' }}>{conflictData.requestData.name}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 600, color: '#333' }}>Chapel:</td>
+                    <td style={{ color: '#555' }}>{conflictData.requestData.details?.chapel || '-'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Existing Bookings */}
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>🔴 Existing Booking(s) - Same Date & Time</h4>
+              {conflictData.conflictingBookings.map((booking, idx) => (
+                <div key={idx} style={{ 
+                  padding: 15, 
+                  backgroundColor: '#fee2e2', 
+                  borderLeft: '4px solid #dc2626',
+                  borderRadius: 4,
+                  marginBottom: 10
+                }}>
+                  <table style={{ width: '100%', fontSize: 14, lineHeight: 1.8 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ fontWeight: 600, width: '35%', color: '#333' }}>Service:</td>
+                        <td style={{ color: '#555' }}>{booking.service}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ fontWeight: 600, color: '#333' }}>Date:</td>
+                        <td style={{ color: '#555' }}>{booking.date}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ fontWeight: 600, color: '#333' }}>Time:</td>
+                        <td style={{ color: '#555' }}>{booking.slot}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ fontWeight: 600, color: '#333' }}>Name:</td>
+                        <td style={{ color: '#555' }}>{booking.name}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ fontWeight: 600, color: '#333' }}>Email:</td>
+                        <td style={{ color: '#555' }}>{booking.email || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ fontWeight: 600, color: '#333' }}>Chapel:</td>
+                        <td style={{ color: '#555' }}>{booking.details?.chapel || '-'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+
+            {/* Warning Message */}
+            <div style={{ 
+              padding: 12, 
+              backgroundColor: '#fef3c7', 
+              borderLeft: '4px solid #f59e0b',
+              borderRadius: 4,
+              marginBottom: 20,
+              color: '#78350f',
+              fontSize: 14
+            }}>
+              <strong>⚡ Action Required:</strong> These bookings have the same date and time. Please verify if this is intentional.
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setConflictModalOpen(false);
+                  setConflictData(null);
+                  setPendingApprovalId(null);
+                  setProcessingId(null);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#e5e7eb',
+                  color: '#333',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: 14
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmApprovalWithConflict}
+                disabled={processingId === pendingApprovalId}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: processingId === pendingApprovalId ? '#9ca3af' : '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: processingId === pendingApprovalId ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                  fontSize: 14
+                }}
+              >
+                {processingId === pendingApprovalId ? 'Approving...' : 'Approve Anyway'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="admin-request-pagination" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
         <button
           onClick={() => setPage(p => Math.max(1, p - 1))}

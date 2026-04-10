@@ -4,8 +4,16 @@ import { useCallback } from 'react';
 import CalendarViewNew from './CalendarViewNew';
 import { SocketContext } from './App';
 import AdminRequestPanel from './AdminRequestPanel';
+import AdminMassServicesPanel from './AdminMassServicesPanel';
 import { loadSidebarContact, saveSidebarContact } from './sidebarContact';
 import { BOOKING_TIME_MAX, BOOKING_TIME_MIN, DATE_FIELD_KEYS, NAME_MAX_LENGTH, getTomorrowIsoDate, isAllowedBookingTime, isFutureIsoDate, isValidNameValue, sanitizeFieldValue, sanitizeNameInput, PHONE_FIELD_KEYS, NAME_FIELD_KEYS } from './inputValidation';
+import { STATUS_COLORS, HELP_TEXT } from './systemConstants';
+import { useToast } from './ToastNotification';
+import { Tooltip, HelpIcon, InfoCard } from './HelpSystem';
+import { TodoSummaryWidget } from './TodoSummaryWidget';
+import { StatusBadge, StatusTimeline, PermissionDisplay, ConfirmationDialog } from './StatusComponents';
+import { QuickFilters, BulkActionsToolbar, LoadingSpinner } from './FormComponents';
+import { ActivityLog, ActivityFilters } from './ActivityLog';
 
 /* ---------- shared styles (parish palette) ---------- */
 const stone = '#f8f4ec';
@@ -59,6 +67,7 @@ const BOOKING_SHARED_DETAIL_KEYS = new Set(['chapel', 'needsChairsTables', 'chai
 
 export default function AdminDashboard({ user, onLogout }) {
   const socket = useContext(SocketContext);
+  const { addToast } = useToast();
 
   const [activeTab, setActiveTab] = useState('calendar');
   const [bookings, setBookings] = useState([]);
@@ -136,6 +145,15 @@ export default function AdminDashboard({ user, onLogout }) {
   const [contactDraft, setContactDraft] = useState(loadSidebarContact());
   const [contactError, setContactError] = useState('');
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [requests, setRequests] = useState([]);
+  const [showCollectiveServiceModal, setShowCollectiveServiceModal] = useState(false);
+  
+  // New feature states
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [activityLog, setActivityLog] = useState([]);
+  const [selectedRequestIds, setSelectedRequestIds] = useState(new Set());
+  const [requestFilters, setRequestFilters] = useState('all');
+  const [showPermissions, setShowPermissions] = useState(false);
 
   // Track window width for responsive grid layout
   useEffect(() => {
@@ -321,14 +339,16 @@ export default function AdminDashboard({ user, onLogout }) {
   /* ---------- load all admin data ---------- */
   const loadData = async () => {
     try {
-      const [c, reqCount, conCount] = await Promise.all([
+      const [c, reqCount, conCount, reqs] = await Promise.all([
         api.calendar.get(),
         api.bookingRequests.count({ status: 'pending' }),
-        api.concerns.count({ status: 'open' })
+        api.concerns.count({ status: 'open' }),
+        api.bookingRequests.list({ limit: 1000 }) // Load all requests for analysis
       ]);
       setCalendarConfig(c.data || {});
       setPendingRequestsCount(reqCount.data?.count || 0);
       setOpenConcernsCount(conCount.data?.count || 0);
+      setRequests(reqs.data || []);
       setRefreshKey(k => k + 1);
     } catch (err) {
       console.error('Admin load failed', err);
@@ -590,6 +610,46 @@ export default function AdminDashboard({ user, onLogout }) {
       ...setupStats
     };
   }, [bookings, records, users, events]);
+
+  // Analyze collective service candidates
+  const collectiveServiceCandidates = useMemo(() => {
+    const candidates = [];
+    const grouped = {};
+
+    // Group requests by date + service
+    requests.forEach(req => {
+      const key = `${req.date}|${req.service}`;
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(req);
+    });
+
+    console.log('📊 Grouping Analysis:', {
+      totalRequests: requests.length,
+      groupedKeys: Object.keys(grouped),
+      allGroups: grouped
+    });
+
+    // Find groups with > 4 requests
+    Object.entries(grouped).forEach(([key, reqs]) => {
+      console.log(`  Group "${key}": ${reqs.length} requests`);
+      if (reqs.length > 4) {
+        const [date, service] = key.split('|');
+        console.log(`  ✅ Collective service candidate found!`);
+        candidates.push({
+          date,
+          service,
+          count: reqs.length,
+          requests: reqs
+        });
+      }
+    });
+
+    console.log('💡 Final candidates:', candidates);
+
+    return candidates;
+  }, [requests]);
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todayEvents = useMemo(
@@ -928,6 +988,27 @@ export default function AdminDashboard({ user, onLogout }) {
             📜 Requests
           </button>
           <button
+            onClick={() => setActiveTab('mass_services')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '8px 12px',
+              borderRadius: 16,
+              background: activeTab === 'mass_services' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
+              color: ink,
+              fontWeight: 800,
+              fontSize: 11,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'mass_services' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'mass_services' ? '0 10px 24px rgba(214,173,96,0.22)' : '0 8px 18px rgba(0,0,0,0.08)',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
+            }}
+          >
+            🎫 Mass Services
+          </button>
+          <button
             onClick={() => setActiveTab('calendar')}
             style={{
               all: 'unset',
@@ -948,6 +1029,57 @@ export default function AdminDashboard({ user, onLogout }) {
           >
             📅 Calendar
           </button>
+          <button
+            onClick={() => setActiveTab('activity')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '7px 10px',
+              borderRadius: 999,
+              background: activeTab === 'activity' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
+              color: ink,
+              fontWeight: 800,
+              fontSize: 11,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'activity' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'activity' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
+            }}
+          >
+            📋 Activity Log
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            style={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: '7px 10px',
+              borderRadius: 999,
+              background: activeTab === 'settings' ? 'linear-gradient(135deg, #f7e8c8, #d6ad60 55%, #b8872c)' : 'transparent',
+              color: ink,
+              fontWeight: 800,
+              fontSize: 11,
+              transition: 'all 0.2s ease',
+              border: `1px solid ${activeTab === 'settings' ? gold : 'rgba(214,173,96,0.45)'}`,
+              boxShadow: activeTab === 'settings' ? '0 10px 24px rgba(214,173,96,0.22)' : 'none',
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              lineHeight: 1
+            }}
+          >
+            ⚙️ Settings
+          </button>
+          <div style={{ 
+            paddingLeft: 12,
+            borderLeft: `2px solid ${mist}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}>
+            <PermissionDisplay role={user?.role || 'member'} />
+          </div>
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setProfileMenuOpen(v => !v)}
@@ -1617,10 +1749,11 @@ export default function AdminDashboard({ user, onLogout }) {
           }}>
             {[
               { key: 'calendar', label: 'Calendar', icon: '📅' },
-              { key: 'analytics', label: 'Analytics', icon: '📊' },
+              { key: 'analytics', label: 'Analytics', icon: '📊', count: collectiveServiceCandidates.length },
               { key: 'requests', label: 'Requests', icon: '📜', count: pendingRequestsCount },
               { key: 'bookings', label: 'Bookings', icon: '✅' },
               { key: 'events', label: 'Events', icon: '🕯' },
+              { key: 'mass_services', label: 'Mass Services', icon: '🎫' },
               { key: 'users', label: 'Parishioners', icon: '👥' },
               { key: 'concerns', label: 'Concerns', icon: '📣', count: openConcernsCount },
               { key: 'records', label: 'Records', icon: '📖' },
@@ -1916,6 +2049,56 @@ export default function AdminDashboard({ user, onLogout }) {
 
       {/* ---------- MAIN CONTENT ---------- */}
       <section className="dashboard-right-column" style={{ background: 'rgba(255,255,255,0.88)', borderRadius: 18, border: `1px solid rgba(214,173,96,0.38)`, boxShadow: '0 16px 32px rgba(0,0,0,0.08)', padding: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        
+        {/* Action Required Summary */}
+        <TodoSummaryWidget
+          pendingRequests={pendingRequestsCount}
+          openConcerns={openConcernsCount}
+          collectiveServices={collectiveServiceCandidates.length}
+          onNavigate={(tab) => setActiveTab(tab)}
+        />
+
+        {/* Collective Services Notification */}
+        {collectiveServiceCandidates.length > 0 && (
+          <div style={{
+            padding: 16,
+            background: 'linear-gradient(135deg, #fef3c7, #fcd34d, #fbbf24)',
+            borderLeft: '4px solid #f59e0b',
+            borderRadius: 12,
+            border: '1px solid #f59e0b',
+            color: '#78350f',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ fontSize: 20 }}>💡</div>
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Collective Service Opportunity</div>
+                <div style={{ fontSize: 13 }}>
+                  {collectiveServiceCandidates.length} group{collectiveServiceCandidates.length > 1 ? 's' : ''} of booking requests can be converted to collective services. View them in the <strong>Analytics</strong> tab.
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              style={{
+                padding: '8px 16px',
+                background: '#f59e0b',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 13,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              View Analytics
+            </button>
+          </div>
+        )}
+
         {!calendarMinimized && activeTab === 'calendar' && (
           <div>
             <div style={{ marginBottom: 10, padding: '12px 14px', background: 'linear-gradient(90deg, rgba(255,255,255,0.96), rgba(248,244,236,0.96))', borderRadius: 16, color: ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', border: `1px solid rgba(214,173,96,0.35)`, boxShadow: '0 8px 18px rgba(0,0,0,0.06)' }}>
@@ -2048,6 +2231,63 @@ export default function AdminDashboard({ user, onLogout }) {
                 </div>
               </div>
             </div>
+
+            {/* Collective Services Analytics */}
+            {collectiveServiceCandidates.length > 0 && (
+              <div style={{
+                padding: '24px',
+                background: 'linear-gradient(135deg, #fef3c7, #fcd34d, #fbbf24)',
+                borderRadius: 12,
+                border: '2px solid #f59e0b',
+                marginTop: 16
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 16, color: '#92400e', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  💡 <span>Collective Service Opportunities</span>
+                </div>
+                <div style={{ marginBottom: 12, color: '#78350f', fontSize: 14 }}>
+                  {collectiveServiceCandidates.length} group(s) of booking requests can be converted to collective services.
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                  {collectiveServiceCandidates.map((candidate, idx) => (
+                    <div key={idx} style={{
+                      background: '#fff',
+                      padding: '16px',
+                      borderRadius: 10,
+                      border: '2px solid #f59e0b',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)'
+                    }}>
+                      <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>
+                        {candidate.service}
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444', marginBottom: 4 }}>
+                        {candidate.count}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>
+                        📅 {candidate.date}
+                      </div>
+                      <button
+                        onClick={() => setShowCollectiveServiceModal(candidate)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: '#f59e0b',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontSize: 12
+                        }}
+                      >
+                        View Requests
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {activeTab === 'calendar' && (
@@ -2916,6 +3156,13 @@ export default function AdminDashboard({ user, onLogout }) {
           </div>
         )}
 
+        {/* MASS SERVICES */}
+        {activeTab === 'mass_services' && (
+          <div>
+            <AdminMassServicesPanel />
+          </div>
+        )}
+
         {activeTab === 'tracking' && (
           <div>
             <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>📊 Admin Action Log</h2>
@@ -3021,7 +3268,385 @@ export default function AdminDashboard({ user, onLogout }) {
             </div>
           </div>
         )}
+
+        {/* ACTIVITY LOG TAB */}
+        {activeTab === 'activity' && (
+          <div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 20
+            }}>
+              <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, margin: 0, fontWeight: 800, fontSize: 22 }}>📋 Activity Log</h2>
+              <HelpIcon 
+                title="Activity Log Help"
+                description="Track all administrative actions in the parish management system"
+                steps={[
+                  'View all actions performed by staff members',
+                  'Filter by action type (approve, reject, create, edit, delete)',
+                  'See timestamps and user details for each action',
+                  'Use for audit trail and accountability'
+                ]}
+              />
+            </div>
+            <div style={{
+              display: 'grid',
+              gap: 16
+            }}>
+              <ActivityFilters />
+              <ActivityLog />
+              <div style={{
+                padding: '16px',
+                background: `linear-gradient(135deg, ${stone}40, ${mist}40)`,
+                borderRadius: 12,
+                border: `2px solid ${gold}`,
+                color: ink,
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: 14, color: '#6b7280' }}>
+                  💡 Activity logs help maintain accountability and provide an audit trail for all system actions.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 20
+            }}>
+              <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, margin: 0, fontWeight: 800, fontSize: 22 }}>⚙️ System Settings</h2>
+              <HelpIcon 
+                title="Settings Help"
+                description="Configure parish management system preferences and defaults"
+                steps={[
+                  'View current system configuration',
+                  'Manage booking constraints',
+                  'Configure staff permissions',
+                  'Set service defaults and templates'
+                ]}
+              />
+            </div>
+            <div style={{
+              display: 'grid',
+              gap: 16
+            }}>
+              <div style={{
+                padding: '16px',
+                background: '#fff',
+                borderRadius: 12,
+                border: `1px solid ${mist}`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 16, color: ink }}>📋 Current System Status</div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                  gap: 12,
+                  marginBottom: 16
+                }}>
+                  <InfoCard 
+                    icon="👥"
+                    title="Staff Members"
+                    description={`${users.length} users registered`}
+                  />
+                  <InfoCard 
+                    icon="📅"
+                    title="Total Bookings"
+                    description={`${bookings.length} bookings scheduled`}
+                  />
+                  <InfoCard 
+                    icon="📢"
+                    title="Open Concerns"
+                    description={`${concerns.filter(c => c.status?.toLowerCase() === 'open').length} issues`}
+                  />
+                  <InfoCard 
+                    icon="🎫"
+                    title="Mass Services"
+                    description="Collective service feature enabled"
+                  />
+                </div>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                background: '#fff',
+                borderRadius: 12,
+                border: `1px solid ${mist}`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: ink }}>🔐 Permissions & Roles</div>
+                <PermissionDisplay role={user?.role || 'member'} />
+                <div style={{
+                  marginTop: 16,
+                  padding: '12px',
+                  background: '#f0fdf4',
+                  borderRadius: 8,
+                  borderLeft: '4px solid #22c55e',
+                  color: '#15803d',
+                  fontSize: 13
+                }}>
+                  <strong>Current Role:</strong> {user?.role?.toUpperCase() || 'MEMBER'}
+                </div>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                background: '#fff',
+                borderRadius: 12,
+                border: `1px solid ${mist}`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: ink }}>📱 Feature Status</div>
+                <div style={{
+                  display: 'grid',
+                  gap: 10
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    background: '#f8fafc',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <span style={{ color: ink }}>Booking Conflict Detection</span>
+                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Enabled</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    background: '#f8fafc',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <span style={{ color: ink }}>Mass Services (Collective)</span>
+                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Enabled</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    background: '#f8fafc',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <span style={{ color: ink }}>Real-time Notifications</span>
+                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Enabled</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    background: '#f8fafc',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <span style={{ color: ink }}>Activity Logging</span>
+                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Enabled</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                background: `linear-gradient(135deg, ${stone}40, ${mist}40)`,
+                borderRadius: 12,
+                border: `2px dashed ${gold}`,
+                color: ink,
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: 14, marginBottom: 8 }}>📝 Session Information</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                  Logged in as: <strong>{user?.email || 'Unknown'}</strong><br />
+                  Role: <strong>{user?.role?.toUpperCase() || 'MEMBER'}</strong><br />
+                  Session: Active
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Collective Service Modal */}
+      {showCollectiveServiceModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 12,
+            padding: 28,
+            maxWidth: 700,
+            width: '90%',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.35)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ margin: 0, color: '#1f2937', fontSize: 20 }}>
+                📋 Collective Service Group
+              </h2>
+              <button
+                onClick={() => setShowCollectiveServiceModal(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 28,
+                  cursor: 'pointer',
+                  color: '#9ca3af'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{
+              padding: 16,
+              background: '#fef3c7',
+              borderLeft: '4px solid #f59e0b',
+              borderRadius: 8,
+              marginBottom: 20,
+              color: '#78350f'
+            }}>
+              <strong>💡 Suggestion:</strong> Convert these {showCollectiveServiceModal.count} requests into a single collective service booking where multiple parishioners register together.
+            </div>
+
+            <div style={{
+              padding: 16,
+              background: '#f0fdf4',
+              borderRadius: 8,
+              marginBottom: 20,
+              border: '1px solid #bbf7d0'
+            }}>
+              <div style={{ marginBottom: 12, fontSize: 14, color: '#15803d' }}>
+                <strong>Service Details:</strong>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Service Type</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>
+                    {showCollectiveServiceModal.service}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Proposed Date</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>
+                    {showCollectiveServiceModal.date}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Total Requests</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#ef4444' }}>
+                    {showCollectiveServiceModal.count}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ color: '#374151', marginBottom: 12, fontSize: 16 }}>📝 Booking Requests</h3>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {showCollectiveServiceModal.requests.map((req, idx) => (
+                  <div key={req.id} style={{
+                    padding: 12,
+                    background: '#f9fafb',
+                    borderRadius: 8,
+                    border: '1px solid #e5e7eb',
+                    borderLeft: '4px solid #3b82f6'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#1f2937' }}>
+                          {idx + 1}. {req.name}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                          ID: {req.id}
+                        </div>
+                      </div>
+                      <div style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '4px 8px',
+                        background: '#dbeafe',
+                        color: '#0284c7',
+                        borderRadius: 4
+                      }}>
+                        {req.slot}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#4b5563' }}>
+                      📧 {req.email}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{
+              borderTop: '1px solid #e5e7eb',
+              paddingTop: 16,
+              display: 'flex',
+              gap: 12,
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => setShowCollectiveServiceModal(null)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#e5e7eb',
+                  color: '#1f2937',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: 14
+                }}
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('mass_services');
+                  setShowCollectiveServiceModal(null);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#f59e0b',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: 14
+                }}
+              >
+                Create Collective Service
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   </div>
 </div>

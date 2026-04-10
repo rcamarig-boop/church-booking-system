@@ -48,6 +48,8 @@ async function initDatabase() {
   await detectUserTableShape();
   await ensureBookingEditProposalsTable();
   await ensureBookingRequestEditProposalsTable();
+  await ensureMassServicesTable();
+  await ensureMassServiceApplicationsTable();
   console.log('Database: Using existing PostgreSQL/Supabase tables');
 }
 
@@ -84,6 +86,34 @@ const normalizeEvent = (e) => ({
   date: e.date,
   time: e.time ?? '',
   description: e.description || ''
+});
+
+const normalizeMassService = (m) => ({
+  id: m.id,
+  service_type: m.service_type,
+  date: m.date,
+  time: m.time,
+  description: m.description || '',
+  chapel: m.chapel,
+  capacity: m.capacity || null,
+  created_by: m.created_by,
+  created_at: m.created_at
+});
+
+const normalizeMassServiceApplication = (a) => ({
+  id: a.id,
+  mass_service_id: a.mass_service_id,
+  user_id: a.user_id,
+  service_type: a.service_type,
+  form_data: safeJsonParse(a.form_data),
+  status: a.status,
+  applied_at: a.applied_at,
+  reviewed_at: a.reviewed_at,
+  reviewed_by: a.reviewed_by,
+  rejection_reason: a.rejection_reason,
+  cancellation_reason: a.cancellation_reason,
+  cancelled_at: a.cancelled_at,
+  cancelled_by: a.cancelled_by
 });
 
 async function ensureAdminUser() {
@@ -337,12 +367,60 @@ async function ensureBookingRequestEditProposalsTable() {
   `);
 }
 
+async function ensureMassServicesTable() {
+  await exec(`
+    CREATE TABLE IF NOT EXISTS mass_services (
+      id SERIAL PRIMARY KEY,
+      service_type TEXT NOT NULL,
+      "date" TEXT NOT NULL,
+      "time" TEXT NOT NULL,
+      description TEXT,
+      chapel TEXT NOT NULL,
+      capacity INTEGER,
+      created_by INTEGER NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS mass_services_date_idx
+    ON mass_services ("date", "time");
+  `);
+}
+
+async function ensureMassServiceApplicationsTable() {
+  await exec(`
+    CREATE TABLE IF NOT EXISTS mass_service_applications (
+      id SERIAL PRIMARY KEY,
+      mass_service_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      service_type TEXT NOT NULL,
+      form_data JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at TIMESTAMP,
+      reviewed_by INTEGER,
+      rejection_reason TEXT,
+      cancellation_reason TEXT,
+      cancelled_at TIMESTAMP,
+      cancelled_by INTEGER
+    );
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS mass_service_applications_mass_service_idx
+    ON mass_service_applications (mass_service_id, status);
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS mass_service_applications_user_idx
+    ON mass_service_applications (user_id, status);
+  `);
+}
+
 const LEGACY_SLOT_OPTIONS = ['AM', 'PM'];
 const CUSTOM_SLOT_PATTERN = /^([01]\d|2[0-3]):(00|30)$/;
 const EXCLUSIVE_SERVICES = new Set(['funeral', 'wedding']);
 const SERVICE_REQUIRED_FIELDS = {
   counseling: ['chapel', 'fullName', 'phone', 'concern'],
-  baptism: ['chapel', 'childName', 'birthDate', 'parentNames'],
+  baptism: ['chapel', 'childName', 'birthDate', 'motherName', 'fatherName'],
   wedding: ['chapel', 'groomName', 'brideName', 'contactNumber'],
   blessing: ['chapel', 'personName', 'blessingType'],
   funeral: ['chapel', 'deceasedName', 'deceasedBirthDate', 'dateOfDeath', 'familyContact'],
@@ -353,7 +431,8 @@ const NAME_INPUT_FIELDS = new Set([
   'name',
   'fullName',
   'childName',
-  'parentNames',
+  'motherName',
+  'fatherName',
   'groomName',
   'brideName',
   'personName',
@@ -931,6 +1010,31 @@ app.put('/api/booking-requests/:id', auth, admin, async (req, res) => {
   }
 
   res.json({ success: true, proposalId: proposalRow.id });
+});
+
+// Check for booking conflicts
+app.get('/api/booking-requests/:id/conflicts', auth, admin, async (req, res) => {
+  const requestId = Number(req.params.id);
+  const row = await dbGet('SELECT * FROM booking_requests WHERE id=?', requestId);
+
+  if (!row) return res.status(404).json({ error: 'Request not found' });
+
+  const request = normalizeBookingRequest(row);
+  
+  // Get all existing bookings with the same date and time slot
+  const conflicts = await dbAll(
+    `SELECT * FROM bookings WHERE date = ? AND slot = ?`,
+    request.date,
+    normalizeSlot(request.slot)
+  );
+
+  const conflictingBookings = conflicts.map(normalizeBooking);
+  
+  res.json({
+    hasConflicts: conflictingBookings.length > 0,
+    requestData: request,
+    conflictingBookings: conflictingBookings
+  });
 });
 
 app.post('/api/booking-requests/:id/approve', auth, admin, async (req, res) => {
@@ -1691,6 +1795,282 @@ app.delete('/api/events/:id', auth, admin, async (req, res) => {
     `Event deleted (#${req.params.id})`
   );
   res.json({ success: true });
+});
+
+/* ===================== MASS SERVICES ===================== */
+app.get('/api/mass-services', auth, async (req, res) => {
+  const { clause, params } = buildSearchClause(req.query.q, ['id', 'service_type', 'date', 'time', 'description', 'chapel']);
+  const filter = String(req.query.filter || '').trim().toLowerCase();
+  
+  let filterClause = '';
+  if (filter === 'upcoming') {
+    filterClause = `"date" >= CAST(now() AS date)`;
+  } else if (filter === 'past') {
+    filterClause = `"date" < CAST(now() AS date)`;
+  }
+
+  const rows = await dbAll(`
+    SELECT * FROM mass_services
+    ${clause || filterClause ? `WHERE ${[clause, filterClause].filter(Boolean).join(' AND ')}` : ''}
+    ORDER BY "date" ASC, "time" ASC
+  `, ...params);
+
+  res.json(rows.map(normalizeMassService));
+});
+
+app.post('/api/mass-services', auth, admin, async (req, res) => {
+  const { service_type, date, time, description, chapel, capacity } = req.body;
+
+  if (!service_type || !date || !time || !chapel) {
+    return res.status(400).json({ error: 'service_type, date, time, and chapel are required' });
+  }
+
+  if (!isBookingDateWithinSixMonths(date)) {
+    return res.status(400).json({ error: 'Date must be between tomorrow and 6 months ahead' });
+  }
+
+  if (!isAllowedBookingTime(time)) {
+    return res.status(400).json({ error: 'Time must be between 8:00 AM and 6:00 PM' });
+  }
+
+  const row = await dbGet(`
+    INSERT INTO mass_services (service_type, "date", "time", description, chapel, capacity, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    RETURNING *
+  `, service_type, date, time, String(description || '').trim() || null, chapel, capacity || null, req.user.id);
+
+  io.emit('mass_service_created', { id: row.id });
+  await createNotification(req.user.id, 'info', `Mass Service created: ${service_type} (${date})`);
+
+  res.json({ success: true, service: normalizeMassService(row) });
+});
+
+app.put('/api/mass-services/:id', auth, admin, async (req, res) => {
+  const serviceId = Number(req.params.id);
+  const { service_type, date, time, description, chapel, capacity } = req.body;
+
+  const existing = await dbGet('SELECT id FROM mass_services WHERE id=?', serviceId);
+  if (!existing) return res.status(404).json({ error: 'Mass service not found' });
+
+  if (!date || !time || !chapel) {
+    return res.status(400).json({ error: 'date, time, and chapel are required' });
+  }
+
+  await dbRun(`
+    UPDATE mass_services
+    SET service_type=?, "date"=?, "time"=?, description=?, chapel=?, capacity=?
+    WHERE id=?
+  `, service_type, date, time, String(description || '').trim() || null, chapel, capacity || null, serviceId);
+
+  io.emit('mass_service_updated', { id: serviceId });
+  await createNotification(req.user.id, 'info', `Mass Service updated: ${service_type}`);
+
+  res.json({ success: true });
+});
+
+app.delete('/api/mass-services/:id', auth, admin, async (req, res) => {
+  const serviceId = Number(req.params.id);
+  
+  const existing = await dbGet('SELECT id FROM mass_services WHERE id=?', serviceId);
+  if (!existing) return res.status(404).json({ error: 'Mass service not found' });
+
+  await dbRun('DELETE FROM mass_services WHERE id=?', serviceId);
+  io.emit('mass_service_deleted', { id: serviceId });
+  await createNotification(req.user.id, 'info', `Mass Service deleted`);
+
+  res.json({ success: true });
+});
+
+// Get applications for a mass service
+app.get('/api/mass-services/:id/applications', auth, admin, async (req, res) => {
+  const serviceId = Number(req.params.id);
+  const status = String(req.query.status || '').trim().toLowerCase();
+
+  const existing = await dbGet('SELECT id FROM mass_services WHERE id=?', serviceId);
+  if (!existing) return res.status(404).json({ error: 'Mass service not found' });
+
+  let query = 'SELECT * FROM mass_service_applications WHERE mass_service_id=?';
+  const params = [serviceId];
+
+  if (status && ['pending', 'approved', 'rejected', 'cancelled'].includes(status)) {
+    query += ' AND status=?';
+    params.push(status);
+  }
+
+  query += ' ORDER BY applied_at DESC';
+
+  const rows = await dbAll(query, ...params);
+  const applications = rows.map(row => ({
+    ...normalizeMassServiceApplication(row),
+    applicant: null  // Will be fetched by frontend if needed
+  }));
+
+  res.json(applications);
+});
+
+// User applies to mass service
+app.post('/api/mass-services/:id/apply', auth, async (req, res) => {
+  const serviceId = Number(req.params.id);
+  const formData = req.body.form_data || {};
+
+  const service = await dbGet('SELECT * FROM mass_services WHERE id=?', serviceId);
+  if (!service) return res.status(404).json({ error: 'Mass service not found' });
+
+  // Check if user already applied
+  const existing = await dbGet(`
+    SELECT id FROM mass_service_applications
+    WHERE mass_service_id=? AND user_id=? AND status NOT IN ('rejected', 'cancelled')
+  `, serviceId, req.user.id);
+
+  if (existing) {
+    return res.status(409).json({ error: 'You have already applied for this service' });
+  }
+
+  // Check capacity if set
+  if (service.capacity) {
+    const approved = await dbGet(`
+      SELECT COUNT(*) as count FROM mass_service_applications
+      WHERE mass_service_id=? AND status='approved'
+    `, serviceId);
+    if (Number(approved?.count || 0) >= service.capacity) {
+      return res.status(409).json({ error: 'This service is at full capacity' });
+    }
+  }
+
+  const row = await dbGet(`
+    INSERT INTO mass_service_applications (mass_service_id, user_id, service_type, form_data, status)
+    VALUES (?, ?, ?, ?, 'pending')
+    RETURNING *
+  `, serviceId, req.user.id, service.service_type, JSON.stringify(formData));
+
+  io.emit('mass_service_application_created', { service_id: serviceId, app_id: row.id });
+  await createNotification(req.user.id, 'request', `Your application for ${service.service_type} is pending admin review`);
+
+  const adminUsers = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  for (const adminUser of adminUsers) {
+    await createNotification(adminUser.id, 'info', `New application for ${service.service_type} (${service.date})`);
+  }
+
+  res.json({ success: true, application: normalizeMassServiceApplication(row) });
+});
+
+// Admin approves application
+app.post('/api/mass-services/applications/:appId/approve', auth, admin, async (req, res) => {
+  const appId = Number(req.params.appId);
+  
+  const app = await dbGet('SELECT * FROM mass_service_applications WHERE id=?', appId);
+  if (!app) return res.status(404).json({ error: 'Application not found' });
+  if (app.status !== 'pending') return res.status(409).json({ error: 'Application is not pending' });
+
+  const service = await dbGet('SELECT * FROM mass_services WHERE id=?', app.mass_service_id);
+  if (!service) return res.status(404).json({ error: 'Service not found' });
+
+  // Check capacity
+  if (service.capacity) {
+    const approved = await dbGet(`
+      SELECT COUNT(*) as count FROM mass_service_applications
+      WHERE mass_service_id=? AND id<>? AND status='approved'
+    `, app.mass_service_id, appId);
+    if (Number(approved?.count || 0) >= service.capacity) {
+      return res.status(409).json({ error: 'This service is at full capacity' });
+    }
+  }
+
+  await dbRun(`
+    UPDATE mass_service_applications
+    SET status='approved', reviewed_at=NOW(), reviewed_by=?
+    WHERE id=?
+  `, req.user.id, appId);
+
+  io.emit('mass_service_application_updated', { app_id: appId, status: 'approved' });
+  await createNotification(app.user_id, 'approved', `Your application for ${service.service_type} (${service.date}) was APPROVED`);
+  await createNotification(req.user.id, 'info', `Application approved for ${service.service_type}`);
+
+  res.json({ success: true });
+});
+
+// Admin rejects application
+app.post('/api/mass-services/applications/:appId/reject', auth, admin, async (req, res) => {
+  const appId = Number(req.params.appId);
+  const reason = String(req.body.reason || '').trim();
+
+  const app = await dbGet('SELECT * FROM mass_service_applications WHERE id=?', appId);
+  if (!app) return res.status(404).json({ error: 'Application not found' });
+  if (app.status !== 'pending') return res.status(409).json({ error: 'Application is not pending' });
+
+  const service = await dbGet('SELECT * FROM mass_services WHERE id=?', app.mass_service_id);
+
+  await dbRun(`
+    UPDATE mass_service_applications
+    SET status='rejected', reviewed_at=NOW(), reviewed_by=?, rejection_reason=?
+    WHERE id=?
+  `, req.user.id, reason || null, appId);
+
+  io.emit('mass_service_application_updated', { app_id: appId, status: 'rejected' });
+  await createNotification(
+    app.user_id,
+    'rejected',
+    `Your application for ${service?.service_type} was REJECTED${reason ? '. Reason: ' + reason : ''}`
+  );
+  await createNotification(req.user.id, 'info', `Application rejected for ${service?.service_type}`);
+
+  res.json({ success: true });
+});
+
+// User cancels application (pending only) or requests cancellation (approved)
+app.post('/api/mass-services/applications/:appId/cancel', auth, async (req, res) => {
+  const appId = Number(req.params.appId);
+  const reason = String(req.body.reason || '').trim();
+
+  const app = await dbGet('SELECT * FROM mass_service_applications WHERE id=? AND user_id=?', appId, req.user.id);
+  if (!app) return res.status(404).json({ error: 'Application not found' });
+
+  if (app.status !== 'pending' && app.status !== 'approved') {
+    return res.status(409).json({ error: 'Cannot cancel this application' });
+  }
+
+  // Pending can be cancelled without reason, approved requires reason
+  if (app.status === 'approved' && !reason) {
+    return res.status(400).json({ error: 'Reason is required to cancel approved application' });
+  }
+
+  await dbRun(`
+    UPDATE mass_service_applications
+    SET status='cancelled', cancellation_reason=?, cancelled_at=NOW(), cancelled_by=?
+    WHERE id=?
+  `, app.status === 'approved' ? reason : null, req.user.id, appId);
+
+  const service = await dbGet('SELECT * FROM mass_services WHERE id=?', app.mass_service_id);
+  io.emit('mass_service_application_updated', { app_id: appId, status: 'cancelled' });
+  
+  await createNotification(req.user.id, 'info', `Your application for ${service?.service_type} has been cancelled`);
+  const adminUsers = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  for (const adminUser of adminUsers) {
+    await createNotification(adminUser.id, 'info', `Application cancelled for ${service?.service_type}`);
+  }
+
+  res.json({ success: true });
+});
+
+// Get user's applications
+app.get('/api/mass-services/my-applications', auth, async (req, res) => {
+  const rows = await dbAll(`
+    SELECT msa.*, ms.service_type, ms."date", ms."time", ms.description, ms.chapel
+    FROM mass_service_applications msa
+    JOIN mass_services ms ON msa.mass_service_id = ms.id
+    WHERE msa.user_id=?
+    ORDER BY msa.applied_at DESC
+  `, req.user.id);
+
+  res.json(rows.map(row => ({
+    ...normalizeMassServiceApplication(row),
+    service: {
+      date: row.date,
+      time: row.time,
+      description: row.description,
+      chapel: row.chapel
+    }
+  })));
 });
 
 /* ===================== CALENDAR ===================== */

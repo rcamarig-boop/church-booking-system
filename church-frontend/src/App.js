@@ -6,6 +6,7 @@ import Register from './Register';
 import Dashboard from './Dashboard';
 import AdminDashboard from './AdminDashboard';
 import NotificationCenter from './NotificationCenter';
+import { ToastProvider } from './ToastNotification';
 import api from './api';
 
 export const SocketContext = createContext();
@@ -295,7 +296,8 @@ export default function App() {
   };
 
   return (
-    <SocketContext.Provider value={socket}>
+    <ToastProvider>
+      <SocketContext.Provider value={socket}>
       {currentPage === 'landing' && (
         <LandingPage
           onChooseLogin={() => setCurrentPage('login')}
@@ -329,6 +331,7 @@ export default function App() {
           />
         </>
       )}
-    </SocketContext.Provider>
+      </SocketContext.Provider>
+    </ToastProvider>
   );
 }

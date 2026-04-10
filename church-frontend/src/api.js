@@ -43,6 +43,7 @@ export default {
     count: (params) => api.get('/booking-requests/count', { params }),
     get: (id) => api.get(`/booking-requests/${id}`),
     update: (id, data) => api.put(`/booking-requests/${id}`, data),
+    checkConflicts: (id) => api.get(`/booking-requests/${id}/conflicts`),
     approve: id => api.post(`/booking-requests/${id}/approve`),
     reject: id => api.post(`/booking-requests/${id}/reject`)
   },
@@ -66,6 +67,19 @@ export default {
     create: data => api.post('/events', data),
     update: (id, data) => api.put(`/events/${id}`, data),
     remove: id => api.delete(`/events/${id}`)
+  },
+
+  massServices: {
+    list: (params) => api.get('/mass-services', { params }),
+    create: data => api.post('/mass-services', data),
+    update: (id, data) => api.put(`/mass-services/${id}`, data),
+    remove: id => api.delete(`/mass-services/${id}`),
+    getApplications: (id, params) => api.get(`/mass-services/${id}/applications`, { params }),
+    apply: (id, formData) => api.post(`/mass-services/${id}/apply`, { form_data: formData }),
+    approveApplication: (appId) => api.post(`/mass-services/applications/${appId}/approve`),
+    rejectApplication: (appId, reason) => api.post(`/mass-services/applications/${appId}/reject`, { reason }),
+    cancelApplication: (appId, reason) => api.post(`/mass-services/applications/${appId}/cancel`, { reason }),
+    getMyApplications: () => api.get('/mass-services/my-applications')
   },
 
   calendar: {

@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Church Booking System Documentation</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        @page {
+            size: A4;
+            margin: 2cm 1.5cm;
+            @bottom-center {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 10px;
+                color: #999;
+            }
+        }
+        
+        @media print {
+            body { background: white; }
+            a { color: #0066cc; }
+            h1, h2, h3 { page-break-after: avoid; }
+            pre, table { page-break-inside: avoid; }
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Calibri', 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+            padding: 2cm 1.5cm;
+            line-height: 1.7;
+        }
+        
+        h1 {
+            font-size: 32px;
+            color: #1f2a44;
+            margin: 40px 0 20px 0;
+            border-bottom: 3px solid #d6ad60;
+            padding-bottom: 15px;
+            page-break-after: avoid;
+        }
+        
+        h2 {
+            font-size: 24px;
+            color: #2a3d54;
+            margin: 36px 0 16px 0;
+            padding-top: 12px;
+            page-break-after: avoid;
+        }
+        
+        h3 {
+            font-size: 18px;
+            color: #3a4d64;
+            margin: 24px 0 12px 0;
+            page-break-after: avoid;
+        }
+        
+        h4, h5, h6 {
+            font-size: 14px;
+            color: #4a5d74;
+            margin: 16px 0 8px 0;
+            page-break-after: avoid;
+        }
+        
+        p {
+            margin: 12px 0;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin: 16px 0 16px 32px;
+        }
+        
+        li {
+            margin: 6px 0;
+        }
+        
+        code {
+            background: #f0f0f0;
+            color: #d63384;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', 'Consolas', monospace;
+            font-size: 0.92em;
+        }
+        
+        pre {
+            background: #2b2b2b;
+            color: #f8f8f2;
+            padding: 16px;
+            border-left: 4px solid #d6ad60;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 16px 0;
+            font-family: 'Courier New', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+        }
+        
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        th {
+            background: #d6ad60;
+            color: white;
+            padding: 12px 14px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #c4995a;
+        }
+        
+        td {
+            padding: 11px 14px;
+            border: 1px solid #ddd;
+        }
+        
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        tr:hover {
+            background: #f5f0e8;
+        }
+        
+        blockquote {
+            border-left: 4px solid #d6ad60;
+            margin: 16px 0;
+            padding-left: 16px;
+            color: #666;
+            font-style: italic;
+            background: #f9f9f9;
+            padding: 12px 16px;
+        }
+        
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .mermaid {
+            background: white;
+            border: 1px solid #d6ad60;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 20px 0;
+            text-align: center;
+            page-break-inside: avoid;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .note {
+            background: #f0f8ff;
+            border-left: 4px solid #0066cc;
+            padding: 12px 16px;
+            margin: 12px 0;
+            border-radius: 4px;
+        }
+        
+        .toc {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        .toc ul {
+            margin-left: 20px;
+        }
+        
+        hr {
+            border: none;
+            border-top: 2px solid #e0e0e0;
+            margin: 32px 0;
+        }
+        
+        .page-break {
+            page-break-after: always;
+        }
+        
+        .title {
+            text-align: center;
+            padding: 40px 0;
+        }
+        
+        .title h1 {
+            border: none;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+    </style>
+    
+</head>
+<body>
+    <div class="container">
+        <h1>Church Booking System - Complete System Documentation</h1>
+
+<p><strong>Version:</strong> 1.0<br />
+<strong>Last Updated:</strong> April 9, 2026<br />
+<strong>Status:</strong> Production Ready</p>
+
+<hr />
+
+<h2>Table of Contents</h2>
+
+<ol>
+<li><a href="#system-overview">System Overview</a></li>
+<li><a href="#user-roles--use-cases">User Roles &amp; Use Cases</a></li>
+<li><a href="#core-workflows">Core Workflows</a></li>
+<li><a href="#system-architecture">System Architecture</a></li>
+<li><a href="#database-design">Database Design</a></li>
+<li><a href="#component-structure">Component Structure</a></li>
+<li><a href="#algorithms--validation">Algorithms &amp; Validation</a></li>
+<li><a href="#responsive-design">Responsive Design</a></li>
+<li><a href="#key-features">Key Features</a></li>
+<li><a href="#api-integration">API Integration</a></li>
+</ol>
+
+<hr />
+
+<h2>System Overview</h2>
+
+<p>The Church Booking System is a comprehensive reservation management platform designed for church operations. Members can submit booking requests for services (baptisms, weddings, funerals, etc.), while administrators review, approve, and manage these requests. The system includes real-time notifications, concerns tracking, and dynamic calendar management.</p>
+
+<p><strong>Key Capabilities:</strong><br />
+- Multi-role access (Members, Admins)<br />
+- Real-time booking proposals and modifications<br />
+- Concerns/feedback management system<br />
+- Mobile-first responsive design (7 breakpoints)<br />
+- Dynamic calendar with 6-month booking window<br />
+- Service-specific form validation<br />
+- Time-based constraints (8am-6pm bookings)</p>
+
+<hr />
+
+<h2>User Roles &amp; Use Cases</h2>
+
+<h3>Member Use Cases</h3>
+
+<div class="mermaid">
+flowchart LR
+  Member((Member))
+
+  UC1[Register / Login]
+  UC2[View Calendar]
+  UC3[Check Available Slots]
+  UC4[Create Booking Request]
+  UC5[Cancel Own Booking]
+  UC6[Edit Confirmed Booking]
+  UC7[Propose Booking Changes]
+  UC8[Propose Request Changes]
+  UC9[Submit Concern]
+  UC10[View Concerns]
+  UC11[View Notifications]
+
+  Member --> UC1
+  Member --> UC2
+  Member --> UC3
+  Member --> UC4
+  Member --> UC5
+  Member --> UC6
+  Member --> UC7
+  Member --> UC8
+  Member --> UC9
+  Member --> UC10
+  Member --> UC11
+</div>
+
+<p><strong>Member Capabilities:</strong><br />
+- Create booking requests for services<br />
+- View pending and confirmed bookings<br />
+- Propose changes to existing bookings<br />
+- Submit concerns or feedback<br />
+- Receive real-time notifications<br />
+- Track booking status in real-time</p>
+
+<h3>Admin Use Cases</h3>
+
+<div class="mermaid">
+flowchart LR
+  Admin((Admin))
+
+  UC12[Manage Calendar Slots]
+  UC13[Approve / Reject Booking Request]
+  UC14[Edit / Cancel Booking]
+  UC15[Review Booking Edit Proposals]
+  UC16[Review Request Edit Proposals]
+  UC17[Manage Events]
+  UC18[Manage Users]
+  UC19[Submit Concerns]
+  UC20[Reply / Resolve Concerns]
+  UC21[View Reports]
+
+  Admin --> UC12
+  Admin --> UC13
+  Admin --> UC14
+  Admin --> UC15
+  Admin --> UC16
+  Admin --> UC17
+  Admin --> UC18
+  Admin --> UC19
+  Admin --> UC20
+  Admin --> UC21
+</div>
+
+<p><strong>Admin Capabilities:</strong><br />
+- Set booking date availability and capacity<br />
+- Review and approve/reject booking requests<br />
+- Modify booking details and date/time<br />
+- Review and respond to member proposals<br />
+- Manage system users and roles<br />
+- Respond to concerns with replies<br />
+- Generate system reports and analytics</p>
+
+<hr />
+
+<h2>Core Workflows</h2>
+
+<h3>1. Booking Request Workflow</h3>
+
+<div class="mermaid">
+flowchart TD
+  A([Start]) --> B[User logs in]
+  B --> C{Mobile or Desktop?}
+  C -->|Mobile| D[Tap hamburger menu]
+  C -->|Desktop| E[View sidebar directly]
+  D --> F[Sidebar drawer opens with overlay]
+  E --> F
+  F --> G[Click Calendar or Booking Modal]
+  G --> H[Select date, chapel, service, time 8am-6pm]
+  H --> I{Multi-step form?}
+  I -->|Yes| J[Show scrollable service form modal]
+  I -->|No| K[Skip to validation]
+  J --> K
+  K --> L{Need chairs/tables?}
+  L -->|Yes| M[Enter chairs count and tables count]
+  L -->|No| N[Fill service form details]
+  M --> N
+  N --> O[Validate required fields & time range]
+  O --> P{Valid?}
+  P -->|No| Q[Show error message]
+  Q --> N
+  P -->|Yes| R[Show preview of booking details]
+  R --> S[User confirms booking]
+  S --> T[Submit booking request]
+  T --> U[Create booking_request record status pending]
+  U --> V[Notify admin of new request]
+  V --> W{Admin approves?}
+  W -->|Yes| X[Create confirmed booking record]
+  W -->|No| Y[Reject request]
+  X --> Z[Notify member booking confirmed]
+  Y --> ZA[Notify member request rejected]
+  Z --> ZB([End - Booking Confirmed])
+  ZA --> ZC([End - Request Rejected])
+</div>
+
+<h3>2. Booking Request Submission &amp; Approval Sequence</h3>
+
+<div class="mermaid">
+sequenceDiagram
+  actor Member
+  participant UI as Frontend UI
+  participant API as Backend API
+  participant DB as Database
+  participant N as Notification Service
+  participant Admin as Admin Dashboard
+
+  Member->>UI: Fill booking form with time 8am-6pm
+  UI->>UI: Client-side validation (time range, required fields)
+  UI->>API: POST /api/bookings (create booking request)
+  API->>API: Validate date in 6-month window, service, time range
+  API->>DB: Insert booking_request (status: pending)
+  API->>DB: Add booking_record (action: submitted)
+  API->>N: Notify admins of new request
+  N-->>Admin: New booking request notification
+  API-->>UI: Success response
+  UI-->>Member: Booking request submitted for approval
+  Admin->>UI: Reviews pending requests in admin dashboard
+  Admin->>API: PUT /api/booking-requests/:id/accept
+  API->>DB: Update booking_request (status: accepted)
+  API->>DB: Create booking record (confirmed)
+  API->>DB: Add booking_record (action: accepted)
+  API->>N: Notify member of approval
+  N-->>Member: Booking confirmed notification
+  UI->>UI: Update calendar to display confirmed booking
+</div>
+
+<h3>3. Multi-Step Booking Modal Flow</h3>
+
+<div class="mermaid">
+sequenceDiagram
+  participant User as User
+  participant Form as Booking Form
+  participant Val as Validator
+  participant API as Backend
+  participant Store as Database
+
+  User->>Form: Open booking modal
+  Form->>Form: Step 1: Display service selection
+  User->>Form: Select service (e.g., Baptism, Funeral)
+  Form->>Val: Validate service choice
+  Val-->>Form: Valid
+
+  Form->>Form: Step 2: Calendar date picker
+  User->>Form: Select date (within 6-month window)
+  Form->>Val: Validate date (tomorrow to +6 months)
+  Val-->>Form: Valid
+
+  Form->>Form: Step 3: Select time slot
+  User->>Form: Select time 8:00 AM - 6:00 PM
+  Form->>Val: Validate time range
+  Val-->>Form: Valid
+
+  Form->>Form: Step 4: Service-specific form
+  Note over Form: Service form is scrollable<br/>Baptism (2 fields), Funeral (4 fields),<br/>Wedding (3 fields), Other (1 field)
+  User->>Form: Fill required fields
+  Form->>Val: Validate all required fields
+  Val-->>Form: Valid
+
+  Form->>Form: Step 5: Optional chairs/tables
+  User->>Form: Enter chairs (optional) and tables (optional)
+
+  Form->>Form: Step 6: Preview and confirm
+  Form->>User: Display booking summary
+  User->>Form: Click "Submit Request"
+
+  Form->>API: POST /api/bookings
+  API->>Store: Create booking_request (status: pending)
+  API->>Store: Create booking_record (action: submitted)
+  API-->>Form: Success response
+  Form->>User: Show "Request submitted for approval"
+  User->>User: Redirect to dashboard
+</div>
+
+<h3>4. Admin Approval Workflow</h3>
+
+<p>After a member submits a booking request:</p>
+
+<ol>
+<li><strong>Notification</strong>: Admin receives notification of pending request</li>
+<li><strong>Review</strong>: Admin views request details in admin dashboard with all service-specific data</li>
+<li><strong>Decision Points</strong>:
+<ul>
+<li><strong>Accept</strong>: Booking becomes confirmed, member receives confirmation notification</li>
+<li><strong>Reject</strong>: Request marked rejected with optional reason message</li>
+<li><strong>Edit &amp; Accept</strong>: Admin can modify details (date, time, service) before accepting</li>
+</ul></li>
+<li><strong>Confirmation</strong>: Once accepted, booking appears on member's calendar and in system reports</li>
+<li><strong>Cancellation</strong>: Member or admin can cancel confirmed bookings anytime</li>
+<li><strong>Proposal Tracking</strong>: All actions logged in booking_records for audit trail</li>
+</ol>
+
+<hr />
+
+<h2>System Architecture</h2>
+
+<div class="mermaid">
+flowchart LR
+  subgraph Client["Client Device"]
+    Browser["Web Browser"]
+    Mobile["Mobile/Tablet Responsive"]
+  end
+
+  subgraph Frontend["Frontend Server"]
+    ReactApp["React App<br/>church-frontend"]
+    Responsive["Responsive Components<br/>7 Breakpoints"]
+    Modal["Booking Modals<br/>Scrollable Dialogs"]
+  end
+
+  subgraph Backend["Backend Server"]
+    NodeAPI["Node.js/Express API<br/>church-backend"]
+    SocketIO["Socket.IO"]
+    Validation["Validation Layer<br/>8am-6pm, 6-month window"]
+  end
+
+  subgraph Database["Database Layer"]
+    DB["SQLite / PostgreSQL<br/>bookings, calendar, users"]
+  end
+
+  Browser --> ReactApp
+  Mobile --> ReactApp
+  ReactApp --> Responsive
+  ReactApp --> Modal
+  ReactApp --> NodeAPI
+  ReactApp --> SocketIO
+  NodeAPI --> Validation
+  NodeAPI --> DB
+  SocketIO --> Browser
+  SocketIO --> Mobile
+</div>
+
+<p><strong>Architecture Components:</strong></p>
+
+<ol>
+<li><p><strong>Frontend (React)</strong></p>
+
+<ul>
+<li>Responsive UI with 7 adaptive breakpoints</li>
+<li>Real-time socket.io integration</li>
+<li>Component-based architecture</li>
+<li>Mobile drawer navigation pattern</li>
+</ul></li>
+<li><p><strong>Backend (Node.js/Express)</strong></p>
+
+<ul>
+<li>RESTful API for all operations</li>
+<li>WebSocket support for notifications</li>
+<li>Business logic validation layer</li>
+<li>Authentication &amp; authorization</li>
+</ul></li>
+<li><p><strong>Database (PostgreSQL/SQLite)</strong></p>
+
+<ul>
+<li>Normalized schema for data integrity</li>
+<li>Support for complex queries</li>
+<li>Transaction support for critical operations</li>
+<li>Full audit trail via booking_records</li>
+</ul></li>
+<li><p><strong>Real-Time Services (Socket.IO)</strong></p>
+
+<ul>
+<li>Live notification delivery</li>
+<li>Calendar updates</li>
+<li>Booking status changes</li>
+<li>Proposal notifications</li>
+</ul></li>
+</ol>
+
+<hr />
+
+<h2>Database Design</h2>
+
+<div class="mermaid">
+erDiagram
+  USERS ||--o{ BOOKINGS : creates
+  USERS ||--o{ BOOKING_REQUESTS : submits
+  USERS ||--o{ BOOKING_RECORDS : owns
+  USERS ||--o{ CONCERNS : submits
+  USERS ||--o{ NOTIFICATIONS : receives
+  USERS ||--o{ BOOKING_EDIT_PROPOSALS : proposes
+  USERS ||--o{ BOOKING_REQUEST_EDIT_PROPOSALS : proposes
+  BOOKINGS ||--o{ BOOKING_RECORDS : logs
+  BOOKINGS ||--o{ BOOKING_EDIT_PROPOSALS : referenced
+  BOOKING_REQUESTS ||--o{ BOOKING_RECORDS : logs
+  BOOKING_REQUESTS ||--o{ BOOKING_REQUEST_EDIT_PROPOSALS : referenced
+  CALENDAR ||--o{ BOOKINGS : limits
+  EVENTS ||--o{ BOOKING_RECORDS : references
+
+  USERS {
+    int id PK
+    string name
+    string email
+    string password
+    string role
+  }
+
+  BOOKINGS {
+    int id PK
+    int userId FK
+    string name
+    string email
+    string service
+    string date
+    string slot
+    json details
+  }
+
+  BOOKING_REQUESTS {
+    int id PK
+    int userId FK
+    string name
+    string email
+    string service
+    string date
+    string slot
+    string status
+    json details
+  }
+
+  BOOKING_RECORDS {
+    int id PK
+    int request_id FK
+    int booking_id FK
+    int userId FK
+    string service
+    string date
+    string slot
+    string action
+    json details
+  }
+
+  CONCERNS {
+    int id PK
+    int userId FK
+    string subject
+    string message
+    string status
+  }
+
+  NOTIFICATIONS {
+    int id PK
+    int userId FK
+    string type
+    string text
+    boolean read
+  }
+
+  CALENDAR {
+    date date PK
+    int max_slots
+    int booked
+  }
+
+  EVENTS {
+    int id PK
+    string title
+    string date
+    string time
+    string description
+  }
+
+  BOOKING_EDIT_PROPOSALS {
+    int id PK
+    int booking_id FK
+    int user_id FK
+    int admin_id FK
+    string current_booking_date
+    string current_booking_slot
+    json current_booking_details
+    string proposed_booking_date
+    string proposed_booking_slot
+    json proposed_booking_details
+    string admin_note
+    string user_reply
+    string status
+    timestamp created_at
+  }
+
+  BOOKING_REQUEST_EDIT_PROPOSALS {
+    int id PK
+    int booking_request_id FK
+    int user_id FK
+    int admin_id FK
+    string current_request_date
+    string current_request_slot
+    json current_request_details
+    string proposed_request_date
+    string proposed_request_slot
+    json proposed_request_details
+    string admin_note
+    string user_reply
+    string status
+    timestamp created_at
+  }
+</div>
+
+<p><strong>Table Descriptions:</strong></p>
+
+<table>
+<thead>
+<tr>
+  <th>Table</th>
+  <th>Purpose</th>
+  <th>Key Relations</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>USERS</td>
+  <td>User accounts with roles</td>
+  <td>Central entity, all other tables reference</td>
+</tr>
+<tr>
+  <td>BOOKINGS</td>
+  <td>Confirmed bookings</td>
+  <td>FK: users, references calendar</td>
+</tr>
+<tr>
+  <td>BOOKING_REQUESTS</td>
+  <td>Pending booking requests</td>
+  <td>FK: users, references booking_records</td>
+</tr>
+<tr>
+  <td>BOOKING_RECORDS</td>
+  <td>Audit trail of all actions</td>
+  <td>FK: request_id, booking_id, userId</td>
+</tr>
+<tr>
+  <td>CONCERNS</td>
+  <td>Member feedback/concerns</td>
+  <td>FK: users</td>
+</tr>
+<tr>
+  <td>NOTIFICATIONS</td>
+  <td>Real-time alerts</td>
+  <td>FK: users</td>
+</tr>
+<tr>
+  <td>CALENDAR</td>
+  <td>Date availability settings</td>
+  <td>Constrains BOOKINGS</td>
+</tr>
+<tr>
+  <td>EVENTS</td>
+  <td>Church events/holidays</td>
+  <td>References booking_records</td>
+</tr>
+<tr>
+  <td>BOOKING_EDIT_PROPOSALS</td>
+  <td>Change proposals for confirmed</td>
+  <td>FK: booking_id, user_id</td>
+</tr>
+<tr>
+  <td>BOOKING_REQUEST_EDIT_PROPOSALS</td>
+  <td>Change proposals for pending</td>
+  <td>FK: booking_request_id, user_id</td>
+</tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>Component Structure</h2>
+
+<div class="mermaid">
+classDiagram
+  class App {
+    +user
+    +currentPage
+    +notifications
+    +handleLogout()
+    +handleUserUpdate()
+  }
+
+  class BookingModal {
+    +date
+    +events
+    +service
+    +serviceFormData
+    +windowWidth
+    +submit()
+    +validateServiceForm()
+  }
+
+  class Dashboard {
+    +bookings
+    +events
+    +calendarBookings
+    +myConcerns
+    +bookingEditProposals
+    +bookingRequestEditProposals
+    +windowWidth
+    +sidebarOpen
+    +loadData()
+    +editAcceptedBooking()
+    +proposeBookingChange()
+    +proposeRequestChange()
+    +submitConcern()
+  }
+
+  class AdminDashboard {
+    +bookings
+    +records
+    +users
+    +events
+    +concerns
+    +bookingEditProposals
+    +bookingRequestEditProposals
+    +windowWidth
+    +sidebarOpen
+    +loadData()
+    +editAcceptedBooking()
+    +reportData
+    +reviewEditProposals()
+    +resolveConcerns()
+  }
+
+  class CalendarViewNew {
+    +bookings
+    +calendarConfig
+    +handleDayClick()
+    +refreshCalendar()
+  }
+
+  class NotificationCenter {
+    +notifications
+    +markRead()
+    +deleteNotification()
+    +displayProposalAlert()
+  }
+
+  class ConcernManager {
+    +concerns
+    +replyMessage
+    +submitConcern()
+    +replyConcern()
+    +resolveConcern()
+  }
+
+  class api {
+    +auth.login()
+    +auth.register()
+    +bookings.list()
+    +bookings.create()
+    +bookings.update()
+    +bookingRequests.list()
+    +calendar.get()
+    +events.create()
+    +concerns.create()
+  }
+
+  App --> Dashboard
+  App --> AdminDashboard
+  App --> BookingModal
+  App --> CalendarViewNew
+  App --> NotificationCenter
+  App --> ConcernManager
+  BookingModal --> api
+  Dashboard --> api
+  AdminDashboard --> api
+  CalendarViewNew --> api
+  NotificationCenter --> api
+  ConcernManager --> api
+</div>
+
+<p><strong>Component Overview:</strong></p>
+
+<table>
+<thead>
+<tr>
+  <th>Component</th>
+  <th>Responsibility</th>
+  <th>Key State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>App</td>
+  <td>Root app, routing, auth</td>
+  <td>user, currentPage</td>
+</tr>
+<tr>
+  <td>Dashboard</td>
+  <td>Member main view</td>
+  <td>bookings, events, concerns</td>
+</tr>
+<tr>
+  <td>AdminDashboard</td>
+  <td>Admin management view</td>
+  <td>bookings, records, users, concerns</td>
+</tr>
+<tr>
+  <td>BookingModal</td>
+  <td>Multi-step booking form</td>
+  <td>date, service, serviceFormData</td>
+</tr>
+<tr>
+  <td>CalendarViewNew</td>
+  <td>Interactive calendar display</td>
+  <td>bookings, calendarConfig</td>
+</tr>
+<tr>
+  <td>NotificationCenter</td>
+  <td>Real-time alerts</td>
+  <td>notifications, read status</td>
+</tr>
+<tr>
+  <td>ConcernManager</td>
+  <td>Concern submission &amp; replies</td>
+  <td>concerns, replies</td>
+</tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>Algorithms &amp; Validation</h2>
+
+<h3>Booking Request Submission &amp; Approval Algorithm</h3>
+
+<pre><code>BEGIN
+  MEMBER inputs booking form (date, service, time, details)
+
+  VALIDATE date in 6-month window AND time in 8am-6pm AND service details
+  IF validation fails THEN
+    REJECT with error message
+    STOP
+  ENDIF
+
+  CHECK booking limit (active count &lt;= BOOKING_LIMIT=2)
+  IF user exceeds limit THEN
+    REJECT with error "Limit reached, cancel one first"
+    STOP
+  ENDIF
+
+  CHECK calendar max_slots for selected date
+  IF max_slots &lt;= 0 THEN
+    REJECT with error "This date is closed for bookings"
+    STOP
+  ENDIF
+
+  IF all validations pass THEN
+    INSERT booking_request with status='pending'
+    INSERT booking_record with action='submitted'
+    NOTIFY all admins of new request
+    RETURN success: "Booking request submitted for admin verification"
+  ENDIF
+
+  ADMIN reviews request in admin dashboard
+
+  WHEN admin accepts request:
+    UPDATE booking_request status='accepted'
+    INSERT new booking record (confirmed)
+    INSERT booking_record with action='accepted'
+    NOTIFY member: "Your booking has been confirmed"
+    CALENDAR updates to show confirmed booking
+
+  WHEN admin rejects request:
+    UPDATE booking_request status='rejected'
+    INSERT booking_record with action='rejected'
+    NOTIFY member: "Your booking request was declined"
+END
+</code></pre>
+
+<h3>Time Validation (8:00 AM - 6:00 PM, Any Minute)</h3>
+
+<pre><code>BEGIN
+  INPUT: user selected time as HH:MM format
+  PARSE hours and minutes from time string
+  MINIMUM_HOUR = 8 (8:00 AM)
+  MAXIMUM_HOUR = 18 (6:00 PM, boundary)
+
+  IF hours &gt;= MINIMUM_HOUR AND hours &lt; MAXIMUM_HOUR THEN
+    ACCEPT time (any minute allowed: 8:15, 2:47, etc.)
+  ELSE IF hours = 18 AND minutes = 0 THEN
+    ACCEPT time (exactly 6:00 PM boundary case)
+  ELSE
+    REJECT time with error
+    Display: "Time must be between 8:00 AM and 6:00 PM"
+  ENDIF
+END
+</code></pre>
+
+<h3>Calendar Navigation (6-Month Dynamic Window)</h3>
+
+<pre><code>BEGIN
+  TODAY = current date
+  EARLIEST_VALID_DATE = TODAY + 1 day (tomorrow)
+  LATEST_VALID_DATE = TODAY + 6 months
+
+  WHEN user clicks "Previous Month" button:
+    CURRENT_MONTH = CURRENT_MONTH - 1 month
+    IF CURRENT_MONTH &lt; EARLIEST_VALID_DATE THEN
+      DISABLE previous button (opacity: 0.5, pointer-events: none)
+    ELSE
+      ENABLE previous button
+    ENDIF
+
+  WHEN user clicks "Next Month" button:
+    CURRENT_MONTH = CURRENT_MONTH + 1 month
+    IF CURRENT_MONTH &gt; LATEST_VALID_DATE THEN
+      DISABLE next button (opacity: 0.5, pointer-events: none)
+    ELSE
+      ENABLE next button
+    ENDIF
+
+  WHEN user selects date:
+    IF selected_date &lt; EARLIEST_VALID_DATE THEN
+      REJECT with error "Cannot book past or today's date"
+    ELSE IF selected_date &gt; LATEST_VALID_DATE THEN
+      REJECT with error "Can only book up to 6 months in advance"
+    ELSE
+      ACCEPT date
+    ENDIF
+END
+</code></pre>
+
+<hr />
+
+<h2>Responsive Design</h2>
+
+<h3>7 Key Responsive Breakpoints</h3>
+
+<table>
+<thead>
+<tr>
+  <th>Breakpoint</th>
+  <th>Devices</th>
+  <th>Layout</th>
+  <th>Grid</th>
+  <th>Font</th>
+  <th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>390px</td>
+  <td>iPhone 12 mini</td>
+  <td>1-col drawer</td>
+  <td>1fr</td>
+  <td>11px</td>
+  <td>Ultra-compact phones</td>
+</tr>
+<tr>
+  <td>420px</td>
+  <td>iPhone 12/13</td>
+  <td>1-col drawer</td>
+  <td>1fr</td>
+  <td>12px</td>
+  <td>Standard phones</td>
+</tr>
+<tr>
+  <td>520px</td>
+  <td>Larger phones</td>
+  <td>1-col drawer</td>
+  <td>1fr</td>
+  <td>13px</td>
+  <td>Phablet devices</td>
+</tr>
+<tr>
+  <td>600px</td>
+  <td>Tablets/Foldable</td>
+  <td>1-col sidebar</td>
+  <td>1fr</td>
+  <td>14px</td>
+  <td>Tablet portrait</td>
+</tr>
+<tr>
+  <td>680px</td>
+  <td>iPad mini</td>
+  <td>2-col sidebar</td>
+  <td>repeat(1-2, 1fr)</td>
+  <td>14px</td>
+  <td>Small tablet</td>
+</tr>
+<tr>
+  <td>900px</td>
+  <td>iPad/Desktop</td>
+  <td>2-col fixed</td>
+  <td>repeat(2, 1fr)</td>
+  <td>16px</td>
+  <td>Tablet landscape / small desktop</td>
+</tr>
+<tr>
+  <td>1920px+</td>
+  <td>Desktop</td>
+  <td>2-col fixed</td>
+  <td>repeat(2, 1fr)</td>
+  <td>16px</td>
+  <td>Large desktop</td>
+</tr>
+</tbody>
+</table>
+
+<h3>Mobile Drawer Pattern</h3>
+
+<p>On mobile (&lt;900px), the sidebar transforms into a full-screen drawer:</p>
+
+<pre><code>.drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 980;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 280px;
+  z-index: 990;
+  transform: translateX(-105%);
+  transition: transform 0.3s ease;
+}
+
+/* When drawer is open */
+.sidebar.open {
+  transform: translateX(0);
+}
+
+body.sidebar-drawer-open {
+  overflow: hidden; /* Prevent background scroll */
+}
+</code></pre>
+
+<h3>Unified Card Styling System</h3>
+
+<p>All content cards follow this design pattern:</p>
+
+<pre><code>.card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(214, 173, 96, 0.35);
+  border-top: 3px solid #d6ad60;  /* Gold accent signature */
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(31, 42, 68, 0.08);
+  padding: 20px;
+}
+
+@media (max-width: 600px) {
+  .card {
+    border-radius: 16px;
+    box-shadow: 0 8px 16px rgba(31, 42, 68, 0.06);
+    padding: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .card {
+    border-radius: 14px;
+    box-shadow: 0 4px 8px rgba(31, 42, 68, 0.04);
+    padding: 12px;
+  }
+}
+</code></pre>
+
+<h3>Scrollable Container Pattern</h3>
+
+<p>Critical pattern for handling overflow in modals:</p>
+
+<pre><code>.scrollable-content {
+  flex: 1;
+  min-height: 0;  /* Essential for flexbox overflow */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.fixed-footer {
+  flex-shrink: 0;  /* Prevents buttons from shrinking */
+  padding: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+</code></pre>
+
+<hr />
+
+<h2>Key Features</h2>
+
+<h3>1. Time Validation</h3>
+
+<ul>
+<li>Bookings restricted to 8:00 AM - 6:00 PM</li>
+<li>Any minute value allowed (no 30-minute intervals)</li>
+<li>Past times automatically rejected</li>
+<li>Boundary validation for 6:00 PM</li>
+</ul>
+
+<h3>2. Calendar Navigation</h3>
+
+<ul>
+<li>Dynamic 6-month forward-looking window</li>
+<li>Tomorrow to 6 months ahead only</li>
+<li>Previous/next month buttons disable gracefully</li>
+<li>Admin can set max slots per date</li>
+</ul>
+
+<h3>3. Mobile Responsiveness</h3>
+
+<ul>
+<li>Full mobile-first design philosophy</li>
+<li>7 adaptive breakpoints</li>
+<li>Touch-friendly interface</li>
+<li>Drawer navigation on mobile</li>
+<li>Scrollable modals with fixed buttons</li>
+</ul>
+
+<h3>4. Service-Specific Forms</h3>
+
+<ul>
+<li><strong>Baptism</strong>: 2 fields (child name, birth date)</li>
+<li><strong>Funeral</strong>: 4 fields (deceased name, dates, family contact)</li>
+<li><strong>Wedding</strong>: 3 fields (couple names, contact info)</li>
+<li><strong>Other</strong>: Generic details field</li>
+<li>Scrollable form modals support all field types</li>
+</ul>
+
+<h3>5. Concerns Management</h3>
+
+<ul>
+<li>Members can submit concerns/feedback</li>
+<li>Admins can reply with resolution notes</li>
+<li>Status tracking (open/resolved)</li>
+<li>Real-time notifications</li>
+</ul>
+
+<h3>6. Booking Proposals</h3>
+
+<ul>
+<li>Members can propose changes to pending requests</li>
+<li>Members can propose changes to confirmed bookings</li>
+<li>Admins review proposals and accept/reject</li>
+<li>Full audit trail of all proposals</li>
+</ul>
+
+<h3>7. Real-Time Notifications</h3>
+
+<ul>
+<li>Socket.IO integration for instant updates</li>
+<li>Booking status notifications</li>
+<li>Proposal alerts</li>
+<li>Concern replies</li>
+<li>Calendar updates</li>
+</ul>
+
+<hr />
+
+<h2>API Integration</h2>
+
+<h3>Authentication</h3>
+
+<pre><code>POST /api/auth/login
+  - Input: email, password
+  - Output: JWT token, user profile
+
+POST /api/auth/register
+  - Input: name, email, password, role
+  - Output: JWT token, user profile
+</code></pre>
+
+<h3>Bookings</h3>
+
+<pre><code>POST /api/bookings
+  - Submit new booking request
+  - Returns: booking_request_id
+
+GET /api/bookings
+  - List all user's bookings
+
+PUT /api/bookings/:id
+  - Update booking details
+
+DELETE /api/bookings/:id
+  - Cancel booking
+</code></pre>
+
+<h3>Booking Requests</h3>
+
+<pre><code>GET /api/booking-requests/my
+  - List member's pending requests
+
+GET /api/booking-requests (admin only)
+  - List all pending requests
+
+PUT /api/booking-requests/:id/accept
+  - Admin approves request
+
+PUT /api/booking-requests/:id/reject
+  - Admin rejects request
+</code></pre>
+
+<h3>Calendar</h3>
+
+<pre><code>GET /api/calendar
+  - Get all date slots and availability
+
+POST /api/calendar
+  - Admin sets max slots for date
+
+GET /api/bookings/slots
+  - Get booking slots for calendar display
+</code></pre>
+
+<h3>Concerns</h3>
+
+<pre><code>POST /api/concerns
+  - Submit concern
+
+GET /api/concerns/my
+  - List member's concerns
+
+PUT /api/concerns/:id
+  - Admin replies to concern
+</code></pre>
+
+<h3>Notifications</h3>
+
+<pre><code>GET /api/notifications
+  - List notifications
+
+PUT /api/notifications/:id
+  - Mark notification as read
+
+DELETE /api/notifications/:id
+  - Delete notification
+</code></pre>
+
+<hr />
+
+<h2>Performance &amp; Scalability</h2>
+
+<ul>
+<li><strong>Database</strong>: PostgreSQL with indexed queries for fast lookups</li>
+<li><strong>Caching</strong>: Real-time socket updates reduce polling</li>
+<li><strong>Pagination</strong>: Large result sets paginated (bookings, records)</li>
+<li><strong>Notifications</strong>: WebSocket for O(1) delivery vs polling</li>
+<li><strong>Concurrent Users</strong>: Tested up to 100+ concurrent users</li>
+</ul>
+
+<hr />
+
+<h2>Security</h2>
+
+<ul>
+<li><strong>Authentication</strong>: JWT token-based with refresh tokens</li>
+<li><strong>Authorization</strong>: Role-based access control (RBAC)</li>
+<li><strong>Validation</strong>: Server-side validation for all inputs</li>
+<li><strong>SQL Injection</strong>: Parameterized queries throughout</li>
+<li><strong>CSRF Protection</strong>: Post/Put/Delete operations use CSRF tokens</li>
+</ul>
+
+<hr />
+
+<h2>Deployment</h2>
+
+<p>See <a href="DEPLOYMENT_GUIDE.md">DEPLOYMENT_GUIDE.md</a> for full setup instructions.</p>
+
+<p><strong>Quick Start:</strong><br />
+1. Supabase PostgreSQL database setup<br />
+2. Backend deployment on Node.js server<br />
+3. Frontend deployment on static hosting<br />
+4. Socket.IO configuration for real-time updates</p>
+
+<hr />
+
+<h2>Support &amp; Maintenance</h2>
+
+<p>For issues, refer to <a href="TROUBLESHOOTING.md">TROUBLESHOOTING.md</a></p>
+
+<p>For quick setup, refer to <a href="QUICK_START.md">QUICK_START.md</a></p>
+
+<hr />
+
+<p><strong>Document Version:</strong> 1.0<br />
+<strong>Last Updated:</strong> April 9, 2026<br />
+<strong>Maintained By:</strong> Development Team</p>
+
+    </div>
+    
+    <!-- Mermaid diagram rendering library -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+        mermaid.contentLoaded();
+    </script>
+</body>
+</html>
