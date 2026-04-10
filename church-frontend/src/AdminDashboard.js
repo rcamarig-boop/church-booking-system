@@ -3285,8 +3285,8 @@ export default function AdminDashboard({ user, onLogout }) {
               display: 'grid',
               gap: 16
             }}>
-              <ActivityFilters />
-              <ActivityLog />
+              <ActivityFilters filters={['info', 'approve', 'reject', 'create', 'edit', 'delete']} selected={null} onSelect={() => {}} />
+              <ActivityLog activities={activityLog} isLoading={false} />
               <div style={{
                 padding: '16px',
                 background: `linear-gradient(135deg, ${stone}40, ${mist}40)`,
