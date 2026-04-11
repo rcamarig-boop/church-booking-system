@@ -12,7 +12,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { SessionSecurityManager, APIErrorLogger } from './FrontendSecurity';
 
 export const SocketContext = createContext();
-const DEFAULT_SOCKET_URL = 'http://localhost:4000';
+const DEFAULT_SOCKET_URL = 'http://localhost:5000';
 const rawApiBase = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL;
 const socketBaseFromApi = rawApiBase
   ? rawApiBase.replace(/\/api\/?$/, '')
