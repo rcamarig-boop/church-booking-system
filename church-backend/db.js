@@ -10,11 +10,15 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false
   },
+  // Always keep at least 2 warm connections so parallel dashboard requests
+  // don't each pay the ~700-900 ms TCP+SSL+Postgres handshake on every page load.
+  min: 2,
   // Keep idle connections alive so Supabase/Render don't silently drop them
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
-  // Release idle clients after 30 s (before Supabase's ~5-min timeout)
-  idleTimeoutMillis: 30000,
+  // Release idle connections after 5 min (Supabase idles out at ~5 min, so
+  // this avoids churn while still cleaning up truly unused connections).
+  idleTimeoutMillis: 300000,
   // Fail fast when a new connection cannot be established
   connectionTimeoutMillis: 5000
 });
@@ -23,6 +27,16 @@ const pool = new Pool({
 pool.on('error', (err) => {
   console.error('Unexpected database pool error:', err.message);
 });
+
+// Heartbeat: run a lightweight query every 4 minutes so neither the pool nor
+// Supabase drops the minimum connections during periods of server inactivity.
+// unref() lets the process exit normally without waiting for this timer.
+const heartbeatInterval = setInterval(() => {
+  pool.query('SELECT 1').catch(err => {
+    console.error('DB heartbeat failed:', err.message);
+  });
+}, 4 * 60 * 1000);
+heartbeatInterval.unref();
 
 // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
 function convertPlaceholders(sql, params) {
