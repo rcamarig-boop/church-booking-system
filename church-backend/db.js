@@ -9,7 +9,19 @@ const pool = new Pool({
   family: 4,
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  // Keep idle connections alive so Supabase/Render don't silently drop them
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+  // Release idle clients after 30 s (before Supabase's ~5-min timeout)
+  idleTimeoutMillis: 30000,
+  // Fail fast when a new connection cannot be established
+  connectionTimeoutMillis: 5000
+});
+
+// Prevent an unexpected pool error from crashing the process
+pool.on('error', (err) => {
+  console.error('Unexpected database pool error:', err.message);
 });
 
 // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
