@@ -20,7 +20,15 @@ const socketBaseFromApi = rawApiBase
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
   socketBaseFromApi ||
   (process.env.NODE_ENV === 'production' ? window.location.origin : DEFAULT_SOCKET_URL);
-const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
+const socket = io(SOCKET_URL, {
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 10000,
+  forceNew: true,
+});
 const MAX_NOTIFICATIONS = 30;
 const NOTIFICATION_PAGE_SIZE = 10;
 const NOTIFICATION_DEDUPE_WINDOW_MS = 15000;
@@ -158,7 +166,44 @@ export default function App() {
     }
 
     socket.on('connect', () => console.log('[Socket] Connected'));
-    socket.on('disconnect', () => console.log('[Socket] Disconnected'));
+    socket.on('disconnect', (reason) => {
+      console.log('[Socket] Disconnected:', reason);
+      if (reason === 'io server disconnect') {
+        // Server forced disconnect – reconnect manually
+        socket.connect();
+      }
+      // Other reasons (transport close, ping timeout) are auto-reconnected by socket.io
+    });
+    socket.on('connect_error', (err) => {
+      console.warn('[Socket] Connection error:', err.message);
+    });
+    // In socket.io v4, reconnect events are on the Manager (socket.io)
+    socket.io.on('reconnect', (attempt) => {
+      console.log('[Socket] Reconnected after', attempt, 'attempt(s)');
+    });
+    socket.io.on('reconnect_error', (err) => {
+      console.warn('[Socket] Reconnect error:', err.message);
+    });
+    socket.io.on('reconnect_failed', () => {
+      console.error('[Socket] Reconnect failed – retrying manually');
+      setTimeout(() => socket.connect(), 3000);
+    });
+
+    // Ensure the socket reconnects when the browser tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !socket.connected) {
+        console.log('[Socket] Tab visible – reconnecting');
+        socket.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanly disconnect the socket before page unload so the server
+    // doesn't hold a stale connection while the new page is loading
+    const handleBeforeUnload = () => {
+      socket.disconnect();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     const onNewBooking = () => refreshNotifications();
     const onBookingRequestCreated = () => refreshNotifications();
@@ -185,9 +230,15 @@ export default function App() {
       socket.off('calendar_config_updated', onCalendarConfigUpdated);
       socket.off('event_created', onEventChanged);
       socket.off('event_updated', onEventChanged);
-    socket.off('event_deleted', onEventChanged);
-    socket.off('concern_created', onConcernCreated);
-    socket.off('concern_updated', onConcernUpdated);
+      socket.off('event_deleted', onEventChanged);
+      socket.off('concern_created', onConcernCreated);
+      socket.off('concern_updated', onConcernUpdated);
+      socket.off('connect_error');
+      socket.io.off('reconnect');
+      socket.io.off('reconnect_error');
+      socket.io.off('reconnect_failed');
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       if (eventRefreshTimerRef.current) {
         clearTimeout(eventRefreshTimerRef.current);
         eventRefreshTimerRef.current = null;
