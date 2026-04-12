@@ -299,9 +299,12 @@ export default function AdminRequestPanel({ onDecision }) {
 
   useEffect(() => {
     if (!socket) return;
+    // Re-sync data from DB whenever socket (re)connects
+    socket.on('connect', loadRequests);
     socket.on('booking_request_created', loadRequests);
     socket.on('booking_request_updated', loadRequests);
     return () => {
+      socket.off('connect', loadRequests);
       socket.off('booking_request_created', loadRequests);
       socket.off('booking_request_updated', loadRequests);
     };

@@ -143,7 +143,11 @@ export default function App() {
       setCurrentPage('dashboard');
     }
 
-    socket.on('connect', () => console.log('[Socket] Connected'));
+    socket.on('connect', () => {
+      console.log('[Socket] Connected');
+      refreshNotifications();
+      scheduleEventRefresh();
+    });
     socket.on('disconnect', () => console.log('[Socket] Disconnected'));
 
     const onNewBooking = () => refreshNotifications();

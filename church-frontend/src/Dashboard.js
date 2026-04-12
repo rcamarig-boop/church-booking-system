@@ -174,6 +174,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     if (!socket) return;
     const refresh = () => loadData();
 
+    // Re-sync data from DB whenever socket (re)connects
+    socket.on('connect', refresh);
     socket.on('new_booking', refresh);
     socket.on('booking_updated', refresh);
     socket.on('booking_deleted', refresh);
@@ -187,6 +189,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     socket.on('calendar_config_updated', refresh);
 
     return () => {
+      socket.off('connect', refresh);
       socket.off('new_booking', refresh);
       socket.off('booking_updated', refresh);
       socket.off('booking_deleted', refresh);

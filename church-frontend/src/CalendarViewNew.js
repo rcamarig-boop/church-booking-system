@@ -77,6 +77,9 @@ export default function CalendarViewNew({
 
   useEffect(() => {
     if (!socket) return;
+    // Re-sync data from DB whenever socket (re)connects
+    const refreshAll = () => { refreshCalendar(); refreshSlots(); };
+    socket.on('connect', refreshAll);
     socket.on('new_booking', refreshCalendar);
     socket.on('booking_updated', refreshCalendar);
     socket.on('booking_deleted', refreshCalendar);
@@ -85,6 +88,7 @@ export default function CalendarViewNew({
     socket.on('booking_updated', refreshSlots);
     socket.on('booking_deleted', refreshSlots);
     return () => {
+      socket.off('connect', refreshAll);
       socket.off('new_booking', refreshCalendar);
       socket.off('booking_updated', refreshCalendar);
       socket.off('booking_deleted', refreshCalendar);
