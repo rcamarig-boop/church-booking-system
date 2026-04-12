@@ -10,6 +10,8 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false
   },
+  // Limit the pool size to avoid overwhelming Supabase
+  max: 5,
   // Always keep at least 2 warm connections so parallel dashboard requests
   // don't each pay the ~700-900 ms TCP+SSL+Postgres handshake on every page load.
   min: 2,
@@ -20,7 +22,7 @@ const pool = new Pool({
   // this avoids churn while still cleaning up truly unused connections).
   idleTimeoutMillis: 300000,
   // Fail fast when a new connection cannot be established
-  connectionTimeoutMillis: 5000
+  connectionTimeoutMillis: 10000
 });
 
 // Prevent an unexpected pool error from crashing the process
@@ -53,49 +55,29 @@ function convertPlaceholders(sql, params) {
 const prepare = (sql) => {
   return {
     get: async (...params) => {
-      const client = await pool.connect();
-      try {
-        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-        const result = await client.query(convertedSql, convertedParams);
-        return result.rows[0] || null;
-      } finally {
-        client.release();
-      }
+      const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+      const result = await pool.query(convertedSql, convertedParams);
+      return result.rows[0] || null;
     },
     all: async (...params) => {
-      const client = await pool.connect();
-      try {
-        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-        const result = await client.query(convertedSql, convertedParams);
-        return result.rows;
-      } finally {
-        client.release();
-      }
+      const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+      const result = await pool.query(convertedSql, convertedParams);
+      return result.rows;
     },
     run: async (...params) => {
-      const client = await pool.connect();
-      try {
-        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-        const result = await client.query(convertedSql, convertedParams);
-        return {
-          row: result.rows[0] || null,
-          lastInsertRowid: result.rows[0]?.id || null,
-          changes: result.rowCount
-        };
-      } finally {
-        client.release();
-      }
+      const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+      const result = await pool.query(convertedSql, convertedParams);
+      return {
+        row: result.rows[0] || null,
+        lastInsertRowid: result.rows[0]?.id || null,
+        changes: result.rowCount
+      };
     }
   };
 };
 
 const exec = async (sql) => {
-  const client = await pool.connect();
-  try {
-    await client.query(sql);
-  } finally {
-    client.release();
-  }
+  await pool.query(sql);
 };
 
 // Async transaction wrapper
@@ -142,41 +124,47 @@ async function transaction(fn) {
 
 // Database query helpers - updated to be async
 const dbGet = async (sql, ...params) => {
-  const client = await pool.connect();
-  try {
-    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-    const result = await client.query(convertedSql, convertedParams);
-    return result.rows[0] || null;
-  } finally {
-    client.release();
-  }
+  const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+  const result = await pool.query(convertedSql, convertedParams);
+  return result.rows[0] || null;
 };
 
 const dbAll = async (sql, ...params) => {
-  const client = await pool.connect();
-  try {
-    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-    const result = await client.query(convertedSql, convertedParams);
-    return result.rows;
-  } finally {
-    client.release();
-  }
+  const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+  const result = await pool.query(convertedSql, convertedParams);
+  return result.rows;
 };
 
 const dbRun = async (sql, ...params) => {
-  const client = await pool.connect();
-  try {
-    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-    const result = await client.query(convertedSql, convertedParams);
-    return {
-      row: result.rows[0] || null,
-      lastInsertRowid: result.rows[0]?.id || null,
-      changes: result.rowCount
-    };
-  } finally {
-    client.release();
-  }
+  const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+  const result = await pool.query(convertedSql, convertedParams);
+  return {
+    row: result.rows[0] || null,
+    lastInsertRowid: result.rows[0]?.id || null,
+    changes: result.rowCount
+  };
 };
+
+/**
+ * Pre-establish pool connections so the first real requests don't pay
+ * the full SSL-handshake cost to Supabase.
+ */
+async function warmPool() {
+  const target = Math.min(pool.options.max || 5, 3);
+  const clients = [];
+  try {
+    for (let i = 0; i < target; i++) {
+      clients.push(await pool.connect());
+    }
+    // Verify the connections work
+    if (clients.length > 0) {
+      await clients[0].query('SELECT 1');
+    }
+    console.log(`Pool warmed: ${clients.length} connection(s) ready`);
+  } finally {
+    for (const c of clients) c.release();
+  }
+}
 
 module.exports = {
   DEFAULT_MAX_SLOTS,
@@ -186,5 +174,6 @@ module.exports = {
   transaction,
   dbGet,
   dbAll,
-  dbRun
+  dbRun,
+  warmPool
 };

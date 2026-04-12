@@ -6,7 +6,7 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const db = require('./db');
-const { DEFAULT_MAX_SLOTS, prepare, exec, transaction } = db;
+const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
 
 /* ========== SECURITY HARDENING - Phase 1 ========== */
 // Rate limiting implementation
@@ -14,16 +14,14 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 
-// Import validation and monitoring
+// Import validation
 const validation = require('./validation');
-const { PerformanceMonitor, performanceMiddleware } = require('./performance');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'] } });
 
-// Initialize performance monitor
-const perfMonitor = new PerformanceMonitor();
+const serverStartTime = Date.now();
 
 /* ========== SECURITY MIDDLEWARE ========== */
 
@@ -94,9 +92,6 @@ app.use('/api/login', authLimiter);
 app.use('/api/register', authLimiter);
 app.use(apiLimiter);
 
-/* ========== PERFORMANCE MONITORING ========== */
-app.use(performanceMiddleware(perfMonitor));
-
 /* ========== SECURITY LOGGING ========== */
 app.use((req, res, next) => {
   const start = Date.now();
@@ -142,6 +137,21 @@ function buildSearchClause(q, fields) {
   };
 }
 
+// Indexes for the four slowest endpoints — safe to re-run (IF NOT EXISTS)
+async function ensurePerformanceIndexes() {
+  try {
+    await Promise.all([
+      exec('CREATE INDEX IF NOT EXISTS bookings_date_idx ON bookings (date)'),
+      exec('CREATE INDEX IF NOT EXISTS bookings_user_idx ON bookings (user_id)'),
+      exec('CREATE INDEX IF NOT EXISTS booking_requests_user_status_idx ON booking_requests (user_id, status)'),
+      exec('CREATE INDEX IF NOT EXISTS events_date_idx ON events (date)'),
+    ]);
+  } catch (err) {
+    // Non-fatal: column names may differ across schemas
+    console.warn('Some performance indexes could not be created:', err.message);
+  }
+}
+
 async function initDatabase() {
   // ✅ Tables already created in Supabase via schema SQL
   // This function is kept for reference but does nothing
@@ -151,6 +161,7 @@ async function initDatabase() {
   await ensureBookingRequestEditProposalsTable();
   await ensureMassServicesTable();
   await ensureMassServiceApplicationsTable();
+  await ensurePerformanceIndexes();
   console.log('Database: Using existing PostgreSQL/Supabase tables');
 }
 
@@ -584,6 +595,24 @@ function isAllowedBookingTime(value) {
 }
 
 async function getUserBookingUsage(userId) {
+  // Single round-trip: fetch both counts in one query
+  if (bookingUserIdCol && requestUserIdCol) {
+    const row = await dbGet(
+      `SELECT
+         (SELECT COUNT(*) FROM bookings WHERE ${bookingUserIdCol}=?) AS booking_count,
+         (SELECT COUNT(*) FROM booking_requests WHERE ${requestUserIdCol}=? AND status='pending') AS pending_count`,
+      userId, userId
+    );
+    const bookingCount = Number(row?.booking_count ?? 0);
+    const pendingRequestCount = Number(row?.pending_count ?? 0);
+    return {
+      limit: BOOKING_LIMIT,
+      bookingCount,
+      pendingRequestCount,
+      activeCount: bookingCount + pendingRequestCount,
+      remaining: Math.max(0, BOOKING_LIMIT - (bookingCount + pendingRequestCount))
+    };
+  }
   const bookingCountRow = bookingUserIdCol
     ? await dbGet(`SELECT COUNT(*) AS count FROM bookings WHERE ${bookingUserIdCol}=?`, userId)
     : { count: 0 };
@@ -881,7 +910,7 @@ app.get('/api/bookings', auth, async (req, res) => {
 app.get('/api/bookings/slots', auth, async (_, res) => {
   if (!bookingSlotCol) return res.json([]);
   const rows = await dbAll(
-    `SELECT date, ${bookingSlotCol} AS slot FROM bookings`
+    `SELECT date, ${bookingSlotCol} AS slot FROM bookings WHERE date >= CURRENT_DATE`
   );
   res.json(rows);
 });
@@ -958,13 +987,13 @@ app.post('/api/bookings', auth, async (req, res) => {
 
   io.emit('booking_request_created', { date, slot, service, userId: req.user.id });
   const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-  for (const adminUser of admins) {
-    await createNotification(
+  await Promise.all(admins.map(adminUser =>
+    createNotification(
       adminUser.id,
       'request',
       `New booking request: ${service} on ${date} (${slot})`
-    );
-  }
+    )
+  ));
   res.json({ success: true, message: 'Booking request submitted for admin verification' });
 });
 
@@ -1157,6 +1186,12 @@ app.post('/api/booking-requests/:id/approve', auth, admin, async (req, res) => {
   }
 
   const approveTxn = await transaction(async (conn) => {
+    // Re-check status inside transaction to prevent race conditions
+    const fresh = await conn.prepare('SELECT status FROM booking_requests WHERE id=?').get(requestId);
+    if (!fresh || (fresh.status || 'pending') !== 'pending') {
+      return { ok: false, reason: 'Request already processed' };
+    }
+
     const cal = await conn.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(request.date);
     const maxSlots = cal?.max_slots ?? DEFAULT_MAX_SLOTS;
     const booked = cal?.booked ?? 0;
@@ -1416,13 +1451,13 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
     }
 
     const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-    for (const adminUser of admins) {
-      await createNotification(
+    await Promise.all(admins.map(adminUser =>
+      createNotification(
         adminUser.id,
         'request',
         `Member accepted booking request change and booking confirmed for ${current.service} on ${proposedDate} (${proposedSlot}).${replyMessage ? ` Reply: ${replyMessage}` : ''}`
-      );
-    }
+      )
+    ));
 
     io.emit('booking_request_updated', { id: proposal.bookingRequestId, status: 'approved' });
     io.emit('booking_request_edit_proposal_updated', { id: proposalId, status: 'accepted' });
@@ -1459,13 +1494,13 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
   }
 
   const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-  for (const adminUser of admins) {
-    await createNotification(
+  await Promise.all(admins.map(adminUser =>
+    createNotification(
       adminUser.id,
       'request',
       `Member rejected the booking request change for ${current.service} on ${currentDate}.${replyMessage ? ` Reply: ${replyMessage}` : ''}`
-    );
-  }
+    )
+  ));
 
   io.emit('booking_request_edit_proposal_updated', { id: proposalId, status: 'rejected' });
   res.json({ success: true, status: 'rejected' });
@@ -1624,13 +1659,13 @@ app.post('/api/booking-edit-proposals/:id/respond', auth, async (req, res) => {
     }
 
     const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-    for (const adminUser of admins) {
-      await createNotification(
+    await Promise.all(admins.map(adminUser =>
+      createNotification(
         adminUser.id,
         'booking_edit',
         `Member accepted the booking change for ${current.service} on ${proposedDate} (${proposedSlot}).${replyMessage ? ` Reply: ${replyMessage}` : ''}`
-      );
-    }
+      )
+    ));
 
     io.emit('booking_updated', { id: booking.id, date: proposedDate, slot: proposedSlot, service: current.service });
     io.emit('booking_edit_proposal_updated', { id: proposalId, status: 'accepted' });
@@ -1666,13 +1701,13 @@ app.post('/api/booking-edit-proposals/:id/respond', auth, async (req, res) => {
   }
 
   const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-  for (const adminUser of admins) {
-    await createNotification(
+  await Promise.all(admins.map(adminUser =>
+    createNotification(
       adminUser.id,
       'booking_edit',
       `Member rejected the booking change for ${current.service} on ${currentDate}.${replyMessage ? ` Reply: ${replyMessage}` : ''}`
-    );
-  }
+    )
+  ));
 
   io.emit('booking_edit_proposal_updated', { id: proposalId, status: 'rejected' });
   res.json({ success: true, status: 'rejected' });
@@ -2520,26 +2555,16 @@ app.delete('/api/notifications', auth, async (req, res) => {
  * Health check endpoint - used by Render/uptime monitoring
  */
 app.get('/health', (req, res) => {
-  const health = perfMonitor.getHealthStatus();
-  const statusCode = health.healthy ? 200 : 503;
-  
-  res.status(statusCode).json({
-    status: health.healthy ? 'healthy' : 'degraded',
+  const mem = process.memoryUsage();
+  res.json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    uptime: Math.round((Date.now() - perfMonitor.startTime) / 1000),
-    diagnostics: health
+    uptime: Math.round((Date.now() - serverStartTime) / 1000),
+    memory: {
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024)
+    }
   });
-});
-
-/**
- * Performance metrics endpoint - visible to admin only
- */
-app.get('/api/metrics', auth, async (req, res) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  res.json(perfMonitor.getReport());
 });
 
 /**
@@ -2550,15 +2575,16 @@ app.get('/api/system-info', auth, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
-  const health = perfMonitor.getHealthStatus();
-  const uptime = Date.now() - perfMonitor.startTime;
-  
+  const mem = process.memoryUsage();
   res.json({
     system: 'Church Booking System',
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'production',
-    uptime: Math.round(uptime / 1000),
-    health: health,
+    uptime: Math.round((Date.now() - serverStartTime) / 1000),
+    memory: {
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024)
+    },
     database: {
       type: 'PostgreSQL (Supabase)',
       status: 'connected'
@@ -2567,7 +2593,7 @@ app.get('/api/system-info', auth, async (req, res) => {
       authentication: 'JWT',
       rateLimiting: 'enabled',
       security: 'hardened',
-      monitoring: 'active'
+      realtime: 'socket.io'
     }
   });
 });
@@ -2581,6 +2607,7 @@ io.on('connection', () => {
 const PORT = Number(process.env.PORT) || 5000;
 
 (async () => {
+  await warmPool();
   await initDatabase();
   await ensureAdminUser();
   server.listen(PORT, () => {
