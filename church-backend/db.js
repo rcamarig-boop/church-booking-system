@@ -10,6 +10,8 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false
   },
+  // Limit the pool size to avoid overwhelming Supabase
+  max: 5,
   // Keep idle connections alive so Supabase/Render don't silently drop them
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
@@ -39,49 +41,29 @@ function convertPlaceholders(sql, params) {
 const prepare = (sql) => {
   return {
     get: async (...params) => {
-      const client = await pool.connect();
-      try {
-        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-        const result = await client.query(convertedSql, convertedParams);
-        return result.rows[0] || null;
-      } finally {
-        client.release();
-      }
+      const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+      const result = await pool.query(convertedSql, convertedParams);
+      return result.rows[0] || null;
     },
     all: async (...params) => {
-      const client = await pool.connect();
-      try {
-        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-        const result = await client.query(convertedSql, convertedParams);
-        return result.rows;
-      } finally {
-        client.release();
-      }
+      const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+      const result = await pool.query(convertedSql, convertedParams);
+      return result.rows;
     },
     run: async (...params) => {
-      const client = await pool.connect();
-      try {
-        const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-        const result = await client.query(convertedSql, convertedParams);
-        return {
-          row: result.rows[0] || null,
-          lastInsertRowid: result.rows[0]?.id || null,
-          changes: result.rowCount
-        };
-      } finally {
-        client.release();
-      }
+      const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+      const result = await pool.query(convertedSql, convertedParams);
+      return {
+        row: result.rows[0] || null,
+        lastInsertRowid: result.rows[0]?.id || null,
+        changes: result.rowCount
+      };
     }
   };
 };
 
 const exec = async (sql) => {
-  const client = await pool.connect();
-  try {
-    await client.query(sql);
-  } finally {
-    client.release();
-  }
+  await pool.query(sql);
 };
 
 // Async transaction wrapper
@@ -128,40 +110,25 @@ async function transaction(fn) {
 
 // Database query helpers - updated to be async
 const dbGet = async (sql, ...params) => {
-  const client = await pool.connect();
-  try {
-    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-    const result = await client.query(convertedSql, convertedParams);
-    return result.rows[0] || null;
-  } finally {
-    client.release();
-  }
+  const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+  const result = await pool.query(convertedSql, convertedParams);
+  return result.rows[0] || null;
 };
 
 const dbAll = async (sql, ...params) => {
-  const client = await pool.connect();
-  try {
-    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-    const result = await client.query(convertedSql, convertedParams);
-    return result.rows;
-  } finally {
-    client.release();
-  }
+  const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+  const result = await pool.query(convertedSql, convertedParams);
+  return result.rows;
 };
 
 const dbRun = async (sql, ...params) => {
-  const client = await pool.connect();
-  try {
-    const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
-    const result = await client.query(convertedSql, convertedParams);
-    return {
-      row: result.rows[0] || null,
-      lastInsertRowid: result.rows[0]?.id || null,
-      changes: result.rowCount
-    };
-  } finally {
-    client.release();
-  }
+  const { sql: convertedSql, params: convertedParams } = convertPlaceholders(sql, params);
+  const result = await pool.query(convertedSql, convertedParams);
+  return {
+    row: result.rows[0] || null,
+    lastInsertRowid: result.rows[0]?.id || null,
+    changes: result.rowCount
+  };
 };
 
 module.exports = {
