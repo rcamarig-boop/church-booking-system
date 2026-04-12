@@ -14,16 +14,14 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 
-// Import validation and monitoring
+// Import validation
 const validation = require('./validation');
-const { PerformanceMonitor, performanceMiddleware } = require('./performance');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'] } });
 
-// Initialize performance monitor
-const perfMonitor = new PerformanceMonitor();
+const serverStartTime = Date.now();
 
 /* ========== SECURITY MIDDLEWARE ========== */
 
@@ -93,9 +91,6 @@ app.use('/api/', globalLimiter);
 app.use('/api/login', authLimiter);
 app.use('/api/register', authLimiter);
 app.use(apiLimiter);
-
-/* ========== PERFORMANCE MONITORING ========== */
-app.use(performanceMiddleware(perfMonitor));
 
 /* ========== SECURITY LOGGING ========== */
 app.use((req, res, next) => {
@@ -2560,26 +2555,16 @@ app.delete('/api/notifications', auth, async (req, res) => {
  * Health check endpoint - used by Render/uptime monitoring
  */
 app.get('/health', (req, res) => {
-  const health = perfMonitor.getHealthStatus();
-  const statusCode = health.healthy ? 200 : 503;
-  
-  res.status(statusCode).json({
-    status: health.healthy ? 'healthy' : 'degraded',
+  const mem = process.memoryUsage();
+  res.json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    uptime: Math.round((Date.now() - perfMonitor.startTime) / 1000),
-    diagnostics: health
+    uptime: Math.round((Date.now() - serverStartTime) / 1000),
+    memory: {
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024)
+    }
   });
-});
-
-/**
- * Performance metrics endpoint - visible to admin only
- */
-app.get('/api/metrics', auth, async (req, res) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  res.json(perfMonitor.getReport());
 });
 
 /**
@@ -2590,15 +2575,16 @@ app.get('/api/system-info', auth, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
-  const health = perfMonitor.getHealthStatus();
-  const uptime = Date.now() - perfMonitor.startTime;
-  
+  const mem = process.memoryUsage();
   res.json({
     system: 'Church Booking System',
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'production',
-    uptime: Math.round(uptime / 1000),
-    health: health,
+    uptime: Math.round((Date.now() - serverStartTime) / 1000),
+    memory: {
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024)
+    },
     database: {
       type: 'PostgreSQL (Supabase)',
       status: 'connected'
@@ -2607,7 +2593,7 @@ app.get('/api/system-info', auth, async (req, res) => {
       authentication: 'JWT',
       rateLimiting: 'enabled',
       security: 'hardened',
-      monitoring: 'active'
+      realtime: 'socket.io'
     }
   });
 });
