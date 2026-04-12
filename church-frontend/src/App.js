@@ -38,6 +38,17 @@ export default function App() {
   const sessionManagerRef = useRef(null);
   const [sessionWarning, setSessionWarning] = useState(null);
 
+  const initSessionManager = useCallback(() => {
+    if (sessionManagerRef.current) sessionManagerRef.current.destroy();
+    const manager = new SessionSecurityManager();
+    manager.onSessionExpired = () => handleLogout();
+    manager.onSessionWarning = (secondsRemaining) => {
+      setSessionWarning(Math.round(secondsRemaining / 60));
+      setTimeout(() => setSessionWarning(null), 5000);
+    };
+    sessionManagerRef.current = manager;
+  }, []);
+
   useEffect(() => {
     userRef.current = user;
   }, [user]);
@@ -141,6 +152,9 @@ export default function App() {
       setUser(u);
       api.setToken(u.token);
       setCurrentPage('dashboard');
+
+      // Restore session security manager on page refresh
+      initSessionManager();
     }
 
     socket.on('connect', () => console.log('[Socket] Connected'));
@@ -281,14 +295,7 @@ export default function App() {
     notifiedEventIdsRef.current = new Set();
     
     // Initialize session security manager
-    if (sessionManagerRef.current) sessionManagerRef.current.destroy();
-    const manager = new SessionSecurityManager();
-    manager.onSessionExpired = () => handleLogout();
-    manager.onSessionWarning = (secondsRemaining) => {
-      setSessionWarning(Math.round(secondsRemaining / 60));
-      setTimeout(() => setSessionWarning(null), 5000);
-    };
-    sessionManagerRef.current = manager;
+    initSessionManager();
     
     setUser(u);
     setCurrentPage('dashboard');

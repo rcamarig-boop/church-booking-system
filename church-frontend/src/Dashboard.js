@@ -134,7 +134,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
   const loadData = useCallback(async () => {
     try {
-      const [b, usage, br, e, c, s, myc, edits, brEdits, concernUsageRes, ms, myApps] = await Promise.all([
+      const results = await Promise.allSettled([
         api.bookings.list(),
         api.bookings.usage(),
         api.bookingRequests.my(),
@@ -149,18 +149,33 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
         api.massServices.getMyApplications()
       ]);
 
-      setBookings(b.data || []);
-      setBookingUsage(usage.data || null);
-      setBookingRequests(br.data || []);
-      setEvents(e.data || []);
-      setCalendarConfig(c.data || {});
-      setCalendarBookings(s.data || []);
-      setMyConcerns(myc.data || []);
-      setBookingEditProposals(edits.data || []);
-      setBookingRequestEditProposals(brEdits.data || []);
-      setConcernUsage(concernUsageRes.data || null);
-      setMassServices(ms.data || []);
-      setMyMassApplications(myApps.data || []);
+      const val = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
+
+      const b = val(0);
+      const usage = val(1);
+      const br = val(2);
+      const e = val(3);
+      const c = val(4);
+      const s = val(5);
+      const myc = val(6);
+      const edits = val(7);
+      const brEdits = val(8);
+      const concernUsageRes = val(9);
+      const ms = val(10);
+      const myApps = val(11);
+
+      if (b) setBookings(b.data || []);
+      if (usage) setBookingUsage(usage.data || null);
+      if (br) setBookingRequests(br.data || []);
+      if (e) setEvents(e.data || []);
+      if (c) setCalendarConfig(c.data || {});
+      if (s) setCalendarBookings(s.data || []);
+      if (myc) setMyConcerns(myc.data || []);
+      if (edits) setBookingEditProposals(edits.data || []);
+      if (brEdits) setBookingRequestEditProposals(brEdits.data || []);
+      if (concernUsageRes) setConcernUsage(concernUsageRes.data || null);
+      if (ms) setMassServices(ms.data || []);
+      if (myApps) setMyMassApplications(myApps.data || []);
     } catch (err) {
       console.error('Dashboard load failed', err);
     } finally {
@@ -213,7 +228,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     if (activeTab !== 'events' && activeTab !== 'bookings' && activeTab !== 'requests' && activeTab !== 'calendar' && activeTab !== 'concerns' && activeTab !== 'tracking') return;
     const intervalId = setInterval(() => {
       loadData();
-    }, 1000);
+    }, 30000);
     return () => clearInterval(intervalId);
   }, [activeTab, loadData]);
 

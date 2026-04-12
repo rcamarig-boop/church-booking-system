@@ -86,14 +86,13 @@ export class SessionSecurityManager {
 
   logout(reason = 'user_logout') {
     clearInterval(this.sessionCheckInterval);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    sessionStorage.clear();
     
     // Log logout event
     this.logEvent('session_ended', { reason });
     
-    window.location.href = '/login';
+    // Note: The actual logout (clearing localStorage and redirecting)
+    // is handled by the onSessionExpired callback in App.js via handleLogout().
+    // We only clear the interval here to stop the session check timer.
   }
 
   logEvent(eventType, data = {}) {
