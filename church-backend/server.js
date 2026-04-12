@@ -910,7 +910,7 @@ app.get('/api/bookings', auth, async (req, res) => {
 app.get('/api/bookings/slots', auth, async (_, res) => {
   if (!bookingSlotCol) return res.json([]);
   const rows = await dbAll(
-    `SELECT date, ${bookingSlotCol} AS slot FROM bookings WHERE date >= CURRENT_DATE`
+    `SELECT date, ${bookingSlotCol} AS slot FROM bookings WHERE date::DATE >= CURRENT_DATE`
   );
   res.json(rows);
 });
