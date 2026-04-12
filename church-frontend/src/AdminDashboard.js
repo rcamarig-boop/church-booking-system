@@ -339,16 +339,24 @@ export default function AdminDashboard({ user, onLogout }) {
   /* ---------- load all admin data ---------- */
   const loadData = async () => {
     try {
-      const [c, reqCount, conCount, reqs] = await Promise.all([
+      const results = await Promise.allSettled([
         api.calendar.get(),
         api.bookingRequests.count({ status: 'pending' }),
         api.concerns.count({ status: 'open' }),
         api.bookingRequests.list({ limit: 1000 }) // Load all requests for analysis
       ]);
-      setCalendarConfig(c.data || {});
-      setPendingRequestsCount(reqCount.data?.count || 0);
-      setOpenConcernsCount(conCount.data?.count || 0);
-      setRequests(reqs.data || []);
+
+      const val = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
+
+      const c = val(0);
+      const reqCount = val(1);
+      const conCount = val(2);
+      const reqs = val(3);
+
+      if (c) setCalendarConfig(c.data || {});
+      if (reqCount) setPendingRequestsCount(reqCount.data?.count || 0);
+      if (conCount) setOpenConcernsCount(conCount.data?.count || 0);
+      if (reqs) setRequests(reqs.data || []);
       setRefreshKey(k => k + 1);
     } catch (err) {
       console.error('Admin load failed', err);
