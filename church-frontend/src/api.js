@@ -13,6 +13,47 @@ const api = axios.create({
   baseURL: API_BASE_URL
 });
 
+// Retry logic for rate-limited (429) responses
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config;
+    if (
+      error.response &&
+      error.response.status === 429 &&
+      config &&
+      !config._retryCount
+    ) {
+      config._retryCount = 0;
+    }
+
+    if (
+      error.response &&
+      error.response.status === 429 &&
+      config &&
+      config._retryCount < 3
+    ) {
+      config._retryCount += 1;
+      // Use Retry-After header if available, otherwise exponential backoff
+      const retryAfter = error.response.headers['retry-after'];
+      const delay = retryAfter
+        ? Number(retryAfter) * 1000
+        : Math.min(1000 * Math.pow(2, config._retryCount - 1), 10000);
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return api(config);
+    }
+
+    // Attach a user-friendly message for rate limit errors
+    if (error.response && error.response.status === 429) {
+      error.userMessage =
+        'You are making too many requests. Please wait a moment and try again.';
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export function setToken(token) {
   if (token)
     api.defaults.headers.common.Authorization = `Bearer ${token}`;

@@ -4,6 +4,7 @@ import React from 'react';
  * Error Boundary Component
  * Catches React component errors and displays user-friendly message
  * Prevents white-screen-of-death
+ * Also listens for unhandled promise rejections (e.g. rate-limit errors)
  */
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,10 +15,44 @@ class ErrorBoundary extends React.Component {
       errorInfo: null,
       errorId: null
     };
+    this._handleUnhandledRejection = this._handleUnhandledRejection.bind(this);
   }
 
   static getDerivedStateFromError(error) {
     return { hasError: true };
+  }
+
+  componentDidMount() {
+    window.addEventListener('unhandledrejection', this._handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this._handleUnhandledRejection);
+  }
+
+  /**
+   * Catch unhandled promise rejections (async errors React can't catch).
+   * Only triggers the error UI for critical failures, not for silently
+   * handled API errors.
+   */
+  _handleUnhandledRejection(event) {
+    const error = event.reason;
+    // Don't show error boundary for rate-limit (429) or network errors that
+    // are normally handled by axios interceptors / catch blocks.
+    if (error && error.response && error.response.status === 429) {
+      // Rate limit errors are handled by the api interceptor; just log.
+      console.warn('[ErrorBoundary] Rate limit error caught globally:', error.userMessage || error.message);
+      event.preventDefault();
+      return;
+    }
+    // For other unhandled rejections, log but don't crash the UI
+    // unless they are truly critical (non-network errors).
+    if (error && error.isAxiosError) {
+      // Network / API errors are expected; don't crash the UI.
+      console.warn('[ErrorBoundary] Unhandled API error:', error.message);
+      event.preventDefault();
+      return;
+    }
   }
 
   componentDidCatch(error, errorInfo) {

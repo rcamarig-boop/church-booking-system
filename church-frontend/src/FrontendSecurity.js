@@ -40,6 +40,7 @@ export class SessionSecurityManager {
     this.warningTime = 5 * 60 * 1000; // Warn 5 minutes before timeout
     this.lastActivityTime = Date.now();
     this.sessionWarningShown = false;
+    this._destroyed = false;
 
     // Bind the handler so we can remove the exact same reference later
     this._boundActivityHandler = () => {
@@ -51,6 +52,9 @@ export class SessionSecurityManager {
   }
 
   setupSessionTracking() {
+    // Guard: don't set up tracking if already destroyed (e.g. React StrictMode double-mount)
+    if (this._destroyed) return;
+
     // Track user activity
     this._activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
 
@@ -58,10 +62,10 @@ export class SessionSecurityManager {
       document.addEventListener(event, this._boundActivityHandler, { passive: true });
     });
 
-    // Check session timeout periodically
+    // Check session timeout every 10 seconds (no need for 1-second precision)
     this.sessionCheckInterval = setInterval(() => {
       this.checkSessionTimeout();
-    }, 1000); // Check every second
+    }, 10000);
   }
 
   checkSessionTimeout() {
@@ -97,6 +101,7 @@ export class SessionSecurityManager {
   }
 
   destroy() {
+    this._destroyed = true;
     clearInterval(this.sessionCheckInterval);
     // Remove the document-level activity listeners to prevent leaks
     if (this._activityEvents && this._boundActivityHandler) {
