@@ -23,7 +23,7 @@ const io = new Server(server, {
   cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'] },
   pingTimeout: 30000,
   pingInterval: 25000,
-  connectTimeout: 10000,
+  connectTimeout: 15000,
 });
 
 const serverStartTime = Date.now();

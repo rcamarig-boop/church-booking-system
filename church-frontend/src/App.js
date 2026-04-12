@@ -27,7 +27,6 @@ const socket = io(SOCKET_URL, {
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   timeout: 10000,
-  forceNew: true,
 });
 const MAX_NOTIFICATIONS = 30;
 const NOTIFICATION_PAGE_SIZE = 10;
@@ -166,28 +165,28 @@ export default function App() {
     }
 
     socket.on('connect', () => console.log('[Socket] Connected'));
-    socket.on('disconnect', (reason) => {
+    const handleDisconnect = (reason) => {
       console.log('[Socket] Disconnected:', reason);
       if (reason === 'io server disconnect') {
         // Server forced disconnect – reconnect manually
         socket.connect();
       }
       // Other reasons (transport close, ping timeout) are auto-reconnected by socket.io
-    });
-    socket.on('connect_error', (err) => {
+    };
+    socket.on('disconnect', handleDisconnect);
+    const handleConnectError = (err) => {
       console.warn('[Socket] Connection error:', err.message);
-    });
+    };
+    socket.on('connect_error', handleConnectError);
     // In socket.io v4, reconnect events are on the Manager (socket.io)
-    socket.io.on('reconnect', (attempt) => {
+    const handleReconnect = (attempt) => {
       console.log('[Socket] Reconnected after', attempt, 'attempt(s)');
-    });
-    socket.io.on('reconnect_error', (err) => {
+    };
+    socket.io.on('reconnect', handleReconnect);
+    const handleReconnectError = (err) => {
       console.warn('[Socket] Reconnect error:', err.message);
-    });
-    socket.io.on('reconnect_failed', () => {
-      console.error('[Socket] Reconnect failed – retrying manually');
-      setTimeout(() => socket.connect(), 3000);
-    });
+    };
+    socket.io.on('reconnect_error', handleReconnectError);
 
     // Ensure the socket reconnects when the browser tab becomes visible again
     const handleVisibilityChange = () => {
@@ -233,10 +232,10 @@ export default function App() {
       socket.off('event_deleted', onEventChanged);
       socket.off('concern_created', onConcernCreated);
       socket.off('concern_updated', onConcernUpdated);
-      socket.off('connect_error');
-      socket.io.off('reconnect');
-      socket.io.off('reconnect_error');
-      socket.io.off('reconnect_failed');
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.io.off('reconnect', handleReconnect);
+      socket.io.off('reconnect_error', handleReconnectError);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       if (eventRefreshTimerRef.current) {
