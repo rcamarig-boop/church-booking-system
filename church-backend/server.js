@@ -139,16 +139,29 @@ function buildSearchClause(q, fields) {
 
 // Indexes for the four slowest endpoints — safe to re-run (IF NOT EXISTS)
 async function ensurePerformanceIndexes() {
-  try {
-    await Promise.all([
-      exec('CREATE INDEX IF NOT EXISTS bookings_date_idx ON bookings (date)'),
-      exec('CREATE INDEX IF NOT EXISTS bookings_user_idx ON bookings (user_id)'),
-      exec('CREATE INDEX IF NOT EXISTS booking_requests_user_status_idx ON booking_requests (user_id, status)'),
-      exec('CREATE INDEX IF NOT EXISTS events_date_idx ON events (date)'),
-    ]);
-  } catch (err) {
-    // Non-fatal: column names may differ across schemas
-    console.warn('Some performance indexes could not be created:', err.message);
+  // Strip surrounding double-quotes so the name is usable in index identifiers
+  const stripQuotes = (col) => col.replace(/^"|"$/g, '');
+
+  const bookingUserCol = stripQuotes(bookingUserIdCol);
+  const requestUserCol = stripQuotes(requestUserIdCol);
+
+  const indexes = [
+    `CREATE INDEX IF NOT EXISTS bookings_date_idx ON bookings (date)`,
+    `CREATE INDEX IF NOT EXISTS bookings_user_idx ON bookings ("${bookingUserCol}")`,
+    `CREATE INDEX IF NOT EXISTS booking_requests_user_status_idx ON booking_requests ("${requestUserCol}", status)`,
+    `CREATE INDEX IF NOT EXISTS events_date_idx ON events (date)`,
+  ];
+
+  const failed = [];
+  for (const sql of indexes) {
+    try {
+      await exec(sql);
+    } catch (err) {
+      failed.push(err.message);
+    }
+  }
+  if (failed.length) {
+    console.warn('Some performance indexes could not be created:', failed.join('; '));
   }
 }
 
