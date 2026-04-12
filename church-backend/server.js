@@ -86,15 +86,10 @@ const createRateLimiter = (windowMs, max, message) =>
 // Global rate limiter: 200 requests per 15 minutes
 const globalLimiter = createRateLimiter(15 * 60 * 1000, 200, 'Too many requests, please try again later');
 
-// Auth rate limiter: 10 requests per 15 minutes per IP (prevent brute force)
-const authLimiter = createRateLimiter(15 * 60 * 1000, 10, 'Too many login attempts, please try again in 15 minutes');
-
 // API rate limiter: 60 requests per minute per user
 const apiLimiter = createRateLimiter(60 * 1000, 60, 'Rate limit exceeded. Please slow down');
 
 app.use('/api/', globalLimiter);
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
 app.use('/api/', apiLimiter);
 
 /* ========== SECURITY LOGGING ========== */
