@@ -11,9 +11,9 @@ const metrics = {
 };
 
 const PERFORMANCE_THRESHOLDS = {
-  apiEndpoint: 500, // 500ms - acceptable response time
-  databaseQuery: 100, // 100ms - database query warning threshold
-  slowQuery: 200, // 200ms - slow query threshold
+  apiEndpoint: 1500, // 1500ms - realistic for Render → Supabase over the internet
+  databaseQuery: 300, // 300ms - includes network round-trip to Supabase
+  slowQuery: 500, // 500ms - slow query threshold
 };
 
 class PerformanceMonitor {

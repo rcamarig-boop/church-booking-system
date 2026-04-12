@@ -15,10 +15,10 @@ const pool = new Pool({
   // Keep idle connections alive so Supabase/Render don't silently drop them
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
-  // Release idle clients after 30 s (before Supabase's ~5-min timeout)
-  idleTimeoutMillis: 30000,
+  // Hold idle clients for 2 min — avoids constant SSL re-handshakes on Render
+  idleTimeoutMillis: 120000,
   // Fail fast when a new connection cannot be established
-  connectionTimeoutMillis: 5000
+  connectionTimeoutMillis: 10000
 });
 
 // Prevent an unexpected pool error from crashing the process
@@ -131,6 +131,27 @@ const dbRun = async (sql, ...params) => {
   };
 };
 
+/**
+ * Pre-establish pool connections so the first real requests don't pay
+ * the full SSL-handshake cost to Supabase.
+ */
+async function warmPool() {
+  const target = Math.min(pool.options.max || 5, 3);
+  const clients = [];
+  try {
+    for (let i = 0; i < target; i++) {
+      clients.push(await pool.connect());
+    }
+    // Verify the connections work
+    if (clients.length > 0) {
+      await clients[0].query('SELECT 1');
+    }
+    console.log(`Pool warmed: ${clients.length} connection(s) ready`);
+  } finally {
+    for (const c of clients) c.release();
+  }
+}
+
 module.exports = {
   DEFAULT_MAX_SLOTS,
   pool,
@@ -139,5 +160,6 @@ module.exports = {
   transaction,
   dbGet,
   dbAll,
-  dbRun
+  dbRun,
+  warmPool
 };

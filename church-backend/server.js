@@ -6,7 +6,7 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const db = require('./db');
-const { DEFAULT_MAX_SLOTS, prepare, exec, transaction } = db;
+const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
 
 /* ========== SECURITY HARDENING - Phase 1 ========== */
 // Rate limiting implementation
@@ -142,6 +142,21 @@ function buildSearchClause(q, fields) {
   };
 }
 
+// Indexes for the four slowest endpoints — safe to re-run (IF NOT EXISTS)
+async function ensurePerformanceIndexes() {
+  try {
+    await Promise.all([
+      exec('CREATE INDEX IF NOT EXISTS bookings_date_idx ON bookings (date)'),
+      exec('CREATE INDEX IF NOT EXISTS bookings_user_idx ON bookings (user_id)'),
+      exec('CREATE INDEX IF NOT EXISTS booking_requests_user_status_idx ON booking_requests (user_id, status)'),
+      exec('CREATE INDEX IF NOT EXISTS events_date_idx ON events (date)'),
+    ]);
+  } catch (err) {
+    // Non-fatal: column names may differ across schemas
+    console.warn('Some performance indexes could not be created:', err.message);
+  }
+}
+
 async function initDatabase() {
   // ✅ Tables already created in Supabase via schema SQL
   // This function is kept for reference but does nothing
@@ -151,6 +166,7 @@ async function initDatabase() {
   await ensureBookingRequestEditProposalsTable();
   await ensureMassServicesTable();
   await ensureMassServiceApplicationsTable();
+  await ensurePerformanceIndexes();
   console.log('Database: Using existing PostgreSQL/Supabase tables');
 }
 
@@ -584,6 +600,24 @@ function isAllowedBookingTime(value) {
 }
 
 async function getUserBookingUsage(userId) {
+  // Single round-trip: fetch both counts in one query
+  if (bookingUserIdCol && requestUserIdCol) {
+    const row = await dbGet(
+      `SELECT
+         (SELECT COUNT(*) FROM bookings WHERE ${bookingUserIdCol}=?) AS booking_count,
+         (SELECT COUNT(*) FROM booking_requests WHERE ${requestUserIdCol}=? AND status='pending') AS pending_count`,
+      userId, userId
+    );
+    const bookingCount = Number(row?.booking_count ?? 0);
+    const pendingRequestCount = Number(row?.pending_count ?? 0);
+    return {
+      limit: BOOKING_LIMIT,
+      bookingCount,
+      pendingRequestCount,
+      activeCount: bookingCount + pendingRequestCount,
+      remaining: Math.max(0, BOOKING_LIMIT - (bookingCount + pendingRequestCount))
+    };
+  }
   const bookingCountRow = bookingUserIdCol
     ? await dbGet(`SELECT COUNT(*) AS count FROM bookings WHERE ${bookingUserIdCol}=?`, userId)
     : { count: 0 };
@@ -2587,6 +2621,7 @@ io.on('connection', () => {
 const PORT = Number(process.env.PORT) || 5000;
 
 (async () => {
+  await warmPool();
   await initDatabase();
   await ensureAdminUser();
   server.listen(PORT, () => {
