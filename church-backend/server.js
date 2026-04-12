@@ -881,7 +881,7 @@ app.get('/api/bookings', auth, async (req, res) => {
 app.get('/api/bookings/slots', auth, async (_, res) => {
   if (!bookingSlotCol) return res.json([]);
   const rows = await dbAll(
-    `SELECT date, ${bookingSlotCol} AS slot FROM bookings`
+    `SELECT date, ${bookingSlotCol} AS slot FROM bookings WHERE date >= CURRENT_DATE`
   );
   res.json(rows);
 });
@@ -958,13 +958,13 @@ app.post('/api/bookings', auth, async (req, res) => {
 
   io.emit('booking_request_created', { date, slot, service, userId: req.user.id });
   const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-  for (const adminUser of admins) {
-    await createNotification(
+  await Promise.all(admins.map(adminUser =>
+    createNotification(
       adminUser.id,
       'request',
       `New booking request: ${service} on ${date} (${slot})`
-    );
-  }
+    )
+  ));
   res.json({ success: true, message: 'Booking request submitted for admin verification' });
 });
 
@@ -1157,6 +1157,12 @@ app.post('/api/booking-requests/:id/approve', auth, admin, async (req, res) => {
   }
 
   const approveTxn = await transaction(async (conn) => {
+    // Re-check status inside transaction to prevent race conditions
+    const fresh = await conn.prepare('SELECT status FROM booking_requests WHERE id=?').get(requestId);
+    if (!fresh || (fresh.status || 'pending') !== 'pending') {
+      return { ok: false, reason: 'Request already processed' };
+    }
+
     const cal = await conn.prepare('SELECT max_slots, booked FROM calendar WHERE date=?').get(request.date);
     const maxSlots = cal?.max_slots ?? DEFAULT_MAX_SLOTS;
     const booked = cal?.booked ?? 0;
@@ -1416,13 +1422,13 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
     }
 
     const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-    for (const adminUser of admins) {
-      await createNotification(
+    await Promise.all(admins.map(adminUser =>
+      createNotification(
         adminUser.id,
         'request',
         `Member accepted booking request change and booking confirmed for ${current.service} on ${proposedDate} (${proposedSlot}).${replyMessage ? ` Reply: ${replyMessage}` : ''}`
-      );
-    }
+      )
+    ));
 
     io.emit('booking_request_updated', { id: proposal.bookingRequestId, status: 'approved' });
     io.emit('booking_request_edit_proposal_updated', { id: proposalId, status: 'accepted' });
@@ -1459,13 +1465,13 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
   }
 
   const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-  for (const adminUser of admins) {
-    await createNotification(
+  await Promise.all(admins.map(adminUser =>
+    createNotification(
       adminUser.id,
       'request',
       `Member rejected the booking request change for ${current.service} on ${currentDate}.${replyMessage ? ` Reply: ${replyMessage}` : ''}`
-    );
-  }
+    )
+  ));
 
   io.emit('booking_request_edit_proposal_updated', { id: proposalId, status: 'rejected' });
   res.json({ success: true, status: 'rejected' });
@@ -1624,13 +1630,13 @@ app.post('/api/booking-edit-proposals/:id/respond', auth, async (req, res) => {
     }
 
     const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-    for (const adminUser of admins) {
-      await createNotification(
+    await Promise.all(admins.map(adminUser =>
+      createNotification(
         adminUser.id,
         'booking_edit',
         `Member accepted the booking change for ${current.service} on ${proposedDate} (${proposedSlot}).${replyMessage ? ` Reply: ${replyMessage}` : ''}`
-      );
-    }
+      )
+    ));
 
     io.emit('booking_updated', { id: booking.id, date: proposedDate, slot: proposedSlot, service: current.service });
     io.emit('booking_edit_proposal_updated', { id: proposalId, status: 'accepted' });
@@ -1666,13 +1672,13 @@ app.post('/api/booking-edit-proposals/:id/respond', auth, async (req, res) => {
   }
 
   const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
-  for (const adminUser of admins) {
-    await createNotification(
+  await Promise.all(admins.map(adminUser =>
+    createNotification(
       adminUser.id,
       'booking_edit',
       `Member rejected the booking change for ${current.service} on ${currentDate}.${replyMessage ? ` Reply: ${replyMessage}` : ''}`
-    );
-  }
+    )
+  ));
 
   io.emit('booking_edit_proposal_updated', { id: proposalId, status: 'rejected' });
   res.json({ success: true, status: 'rejected' });
