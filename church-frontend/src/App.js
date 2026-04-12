@@ -9,7 +9,7 @@ import NotificationCenter from './NotificationCenter';
 import { ToastProvider } from './ToastNotification';
 import api from './api';
 import ErrorBoundary from './ErrorBoundary';
-import { SessionSecurityManager, APIErrorLogger } from './FrontendSecurity';
+import { SessionSecurityManager } from './FrontendSecurity';
 
 export const SocketContext = createContext();
 const DEFAULT_SOCKET_URL = 'http://localhost:5000';
@@ -20,7 +20,14 @@ const socketBaseFromApi = rawApiBase
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
   socketBaseFromApi ||
   (process.env.NODE_ENV === 'production' ? window.location.origin : DEFAULT_SOCKET_URL);
-const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
+const socket = io(SOCKET_URL, {
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 10000,
+});
 const MAX_NOTIFICATIONS = 30;
 const NOTIFICATION_PAGE_SIZE = 10;
 const NOTIFICATION_DEDUPE_WINDOW_MS = 15000;
@@ -158,7 +165,44 @@ export default function App() {
     }
 
     socket.on('connect', () => console.log('[Socket] Connected'));
-    socket.on('disconnect', () => console.log('[Socket] Disconnected'));
+    const handleDisconnect = (reason) => {
+      console.log('[Socket] Disconnected:', reason);
+      if (reason === 'io server disconnect') {
+        // Server forced disconnect – reconnect manually
+        socket.connect();
+      }
+      // Other reasons (transport close, ping timeout) are auto-reconnected by socket.io
+    };
+    socket.on('disconnect', handleDisconnect);
+    const handleConnectError = (err) => {
+      console.warn('[Socket] Connection error:', err.message);
+    };
+    socket.on('connect_error', handleConnectError);
+    // In socket.io v4, reconnect events are on the Manager (socket.io)
+    const handleReconnect = (attempt) => {
+      console.log('[Socket] Reconnected after', attempt, 'attempt(s)');
+    };
+    socket.io.on('reconnect', handleReconnect);
+    const handleReconnectError = (err) => {
+      console.warn('[Socket] Reconnect error:', err.message);
+    };
+    socket.io.on('reconnect_error', handleReconnectError);
+
+    // Ensure the socket reconnects when the browser tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !socket.connected) {
+        console.log('[Socket] Tab visible – reconnecting');
+        socket.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanly disconnect the socket before page unload so the server
+    // doesn't hold a stale connection while the new page is loading
+    const handleBeforeUnload = () => {
+      socket.disconnect();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     const onNewBooking = () => refreshNotifications();
     const onBookingRequestCreated = () => refreshNotifications();
@@ -185,9 +229,15 @@ export default function App() {
       socket.off('calendar_config_updated', onCalendarConfigUpdated);
       socket.off('event_created', onEventChanged);
       socket.off('event_updated', onEventChanged);
-    socket.off('event_deleted', onEventChanged);
-    socket.off('concern_created', onConcernCreated);
-    socket.off('concern_updated', onConcernUpdated);
+      socket.off('event_deleted', onEventChanged);
+      socket.off('concern_created', onConcernCreated);
+      socket.off('concern_updated', onConcernUpdated);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.io.off('reconnect', handleReconnect);
+      socket.io.off('reconnect_error', handleReconnectError);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       if (eventRefreshTimerRef.current) {
         clearTimeout(eventRefreshTimerRef.current);
         eventRefreshTimerRef.current = null;
@@ -333,21 +383,8 @@ export default function App() {
     }
   }, [sessionWarning, user, addNotification]);
 
-  // Reset session activity on any interaction
-  useEffect(() => {
-    if (!user || !sessionManagerRef.current) return;
-    
-    const handleActivity = () => {
-      sessionManagerRef.current.resetSession();
-    };
-    
-    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-    events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
-    
-    return () => {
-      events.forEach(e => window.removeEventListener(e, handleActivity));
-    };
-  }, [user]);
+  // Session manager handles activity tracking internally via document-level listeners.
+  // No additional window-level listeners needed here.
 
   // Cleanup on unmount
   useEffect(() => {

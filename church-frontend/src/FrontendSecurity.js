@@ -40,18 +40,22 @@ export class SessionSecurityManager {
     this.warningTime = 5 * 60 * 1000; // Warn 5 minutes before timeout
     this.lastActivityTime = Date.now();
     this.sessionWarningShown = false;
+
+    // Bind the handler so we can remove the exact same reference later
+    this._boundActivityHandler = () => {
+      this.lastActivityTime = Date.now();
+      this.sessionWarningShown = false;
+    };
+
     this.setupSessionTracking();
   }
 
   setupSessionTracking() {
     // Track user activity
-    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-    
-    activityEvents.forEach(event => {
-      document.addEventListener(event, () => {
-        this.lastActivityTime = Date.now();
-        this.sessionWarningShown = false;
-      }, { passive: true });
+    this._activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+
+    this._activityEvents.forEach(event => {
+      document.addEventListener(event, this._boundActivityHandler, { passive: true });
     });
 
     // Check session timeout periodically
@@ -87,38 +91,19 @@ export class SessionSecurityManager {
   logout(reason = 'user_logout') {
     clearInterval(this.sessionCheckInterval);
     
-    // Log logout event
-    this.logEvent('session_ended', { reason });
-    
     // Note: The actual logout (clearing localStorage and redirecting)
     // is handled by the onSessionExpired callback in App.js via handleLogout().
     // We only clear the interval here to stop the session check timer.
   }
 
-  logEvent(eventType, data = {}) {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      fetch('/api/log-event', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          eventType,
-          ...data,
-          timestamp: new Date().toISOString()
-        })
-      }).catch(err => console.error('Failed to log event:', err));
-    } catch (err) {
-      console.error('Error logging event:', err);
-    }
-  }
-
   destroy() {
     clearInterval(this.sessionCheckInterval);
+    // Remove the document-level activity listeners to prevent leaks
+    if (this._activityEvents && this._boundActivityHandler) {
+      this._activityEvents.forEach(event => {
+        document.removeEventListener(event, this._boundActivityHandler);
+      });
+    }
   }
 }
 
@@ -347,61 +332,25 @@ export const XSSPrevention = {
 
 /**
  * API Error Logging & Tracking
+ * Logs errors and slow API calls to the console.
+ * Backend logging endpoints are not available, so we avoid network calls
+ * that would 404 and potentially cascade into more errors.
  */
 export class APIErrorLogger {
-  static async logError(error, context = {}) {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const errorData = {
-        message: error.message || String(error),
-        stack: error.stack || '',
-        context,
-        timestamp: new Date().toISOString(),
-        userAgent: navigator.userAgent,
-        url: window.location.href,
-        severity: context.severity || 'error'
-      };
-
-      await fetch('/api/log-error', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(errorData)
-      });
-    } catch (err) {
-      console.error('Failed to log API error:', err);
-    }
+  static logError(error, context = {}) {
+    console.error('[APIErrorLogger]', error.message || String(error), context);
   }
 
-  static async logAPICall(method, endpoint, statusCode, duration, userId) {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      // Only log errors and slow requests
-      if (statusCode >= 400 || duration > 1000) {
-        await fetch('/api/log-event', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            eventType: 'api_call',
-            method,
-            endpoint,
-            statusCode,
-            duration,
-            timestamp: new Date().toISOString()
-          })
-        });
-      }
-    } catch (err) {
-      console.error('Failed to log API call:', err);
+  static logAPICall(method, endpoint, statusCode, duration, userId) {
+    // Only log errors and slow requests
+    if (statusCode >= 400 || duration > 1000) {
+      console.warn('[APIErrorLogger] Slow/failed API call:', {
+        method,
+        endpoint,
+        statusCode,
+        duration,
+        timestamp: new Date().toISOString()
+      });
     }
   }
 }

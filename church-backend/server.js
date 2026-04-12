@@ -19,7 +19,12 @@ const validation = require('./validation');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'] } });
+const io = new Server(server, {
+  cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'] },
+  pingTimeout: 30000,
+  pingInterval: 25000,
+  connectTimeout: 15000,
+});
 
 const serverStartTime = Date.now();
 
@@ -2612,8 +2617,11 @@ app.get('/api/system-info', auth, async (req, res) => {
 });
 
 /* ===================== SOCKET ===================== */
-io.on('connection', () => {
-  console.log('Socket connected');
+io.on('connection', (s) => {
+  console.log('Socket connected:', s.id);
+  s.on('disconnect', (reason) => {
+    console.log('Socket disconnected:', s.id, reason);
+  });
 });
 
 /* ===================== START SERVER ===================== */
