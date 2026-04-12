@@ -9,7 +9,7 @@ import NotificationCenter from './NotificationCenter';
 import { ToastProvider } from './ToastNotification';
 import api from './api';
 import ErrorBoundary from './ErrorBoundary';
-import { SessionSecurityManager, APIErrorLogger } from './FrontendSecurity';
+import { SessionSecurityManager } from './FrontendSecurity';
 
 export const SocketContext = createContext();
 const DEFAULT_SOCKET_URL = 'http://localhost:5000';
@@ -383,21 +383,8 @@ export default function App() {
     }
   }, [sessionWarning, user, addNotification]);
 
-  // Reset session activity on any interaction
-  useEffect(() => {
-    if (!user || !sessionManagerRef.current) return;
-    
-    const handleActivity = () => {
-      sessionManagerRef.current.resetSession();
-    };
-    
-    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-    events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
-    
-    return () => {
-      events.forEach(e => window.removeEventListener(e, handleActivity));
-    };
-  }, [user]);
+  // Session manager handles activity tracking internally via document-level listeners.
+  // No additional window-level listeners needed here.
 
   // Cleanup on unmount
   useEffect(() => {

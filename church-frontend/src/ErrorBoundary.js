@@ -39,30 +39,15 @@ class ErrorBoundary extends React.Component {
     this.logErrorToBackend(error, errorInfo, errorId);
   }
 
-  logErrorToBackend = async (error, errorInfo, errorId) => {
-    try {
-      const response = await fetch('/api/log-error', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          errorId,
-          message: error.toString(),
-          stack: error.stack,
-          componentStack: errorInfo.componentStack,
-          timestamp: new Date().toISOString(),
-          userAgent: navigator.userAgent,
-          url: window.location.href
-        })
+  logErrorToBackend = (error, errorInfo, errorId) => {
+    // Log to console for debugging; backend error-logging endpoint
+    // is not available, so we avoid a network call that would 404.
+    if (process.env.NODE_ENV === 'development') {
+      console.info('[ErrorBoundary] Error logged:', {
+        errorId,
+        message: error.toString(),
+        componentStack: errorInfo.componentStack
       });
-
-      if (!response.ok) {
-        console.error('Failed to log error to backend');
-      }
-    } catch (err) {
-      console.error('Could not connect to error logging service:', err);
     }
   };
 
