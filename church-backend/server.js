@@ -140,10 +140,10 @@ function buildSearchClause(q, fields) {
 // Indexes for the four slowest endpoints — safe to re-run (IF NOT EXISTS)
 async function ensurePerformanceIndexes() {
   // Strip surrounding double-quotes so the name is usable in index identifiers
-  const bare = (col) => col.replace(/^"|"$/g, '');
+  const stripQuotes = (col) => col.replace(/^"|"$/g, '');
 
-  const bookingUserCol = bare(bookingUserIdCol);
-  const requestUserCol = bare(requestUserIdCol);
+  const bookingUserCol = stripQuotes(bookingUserIdCol);
+  const requestUserCol = stripQuotes(requestUserIdCol);
 
   const indexes = [
     `CREATE INDEX IF NOT EXISTS bookings_date_idx ON bookings (date)`,
