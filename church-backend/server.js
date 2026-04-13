@@ -948,13 +948,8 @@ app.post('/api/auth/register', async (req, res) => {
       console.warn('Failed to send verification email:', emailErr.message);
     }
 
-    const user = { id: userId, name: normalizedName, email, role: 'member' };
-
-    // If SMTP is not configured, auto-verify and return token (dev/fallback mode)
     if (!emailTransporter) {
-      await dbRun('UPDATE users SET email_verified = true, verification_token = NULL, verification_token_expires = NULL WHERE id = ?', userId);
-      const token = jwt.sign(user, JWT_SECRET);
-      return res.json({ token, user });
+      console.warn('SMTP not configured — verification email could not be sent for', email);
     }
 
     res.json({ message: 'Registration successful! Please check your email to verify your account.', emailSent, requiresVerification: true });
@@ -994,8 +989,8 @@ app.post('/api/auth/login', async (req, res) => {
   if (!passwordOk)
     return res.status(401).json({ error: 'Invalid credentials' });
 
-  // Check email verification (skip check if SMTP not configured or user is admin/superadmin)
-  if (emailTransporter && user.email_verified === false && user.role !== 'admin' && user.role !== 'superadmin') {
+  // Check email verification (always enforce for non-admin users)
+  if (user.email_verified === false && user.role !== 'admin' && user.role !== 'superadmin') {
     return res.status(403).json({ error: 'Please verify your email before logging in. Check your inbox for a verification link.', requiresVerification: true, email: user.email });
   }
 
@@ -2698,6 +2693,17 @@ app.put('/api/users/:id/role', auth, superadmin, async (req, res) => {
 
   await dbRun('UPDATE users SET role=? WHERE id=?', role, targetId);
   res.json({ success: true, message: `User role updated to ${role}` });
+});
+
+// Manually verify a user's email (admin only)
+app.put('/api/users/:id/verify-email', auth, adminOnly, async (req, res) => {
+  const targetId = Number(req.params.id);
+  const target = await dbGet('SELECT id, name, email, email_verified FROM users WHERE id=?', targetId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.email_verified) return res.json({ success: true, message: `${target.name}'s email is already verified.` });
+
+  await dbRun('UPDATE users SET email_verified = true, verification_token = NULL, verification_token_expires = NULL WHERE id = ?', targetId);
+  res.json({ success: true, message: `Email for ${target.name} has been manually verified.` });
 });
 
 // Delete user account (superadmin only)
