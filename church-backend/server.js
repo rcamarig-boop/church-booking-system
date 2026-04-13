@@ -2923,10 +2923,14 @@ app.get('/api/system-info', auth, async (req, res) => {
 });
 
 /* ===================== SOCKET ===================== */
+let connectedSockets = 0;
+
 io.on('connection', (s) => {
-  console.log('Socket connected:', s.id);
+  connectedSockets++;
+  console.log(`Socket connected: ${s.id} (total: ${connectedSockets})`);
   s.on('disconnect', (reason) => {
-    console.log('Socket disconnected:', s.id, reason);
+    connectedSockets--;
+    console.log(`Socket disconnected: ${s.id} ${reason} (total: ${connectedSockets})`);
   });
 });
 

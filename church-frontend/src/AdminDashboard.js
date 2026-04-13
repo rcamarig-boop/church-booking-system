@@ -387,10 +387,10 @@ export default function AdminDashboard({ user, onLogout }) {
       socket.off('new_booking', refresh);
       socket.off('booking_updated', refresh);
       socket.off('booking_deleted', refresh);
-    socket.off('booking_request_created', refresh);
-    socket.off('booking_request_updated', refresh);
-    socket.off('concern_created', refresh);
-    socket.off('concern_updated', refresh);
+      socket.off('booking_request_created', refresh);
+      socket.off('booking_request_updated', refresh);
+      socket.off('concern_created', refresh);
+      socket.off('concern_updated', refresh);
       socket.off('event_created', refresh);
       socket.off('event_updated', refresh);
       socket.off('event_deleted', refresh);

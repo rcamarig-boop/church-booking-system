@@ -185,7 +185,8 @@ export default function App() {
       initSessionManager();
     }
 
-    socket.on('connect', () => console.log('[Socket] Connected'));
+    const handleConnect = () => console.log('[Socket] Connected');
+    socket.on('connect', handleConnect);
     const handleDisconnect = (reason) => {
       console.log('[Socket] Disconnected:', reason);
       if (reason === 'io server disconnect') {
@@ -253,6 +254,7 @@ export default function App() {
       socket.off('event_deleted', onEventChanged);
       socket.off('concern_created', onConcernCreated);
       socket.off('concern_updated', onConcernUpdated);
+      socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('connect_error', handleConnectError);
       socket.io.off('reconnect', handleReconnect);
