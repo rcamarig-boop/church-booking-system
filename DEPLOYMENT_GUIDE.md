@@ -195,7 +195,7 @@ Replace your `church-backend/package.json` with:
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.0",
     "node-cron": "^3.0.2",
-    "nodemailer": "^8.0.1",
+    "@sendgrid/mail": "^8.1.6",
     "pg": "^8.11.3",
     "socket.io": "^4.7.2"
   },

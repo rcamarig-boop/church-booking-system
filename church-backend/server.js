@@ -3,20 +3,10 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const dns = require('dns');
-const net = require('net');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-const nodemailer = require('nodemailer');
-
-// Force IPv4-first DNS resolution to prevent ENETUNREACH on hosts without IPv6
-dns.setDefaultResultOrder('ipv4first');
-// Disable Happy Eyeballs (autoSelectFamily) so that `family: 4` in socket
-// options is honoured and Node does not attempt IPv6 connections at all.
-if (typeof net.setDefaultAutoSelectFamily === 'function') {
-  net.setDefaultAutoSelectFamily(false);
-}
+const sgMail = require('@sendgrid/mail');
 
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
@@ -134,49 +124,35 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@church.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-/* ========== EMAIL TRANSPORTER ========== */
-let emailTransporter = null;
-if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-  const smtpPort = parseInt(process.env.SMTP_PORT, 10) || 587;
-  emailTransporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    family: 4,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    tls: {
-      servername: process.env.SMTP_HOST,
-      minVersion: 'TLSv1.2'
-    },
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 60000
-  });
-  emailTransporter.verify().then(() => {
-    console.log('Email transporter ready');
-  }).catch((err) => {
-    console.warn('Email transporter verification failed:', err.message);
-    console.warn('Email sending will be retried on demand');
-  });
+/* ========== EMAIL (SendGrid HTTP API) ========== */
+let emailConfigured = false;
+const EMAIL_FROM = process.env.SENDGRID_FROM || process.env.SMTP_FROM || process.env.SMTP_USER;
+
+if (process.env.SENDGRID_API_KEY && EMAIL_FROM) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  emailConfigured = true;
+  console.log('Email service ready (SendGrid)');
 } else {
-  console.warn('SMTP not configured — email verification will be skipped');
+  console.warn('SENDGRID_API_KEY or sender address not configured — email verification will be skipped');
 }
 
-async function sendMailWithRetry(mailOptions, retries = 2) {
-  if (!emailTransporter) return false;
+async function sendMailWithRetry(msg, retries = 2) {
+  if (!emailConfigured) return false;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      await emailTransporter.sendMail(mailOptions);
+      await sgMail.send(msg);
       return true;
     } catch (err) {
-      const isTransient = ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(err.code)
+      // SendGrid errors: err.code is numeric HTTP status (e.g. 429, 500)
+      // Network errors: err.code is a string (e.g. 'ETIMEDOUT', 'ECONNRESET')
+      const httpStatus = typeof err.code === 'number' ? err.code : null;
+      const errCode = typeof err.code === 'string' ? err.code : null;
+      const isTransient = (httpStatus !== null && (httpStatus >= 500 || httpStatus === 429))
+        || ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(errCode)
         || (err.message && /timeout/i.test(err.message));
       if (attempt < retries && isTransient) {
         const delay = 1000 * Math.pow(2, attempt + 1);
-        console.warn(`Email send attempt ${attempt + 1} failed (${err.code || err.message}), retrying in ${delay}ms…`);
+        console.warn(`Email send attempt ${attempt + 1} failed (${httpStatus || errCode || err.message}), retrying in ${delay}ms…`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
@@ -187,11 +163,11 @@ async function sendMailWithRetry(mailOptions, retries = 2) {
 }
 
 async function sendVerificationEmail(email, token) {
-  if (!emailTransporter) return false;
+  if (!emailConfigured) return false;
   const verifyUrl = `${FRONTEND_URL}?verify=${token}`;
   return sendMailWithRetry({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
+    from: EMAIL_FROM,
     subject: 'Verify your email — Parish Booking System',
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 30px; border: 1px solid #e7dfcf; border-radius: 12px;">
@@ -207,11 +183,11 @@ async function sendVerificationEmail(email, token) {
 }
 
 async function sendPasswordResetEmail(email, token) {
-  if (!emailTransporter) return false;
+  if (!emailConfigured) return false;
   const resetUrl = `${FRONTEND_URL}?reset=${token}`;
   return sendMailWithRetry({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
+    from: EMAIL_FROM,
     subject: 'Reset your password — Parish Booking System',
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 30px; border: 1px solid #e7dfcf; border-radius: 12px;">
@@ -988,8 +964,8 @@ app.post('/api/auth/register', async (req, res) => {
       console.warn('Failed to send verification email:', emailErr.message);
     }
 
-    if (!emailTransporter) {
-      console.warn('SMTP not configured — verification email could not be sent for', email);
+    if (!emailConfigured) {
+      console.warn('Email not configured — verification email could not be sent for', email);
     }
 
     res.json({ message: 'Registration successful! Please check your email to verify your account.', emailSent, requiresVerification: true });
@@ -1077,7 +1053,7 @@ app.post('/api/auth/resend-verification', async (req, res) => {
     if (!user) return res.json({ message: 'If that email is registered, a verification link has been sent.' });
     if (user.email_verified) return res.json({ message: 'Email is already verified. You can log in.' });
 
-    if (!emailTransporter) return res.status(503).json({ error: 'Email service is not configured' });
+    if (!emailConfigured) return res.status(503).json({ error: 'Email service is not configured' });
 
     const newToken = crypto.randomBytes(32).toString('hex');
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -1101,7 +1077,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const user = await dbGet('SELECT id FROM users WHERE email = ?', email);
     if (!user) return res.json({ message: 'If that email is registered, a password reset link has been sent.' });
 
-    if (!emailTransporter) return res.status(503).json({ error: 'Email service is not configured' });
+    if (!emailConfigured) return res.status(503).json({ error: 'Email service is not configured' });
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     const tokenExpires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour

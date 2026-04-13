@@ -91,8 +91,8 @@ npm install
 # Create .env file with:
 # DATABASE_URL=your_database_url
 # JWT_SECRET=your_secret_key
-# SMTP_USER=your_email
-# SMTP_PASS=your_app_password
+# SENDGRID_API_KEY=SG.your-api-key
+# SENDGRID_FROM=your-verified-sender@example.com
 npm start
 ```
 Runs on `http://localhost:5000`

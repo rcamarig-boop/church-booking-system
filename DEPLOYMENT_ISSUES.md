@@ -39,8 +39,8 @@ The backend REQUIRES the `DATABASE_URL` environment variable to connect to Postg
    ```
    DATABASE_URL=postgresql://user:password@localhost:5432/church_db
    JWT_SECRET=your-very-secret-key-here
-   SMTP_USER=your-email@gmail.com
-   SMTP_PASS=your-app-password
+   SENDGRID_API_KEY=SG.your-api-key-here
+   SENDGRID_FROM=your-verified-sender@example.com
    NODE_ENV=development
    ```
 
@@ -74,8 +74,8 @@ The backend REQUIRES the `DATABASE_URL` environment variable to connect to Postg
    ```
    DATABASE_URL = postgresql://user:password@host:5432/dbname
    JWT_SECRET = production-secret-key
-   SMTP_USER = your-email@gmail.com
-   SMTP_PASS = your-app-password
+   SENDGRID_API_KEY = SG.your-api-key-here
+   SENDGRID_FROM = your-verified-sender@example.com
    NODE_ENV = production
    PORT = 5000
    ```
@@ -210,15 +210,15 @@ echo $DATABASE_URL
 
 ### Error: "Authentication failed" / "EAUTH"
 
-**Cause:** SMTP credentials incorrect
+**Cause:** SendGrid API key incorrect or sender not verified
 
 **Fix:**
 ```
-SMTP_USER=your-actual-gmail@gmail.com
-SMTP_PASS=your-app-specific-password  (NOT your password)
+SENDGRID_API_KEY=SG.your-actual-api-key
+SENDGRID_FROM=your-verified-sender@example.com
 
-# For Gmail:
-# Generate app password at: https://myaccount.google.com/apppasswords
+# Get your API key at: https://app.sendgrid.com/settings/api_keys
+# Verify your sender at: https://app.sendgrid.com/settings/sender_auth
 ```
 
 ---
@@ -287,8 +287,8 @@ Create `.env` in `church-backend/`:
 ```
 DATABASE_URL=postgresql://user:password@localhost:5432/church_db
 JWT_SECRET=dev-secret-key-change-in-production
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
+SENDGRID_API_KEY=SG.your-api-key-here
+SENDGRID_FROM=your-verified-sender@example.com
 NODE_ENV=development
 ADMIN_EMAIL=admin@church.com
 ADMIN_PASSWORD=admin1234
@@ -306,8 +306,8 @@ NODE_ENV=development
 **Render Backend Environment Variables:**
 - `DATABASE_URL` → Your Supabase connection string
 - `JWT_SECRET` → Strong random secret
-- `SMTP_USER` → Email for notifications
-- `SMTP_PASS` → App-specific password
+- `SENDGRID_API_KEY` → Your SendGrid API key
+- `SENDGRID_FROM` → Verified sender email address
 - `NODE_ENV` → production
 
 **Netlify Frontend Environment Variables:**
