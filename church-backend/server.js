@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-const sgMail = require('@sendgrid/mail');
+const { Resend } = require('resend');
 
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
@@ -124,28 +124,30 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@church.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-/* ========== EMAIL (SendGrid HTTP API) ========== */
+/* ========== EMAIL (Resend) ========== */
 let emailConfigured = false;
-const EMAIL_FROM = process.env.SENDGRID_FROM || process.env.SMTP_FROM || process.env.SMTP_USER;
+const EMAIL_FROM = process.env.RESEND_FROM || process.env.SENDGRID_FROM || process.env.SMTP_FROM || process.env.SMTP_USER;
+let resend;
 
-if (process.env.SENDGRID_API_KEY && EMAIL_FROM) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+if (process.env.RESEND_API_KEY && EMAIL_FROM) {
+  resend = new Resend(process.env.RESEND_API_KEY);
   emailConfigured = true;
-  console.log('Email service ready (SendGrid)');
+  console.log('Email service ready (Resend)');
 } else {
-  console.warn('SENDGRID_API_KEY or sender address not configured — email verification will be skipped');
+  console.warn('RESEND_API_KEY or sender address not configured — email verification will be skipped');
 }
 
 async function sendMailWithRetry(msg, retries = 2) {
   if (!emailConfigured) return false;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      await sgMail.send(msg);
+      const { error } = await resend.emails.send(msg);
+      if (error) throw error;
       return true;
     } catch (err) {
-      // SendGrid errors: err.code is numeric HTTP status (e.g. 429, 500)
+      // Resend errors: err.statusCode is numeric HTTP status (e.g. 429, 500)
       // Network errors: err.code is a string (e.g. 'ETIMEDOUT', 'ECONNRESET')
-      const httpStatus = typeof err.code === 'number' ? err.code : null;
+      const httpStatus = typeof err.statusCode === 'number' ? err.statusCode : null;
       const errCode = typeof err.code === 'string' ? err.code : null;
       const isTransient = (httpStatus !== null && (httpStatus >= 500 || httpStatus === 429))
         || ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(errCode)
