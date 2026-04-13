@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const dns = require('dns');
+const net = require('net');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
@@ -11,6 +12,11 @@ const nodemailer = require('nodemailer');
 
 // Force IPv4-first DNS resolution to prevent ENETUNREACH on hosts without IPv6
 dns.setDefaultResultOrder('ipv4first');
+// Disable Happy Eyeballs (autoSelectFamily) so that `family: 4` in socket
+// options is honoured and Node does not attempt IPv6 connections at all.
+if (typeof net.setDefaultAutoSelectFamily === 'function') {
+  net.setDefaultAutoSelectFamily(false);
+}
 
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
