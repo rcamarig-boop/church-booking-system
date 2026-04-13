@@ -26,9 +26,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'] },
-  pingTimeout: 30000,
+  pingTimeout: 60000,
   pingInterval: 25000,
-  connectTimeout: 15000,
+  connectTimeout: 30000,
 });
 
 const serverStartTime = Date.now();
@@ -130,6 +130,7 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT, 10) || 587,
     secure: parseInt(process.env.SMTP_PORT, 10) === 465,
+    family: 4,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
@@ -142,7 +143,7 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     console.log('Email transporter ready');
   }).catch((err) => {
     console.warn('Email transporter verification failed:', err.message);
-    emailTransporter = null;
+    console.warn('Email sending will be retried on demand');
   });
 } else {
   console.warn('SMTP not configured — email verification will be skipped');
