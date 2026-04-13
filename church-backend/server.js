@@ -3,10 +3,15 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const dns = require('dns');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const nodemailer = require('nodemailer');
+
+// Force IPv4-first DNS resolution to prevent ENETUNREACH on hosts without IPv6
+dns.setDefaultResultOrder('ipv4first');
+
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
 
@@ -126,18 +131,23 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 /* ========== EMAIL TRANSPORTER ========== */
 let emailTransporter = null;
 if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  const smtpPort = parseInt(process.env.SMTP_PORT, 10) || 587;
   emailTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT, 10) || 587,
-    secure: parseInt(process.env.SMTP_PORT, 10) === 465,
+    port: smtpPort,
+    secure: smtpPort === 465,
     family: 4,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000
+    tls: {
+      servername: process.env.SMTP_HOST,
+      minVersion: 'TLSv1.2'
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000
   });
   emailTransporter.verify().then(() => {
     console.log('Email transporter ready');
@@ -149,10 +159,31 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
   console.warn('SMTP not configured — email verification will be skipped');
 }
 
+async function sendMailWithRetry(mailOptions, retries = 2) {
+  if (!emailTransporter) return false;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      await emailTransporter.sendMail(mailOptions);
+      return true;
+    } catch (err) {
+      const isTransient = ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(err.code)
+        || (err.message && /timeout/i.test(err.message));
+      if (attempt < retries && isTransient) {
+        const delay = 1000 * Math.pow(2, attempt + 1);
+        console.warn(`Email send attempt ${attempt + 1} failed (${err.code || err.message}), retrying in ${delay}ms…`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  return false;
+}
+
 async function sendVerificationEmail(email, token) {
   if (!emailTransporter) return false;
   const verifyUrl = `${FRONTEND_URL}?verify=${token}`;
-  await emailTransporter.sendMail({
+  return sendMailWithRetry({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
     subject: 'Verify your email — Parish Booking System',
@@ -167,13 +198,12 @@ async function sendVerificationEmail(email, token) {
       </div>
     `
   });
-  return true;
 }
 
 async function sendPasswordResetEmail(email, token) {
   if (!emailTransporter) return false;
   const resetUrl = `${FRONTEND_URL}?reset=${token}`;
-  await emailTransporter.sendMail({
+  return sendMailWithRetry({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
     subject: 'Reset your password — Parish Booking System',
@@ -188,7 +218,6 @@ async function sendPasswordResetEmail(email, token) {
       </div>
     `
   });
-  return true;
 }
 
 function getPagination(req) {
