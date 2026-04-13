@@ -2696,7 +2696,7 @@ app.put('/api/users/:id/role', auth, superadmin, async (req, res) => {
 });
 
 // Manually verify a user's email (admin only)
-app.put('/api/users/:id/verify-email', auth, adminOnly, async (req, res) => {
+app.put('/api/users/:id/verify-email', auth, admin, async (req, res) => {
   const targetId = Number(req.params.id);
   const target = await dbGet('SELECT id, name, email, email_verified FROM users WHERE id=?', targetId);
   if (!target) return res.status(404).json({ error: 'User not found' });
