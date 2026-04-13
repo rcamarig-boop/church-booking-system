@@ -133,12 +133,16 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
-    }
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000
   });
   emailTransporter.verify().then(() => {
     console.log('Email transporter ready');
   }).catch((err) => {
     console.warn('Email transporter verification failed:', err.message);
+    emailTransporter = null;
   });
 } else {
   console.warn('SMTP not configured — email verification will be skipped');
