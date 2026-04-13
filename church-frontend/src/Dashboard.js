@@ -1373,30 +1373,6 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   </button>
                 ))}
               </div>
-              <button
-                className="dashboard-action-btn dashboard-action-btn--primary"
-                onClick={() => {
-                  setConcernError('');
-                  setConcernOpen(true);
-                }}
-                style={{
-                  marginTop: 12,
-                  width: '100%',
-                  padding: '12px 12px',
-                  borderRadius: 12,
-                  background: `linear-gradient(135deg, ${gold}, ${gold}dd)`,
-                  color: ink,
-                  border: `2px solid ${gold}`,
-                  fontWeight: 700,
-                  boxShadow: `0 8px 18px ${gold}40`,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-              >
-                Raise Concern
-              </button>
               <div className="dashboard-sidebar-contact">
                 <div className="dashboard-sidebar-contact-title">{sidebarContact.title}</div>
                 <div style={{ fontSize: 12, color: '#4a5568', marginBottom: 8, lineHeight: 1.5 }}>
@@ -1748,20 +1724,44 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   marginBottom: 16
                 }}>
                   <h2 style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}>✦ My Concerns</h2>
-                  {concernUsage && (
-                    <div style={{
-                      fontSize: 12,
-                      color: concernUsage.activeCount >= concernUsage.limit ? '#b0413e' : '#64748b',
-                      background: concernUsage.activeCount >= concernUsage.limit ? '#fef2f2' : '#f8fafc',
-                      border: `1px solid ${concernUsage.activeCount >= concernUsage.limit ? '#fecaca' : '#e2e8f0'}`,
-                      borderRadius: 999,
-                      padding: '6px 10px',
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {concernUsage.activeCount}/{concernUsage.limit || 10} active
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {concernUsage && (
+                      <div style={{
+                        fontSize: 12,
+                        color: concernUsage.activeCount >= concernUsage.limit ? '#b0413e' : '#64748b',
+                        background: concernUsage.activeCount >= concernUsage.limit ? '#fef2f2' : '#f8fafc',
+                        border: `1px solid ${concernUsage.activeCount >= concernUsage.limit ? '#fecaca' : '#e2e8f0'}`,
+                        borderRadius: 999,
+                        padding: '6px 10px',
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {concernUsage.activeCount}/{concernUsage.limit || 10} active
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        setConcernError('');
+                        setConcernOpen(true);
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 10,
+                        background: `linear-gradient(135deg, ${gold}, ${gold}dd)`,
+                        color: ink,
+                        border: `2px solid ${gold}`,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onMouseEnter={(e) => e.target.style.transform = 'translateY(-1px)'}
+                      onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                    >
+                      Raise Concern
+                    </button>
+                  </div>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>

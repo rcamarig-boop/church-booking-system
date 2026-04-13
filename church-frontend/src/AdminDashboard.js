@@ -607,17 +607,81 @@ export default function AdminDashboard({ user, onLogout }) {
       totalTablesRequested: 0
     });
 
+    // Request status breakdown
+    const requestStatusCounts = requests.reduce((acc, r) => {
+      const key = String(r.status || 'pending');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Concern status breakdown
+    const concernStatusCounts = concerns.reduce((acc, c) => {
+      const key = String(c.status || 'pending');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Bookings by chapel
+    const chapelCounts = bookings.reduce((acc, b) => {
+      const chapel = b.chapel || b.details?.chapel || 'Unspecified';
+      acc[chapel] = (acc[chapel] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Bookings by month (upcoming)
+    const today = new Date().toISOString().slice(0, 10);
+    const monthlyBookings = bookings.reduce((acc, b) => {
+      if (!b.date) return acc;
+      const month = b.date.slice(0, 7); // YYYY-MM
+      acc[month] = (acc[month] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Upcoming vs past bookings
+    const upcomingBookings = bookings.filter(b => b.date >= today).length;
+    const pastBookings = bookings.filter(b => b.date < today).length;
+
+    // Busiest days (top 5)
+    const dateCounts = bookings.reduce((acc, b) => {
+      if (!b.date) return acc;
+      acc[b.date] = (acc[b.date] || 0) + 1;
+      return acc;
+    }, {});
+    const busiestDays = Object.entries(dateCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    // Most active members (top 5 by bookings)
+    const memberBookingCounts = bookings.reduce((acc, b) => {
+      const name = b.name || 'Unknown';
+      acc[name] = (acc[name] || 0) + 1;
+      return acc;
+    }, {});
+    const topMembers = Object.entries(memberBookingCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
     return {
       totalUsers: users.length,
       totalEvents: events.length,
       totalBookings: bookings.length,
       totalRecords: records.length,
+      totalRequests: requests.length,
+      totalConcerns: concerns.length,
       serviceCounts,
       actionCounts,
       roleCounts,
+      requestStatusCounts,
+      concernStatusCounts,
+      chapelCounts,
+      monthlyBookings,
+      upcomingBookings,
+      pastBookings,
+      busiestDays,
+      topMembers,
       ...setupStats
     };
-  }, [bookings, records, users, events]);
+  }, [bookings, records, users, events, requests, concerns]);
 
   // Analyze collective service candidates
   const collectiveServiceCandidates = useMemo(() => {
@@ -814,6 +878,9 @@ export default function AdminDashboard({ user, onLogout }) {
   const servicePie = useMemo(() => buildPie(reportData.serviceCounts), [reportData.serviceCounts, buildPie]);
   const actionPie = useMemo(() => buildPie(reportData.actionCounts), [reportData.actionCounts, buildPie]);
   const rolePie = useMemo(() => buildPie(reportData.roleCounts), [reportData.roleCounts, buildPie]);
+  const requestStatusPie = useMemo(() => buildPie(reportData.requestStatusCounts), [reportData.requestStatusCounts, buildPie]);
+  const concernStatusPie = useMemo(() => buildPie(reportData.concernStatusCounts), [reportData.concernStatusCounts, buildPie]);
+  const chapelPie = useMemo(() => buildPie(reportData.chapelCounts), [reportData.chapelCounts, buildPie]);
   const nextEvent = useMemo(() => {
     const upcoming = events
       .map(e => ({
@@ -877,7 +944,7 @@ export default function AdminDashboard({ user, onLogout }) {
             ☰
           </button>
           <div className="dashboard-brand" style={{ paddingTop: 0, paddingBottom: 0, textAlign: 'left' }}>
-            <div className="dashboard-brand-title dashboard-shell-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0, fontFamily: churchDisplayFont, letterSpacing: 0.6 }}>Parish Admin</div>
+            <div className="dashboard-brand-title dashboard-shell-title" style={{ color: ink, textShadow: '0 4px 20px rgba(0,0,0,0.12)', margin: 0, fontFamily: churchDisplayFont, letterSpacing: 0.6 }}>{user.role === 'superadmin' ? 'Super Admin' : 'Parish Admin'}</div>
             <div className="dashboard-brand-subtitle" style={{ color: '#4a5568', marginTop: 4, fontFamily: churchBodyFont, fontStyle: 'italic' }}>Parish Management</div>
           </div>
         </div>
@@ -2435,6 +2502,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <th style={th}>Name</th>
                   <th style={th}>Email</th>
                   <th style={th}>Role</th>
+                  {user.role === 'superadmin' && <th style={th}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -2443,12 +2511,62 @@ export default function AdminDashboard({ user, onLogout }) {
                     <td style={td}>{u.id}</td>
                     <td style={td}>{u.name}</td>
                     <td style={td}>{u.email}</td>
-                    <td style={td}>{u.role}</td>
+                    <td style={td}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '3px 10px',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        background: u.role === 'superadmin' ? '#7c3aed' : u.role === 'admin' ? accentBlue : '#e5e7eb',
+                        color: u.role === 'superadmin' || u.role === 'admin' ? '#fff' : ink
+                      }}>
+                        {u.role === 'superadmin' ? 'Super Admin' : u.role === 'admin' ? 'Admin' : 'Member'}
+                      </span>
+                    </td>
+                    {user.role === 'superadmin' && (
+                      <td style={td}>
+                        {u.role !== 'superadmin' && u.id !== user.id && (
+                          <select
+                            value={u.role}
+                            onChange={async (e) => {
+                              try {
+                                await api.users.updateRole(u.id, e.target.value);
+                                setRefreshKey(k => k + 1);
+                              } catch (err) {
+                                alert(err.response?.data?.error || 'Failed to update role');
+                              }
+                            }}
+                            style={{ padding: '4px 8px', borderRadius: 6, border: `1px solid ${mist}`, fontSize: 12, cursor: 'pointer' }}
+                          >
+                            <option value="member">Member</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        )}
+                        {u.role === 'superadmin' && <span style={{ color: '#6b7280', fontSize: 12 }}>—</span>}
+                        {u.role !== 'superadmin' && u.id !== user.id && (
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm(`Are you sure you want to delete ${u.name}'s account? This cannot be undone.`)) return;
+                              try {
+                                await api.users.delete(u.id);
+                                setRefreshKey(k => k + 1);
+                              } catch (err) {
+                                alert(err.response?.data?.error || 'Failed to delete user');
+                              }
+                            }}
+                            style={{ ...dangerBtn, padding: '4px 10px', fontSize: 11, marginLeft: 6 }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={4}>No users match your search.</td>
+                    <td style={td} colSpan={user.role === 'superadmin' ? 5 : 4}>No users match your search.</td>
                   </tr>
                 )}
               </tbody>
@@ -2991,6 +3109,22 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div style={{ color: '#6b7280', fontSize: 12 }}>Total Tables Requested</div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalTablesRequested}</div>
               </div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Total Requests</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalRequests}</div>
+              </div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Total Concerns</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: ink }}>{reportData.totalConcerns}</div>
+              </div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Upcoming Bookings</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#38a169' }}>{reportData.upcomingBookings}</div>
+              </div>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Past Bookings</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#6b7280' }}>{reportData.pastBookings}</div>
+              </div>
             </div>
 
               <div className="dashboard-report-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
@@ -3062,7 +3196,153 @@ export default function AdminDashboard({ user, onLogout }) {
                     ))}
                 </div>
                 </div>
+
+                <div className="dashboard-report-card" style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                  <div style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: '50%',
+                    background: requestStatusPie.gradient,
+                    border: `2px solid ${mist}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }} aria-label="Requests by status distribution" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <h4 style={{ margin: 0 }}>Requests by Status</h4>
+                    {requestStatusPie.entries.length === 0 ? (
+                      <div style={{ color: '#666' }}>No request data.</div>
+                    ) : requestStatusPie.entries.map(([label, value], idx) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: requestStatusPie.colors[idx % requestStatusPie.colors.length] }} />
+                        <span style={{ flex: 1 }}>{label}</span>
+                        <span style={{ fontWeight: 700 }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="dashboard-report-card" style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                  <div style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: '50%',
+                    background: concernStatusPie.gradient,
+                    border: `2px solid ${mist}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }} aria-label="Concerns by status distribution" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <h4 style={{ margin: 0 }}>Concerns by Status</h4>
+                    {concernStatusPie.entries.length === 0 ? (
+                      <div style={{ color: '#666' }}>No concern data.</div>
+                    ) : concernStatusPie.entries.map(([label, value], idx) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: concernStatusPie.colors[idx % concernStatusPie.colors.length] }} />
+                        <span style={{ flex: 1 }}>{label}</span>
+                        <span style={{ fontWeight: 700 }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="dashboard-report-card" style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                  <div style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: '50%',
+                    background: chapelPie.gradient,
+                    border: `2px solid ${mist}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }} aria-label="Bookings by chapel distribution" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <h4 style={{ margin: 0 }}>Bookings by Chapel</h4>
+                    {chapelPie.entries.length === 0 ? (
+                      <div style={{ color: '#666' }}>No chapel data.</div>
+                    ) : chapelPie.entries.map(([label, value], idx) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 999, background: chapelPie.colors[idx % chapelPie.colors.length] }} />
+                        <span style={{ flex: 1 }}>{label}</span>
+                        <span style={{ fontWeight: 700 }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16, marginTop: 16 }}>
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <h4 style={{ margin: '0 0 12px 0', color: ink }}>📅 Busiest Days</h4>
+                {reportData.busiestDays.length === 0 ? (
+                  <div style={{ color: '#666', fontSize: 13 }}>No booking data yet.</div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: `2px solid ${gold}` }}>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', color: '#6b7280' }}>Date</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: '#6b7280' }}>Bookings</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportData.busiestDays.map(([date, count], idx) => (
+                        <tr key={date} style={{ borderBottom: `1px solid ${mist}`, background: idx === 0 ? '#fef9c3' : 'transparent' }}>
+                          <td style={{ padding: '6px 8px' }}>{new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>{count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <h4 style={{ margin: '0 0 12px 0', color: ink }}>👤 Most Active Members</h4>
+                {reportData.topMembers.length === 0 ? (
+                  <div style={{ color: '#666', fontSize: 13 }}>No booking data yet.</div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: `2px solid ${gold}` }}>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', color: '#6b7280' }}>#</th>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', color: '#6b7280' }}>Name</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: '#6b7280' }}>Bookings</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportData.topMembers.map(([name, count], idx) => (
+                        <tr key={name} style={{ borderBottom: `1px solid ${mist}`, background: idx === 0 ? '#fef9c3' : 'transparent' }}>
+                          <td style={{ padding: '6px 8px', fontWeight: 700 }}>{idx + 1}</td>
+                          <td style={{ padding: '6px 8px' }}>{name}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>{count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div style={{ background: '#fff', border: `1px solid ${mist}`, borderRadius: 8, padding: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <h4 style={{ margin: '0 0 12px 0', color: ink }}>📊 Monthly Bookings</h4>
+                {Object.keys(reportData.monthlyBookings).length === 0 ? (
+                  <div style={{ color: '#666', fontSize: 13 }}>No booking data yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {Object.entries(reportData.monthlyBookings).sort((a, b) => a[0].localeCompare(b[0])).map(([month, count]) => {
+                      const maxCount = Math.max(...Object.values(reportData.monthlyBookings));
+                      const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                      const [y, m] = month.split('-');
+                      const label = new Date(Number(y), Number(m) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                      return (
+                        <div key={month} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                          <span style={{ width: 70, flexShrink: 0 }}>{label}</span>
+                          <div style={{ flex: 1, background: '#f3f4f6', borderRadius: 4, height: 18, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, background: gold, height: '100%', borderRadius: 4, minWidth: count > 0 ? 4 : 0 }} />
+                          </div>
+                          <span style={{ fontWeight: 700, width: 30, textAlign: 'right' }}>{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
             </div>
           )}
 

@@ -8,11 +8,14 @@ const gold = '#d6ad60';
 const mist = '#e7dfcf';
 const accentBlue = '#3b5b8a';
 
-export default function Login({ onLogin, onBack }) {
+export default function Login({ onLogin, onBack, onForgotPassword }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendMessage, setResendMessage] = useState(null);
+  const [resending, setResending] = useState(false);
 
   const submit = async () => {
     if (!email.trim() || !password.trim()) {
@@ -22,12 +25,33 @@ export default function Login({ onLogin, onBack }) {
     try {
       setLoading(true);
       setError(null);
+      setNeedsVerification(false);
+      setResendMessage(null);
       const res = await api.auth.login({ email, password });
       onLogin({ token: res.data.token, user: res.data.user });
     } catch (e) {
-      setError(e.response?.data?.error || 'Login failed. Please try again.');
+      const data = e.response?.data;
+      if (data?.requiresVerification) {
+        setNeedsVerification(true);
+        setError(data.error);
+      } else {
+        setError(data?.error || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    try {
+      setResending(true);
+      setResendMessage(null);
+      const res = await api.auth.resendVerification(email);
+      setResendMessage(res.data.message || 'Verification email sent!');
+    } catch (e) {
+      setResendMessage(e.response?.data?.error || 'Failed to resend. Please try again.');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -168,19 +192,69 @@ export default function Login({ onLogin, onBack }) {
             />
           </div>
 
+          {/* Forgot Password Link */}
+          {onForgotPassword && (
+            <div style={{ textAlign: 'right', marginBottom: 16 }}>
+              <button
+                onClick={onForgotPassword}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: accentBlue,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  padding: 0
+                }}
+                onMouseEnter={(e) => { e.target.style.textDecoration = 'underline'; }}
+                onMouseLeave={(e) => { e.target.style.textDecoration = 'none'; }}
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
             <div style={{
-              background: '#fff5f5',
-              color: '#b0413e',
+              background: needsVerification ? '#fefce8' : '#fff5f5',
+              color: needsVerification ? '#92400e' : '#b0413e',
               padding: '12px 14px',
               borderRadius: 10,
               marginBottom: 20,
               fontSize: 13,
-              border: `1px solid #fdd2d2`,
+              border: `1px solid ${needsVerification ? '#fde68a' : '#fdd2d2'}`,
               fontWeight: 500
             }}>
               {error}
+            </div>
+          )}
+
+          {/* Resend Verification */}
+          {needsVerification && (
+            <div style={{ marginBottom: 20, textAlign: 'center' }}>
+              <button
+                onClick={handleResendVerification}
+                disabled={resending}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: accentBlue,
+                  cursor: resending ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  opacity: resending ? 0.6 : 1
+                }}
+              >
+                {resending ? 'Sending...' : 'Resend verification email'}
+              </button>
+              {resendMessage && (
+                <p style={{ fontSize: 12, color: resendMessage.toLowerCase().includes('fail') ? '#b0413e' : '#22c55e', marginTop: 6, fontWeight: 500 }}>
+                  {resendMessage}
+                </p>
+              )}
             </div>
           )}
 

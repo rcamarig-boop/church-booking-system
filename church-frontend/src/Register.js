@@ -9,13 +9,14 @@ const gold = '#d6ad60';
 const mist = '#e7dfcf';
 const accentBlue = '#3b5b8a';
 
-export default function Register({ onLogin, onBack }) {
+export default function Register({ onLogin, onBack, onGoToLogin }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   const submit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -38,7 +39,11 @@ export default function Register({ onLogin, onBack }) {
       setLoading(true);
       setError(null);
       const res = await api.auth.register({ name, email, password });
-      onLogin({ token: res.data.token, user: res.data.user });
+      if (res.data.requiresVerification) {
+        setRegistrationSuccess(true);
+      } else {
+        onLogin({ token: res.data.token, user: res.data.user });
+      }
     } catch (e) {
       setError(e.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
@@ -89,8 +94,56 @@ export default function Register({ onLogin, onBack }) {
             textAlign: 'center',
             letterSpacing: '-1px'
           }}>
-            Join Our Parish
+            {registrationSuccess ? 'Check Your Email' : 'Join Our Parish'}
           </h1>
+
+          {registrationSuccess ? (
+            <div>
+              <div style={{
+                fontSize: 48,
+                textAlign: 'center',
+                marginBottom: 16,
+                color: '#22c55e'
+              }}>
+                ✉
+              </div>
+              <p style={{
+                fontSize: 14,
+                color: '#374151',
+                textAlign: 'center',
+                marginBottom: 12,
+                lineHeight: 1.6
+              }}>
+                We've sent a verification link to <strong>{email}</strong>. Please check your inbox and click the link to verify your account.
+              </p>
+              <p style={{
+                fontSize: 12,
+                color: '#6b7280',
+                textAlign: 'center',
+                marginBottom: 24,
+              }}>
+                The link expires in 24 hours. Check your spam folder if you don't see it.
+              </p>
+              <button
+                onClick={onGoToLogin || onBack}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  borderRadius: 12,
+                  border: `2px solid ${accentBlue}`,
+                  background: accentBlue,
+                  color: '#fff',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                Go to Login
+              </button>
+            </div>
+          ) : (
+          <>
           <p style={{
             fontSize: 13,
             color: '#6b7280',
@@ -351,6 +404,8 @@ export default function Register({ onLogin, onBack }) {
             >
               ← Back to Home
             </button>
+          )}
+          </>
           )}
         </div>
       </div>

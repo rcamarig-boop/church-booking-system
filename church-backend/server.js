@@ -2,11 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
+const nodemailer = require('nodemailer');
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
+
+// Wrap async route handlers to catch unhandled rejections and forward to Express error handler
+const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 /* ========== SECURITY HARDENING - Phase 1 ========== */
 // Rate limiting implementation
@@ -79,7 +84,7 @@ const createRateLimiter = (windowMs, max, message) =>
     message: { error: message, retryAfter: Math.ceil(windowMs / 1000) },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.user?.role === 'admin', // Admins bypass rate limits
+    skip: (req) => req.user?.role === 'admin' || req.user?.role === 'superadmin', // Admins bypass rate limits
     keyGenerator: (req) => req.user?.id || req.ip
   });
 
@@ -116,6 +121,70 @@ const AUTO_SEED_ADMIN = process.env.AUTO_SEED_ADMIN !== 'false';
 const ADMIN_NAME = process.env.ADMIN_NAME || 'Admin User';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@church.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+/* ========== EMAIL TRANSPORTER ========== */
+let emailTransporter = null;
+if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  emailTransporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: parseInt(process.env.SMTP_PORT, 10) === 465,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+  emailTransporter.verify().then(() => {
+    console.log('Email transporter ready');
+  }).catch((err) => {
+    console.warn('Email transporter verification failed:', err.message);
+  });
+} else {
+  console.warn('SMTP not configured — email verification will be skipped');
+}
+
+async function sendVerificationEmail(email, token) {
+  if (!emailTransporter) return false;
+  const verifyUrl = `${FRONTEND_URL}?verify=${token}`;
+  await emailTransporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: 'Verify your email — Parish Booking System',
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 30px; border: 1px solid #e7dfcf; border-radius: 12px;">
+        <h2 style="color: #1f2a44; text-align: center;">✦ Parish Booking System</h2>
+        <p style="color: #374151;">Thank you for registering! Please verify your email address by clicking the button below:</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${verifyUrl}" style="display: inline-block; padding: 14px 32px; background: #3b5b8a; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px;">Verify Email</a>
+        </div>
+        <p style="color: #6b7280; font-size: 13px;">This link expires in 24 hours. If you didn't create an account, you can ignore this email.</p>
+      </div>
+    `
+  });
+  return true;
+}
+
+async function sendPasswordResetEmail(email, token) {
+  if (!emailTransporter) return false;
+  const resetUrl = `${FRONTEND_URL}?reset=${token}`;
+  await emailTransporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: 'Reset your password — Parish Booking System',
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 30px; border: 1px solid #e7dfcf; border-radius: 12px;">
+        <h2 style="color: #1f2a44; text-align: center;">✦ Parish Booking System</h2>
+        <p style="color: #374151;">We received a request to reset your password. Click the button below to set a new password:</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${resetUrl}" style="display: inline-block; padding: 14px 32px; background: #3b5b8a; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px;">Reset Password</a>
+        </div>
+        <p style="color: #6b7280; font-size: 13px;">This link expires in 1 hour. If you didn't request a password reset, you can ignore this email.</p>
+      </div>
+    `
+  });
+  return true;
+}
 
 function getPagination(req) {
   const limit = Number.parseInt(req.query.limit, 10);
@@ -170,6 +239,7 @@ async function initDatabase() {
   // This function is kept for reference but does nothing
   // All tables exist in PostgreSQL/Supabase
   await detectUserTableShape();
+  await ensureEmailVerificationColumns();
   await ensureBookingEditProposalsTable();
   await ensureBookingRequestEditProposalsTable();
   await ensureMassServicesTable();
@@ -245,22 +315,29 @@ async function ensureAdminUser() {
   if (!AUTO_SEED_ADMIN) return;
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) return;
 
-  const existing = await dbGet('SELECT id FROM users WHERE email=?', ADMIN_EMAIL);
-  if (existing) return;
+  const existing = await dbGet('SELECT id, role FROM users WHERE email=?', ADMIN_EMAIL);
+  if (existing) {
+    // Upgrade existing seeded admin to superadmin if not already
+    if (existing.role === 'admin') {
+      await dbRun('UPDATE users SET role=? WHERE id=?', 'superadmin', existing.id);
+      console.log(`Upgraded seeded admin to superadmin: ${ADMIN_EMAIL}`);
+    }
+    return;
+  }
 
   const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
   const columns = hasPhoneColumn
-    ? `name, email, ${passwordColumn}, phone, role`
-    : `name, email, ${passwordColumn}, role`;
+    ? `name, email, ${passwordColumn}, phone, role, email_verified`
+    : `name, email, ${passwordColumn}, role, email_verified`;
   const values = hasPhoneColumn
-    ? [ADMIN_NAME, ADMIN_EMAIL, hash, '', 'admin']
-    : [ADMIN_NAME, ADMIN_EMAIL, hash, 'admin'];
+    ? [ADMIN_NAME, ADMIN_EMAIL, hash, '', 'superadmin', true]
+    : [ADMIN_NAME, ADMIN_EMAIL, hash, 'superadmin', true];
 
   await dbRun(
     `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')})`,
     ...values
   );
-  console.log(`Seeded admin user: ${ADMIN_EMAIL}`);
+  console.log(`Seeded superadmin user: ${ADMIN_EMAIL}`);
 }
 
 const bookingNameCol = 'name';
@@ -379,6 +456,24 @@ async function detectUserTableShape() {
     notificationUserIdCol = pickColumn(notifications, ['userId', 'userid', 'user_id'], '"userId"');
   } catch (err) {
     console.warn('Could not detect users table columns, using defaults:', err.message);
+  }
+}
+
+async function ensureEmailVerificationColumns() {
+  try {
+    await exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false`);
+    await exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(64)`);
+    await exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_expires TIMESTAMP`);
+    await exec(`CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)`);
+    // Password reset columns
+    await exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(64)`);
+    await exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP`);
+    await exec(`CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)`);
+    // Auto-verify all existing accounts (they were trusted before this feature)
+    await exec(`UPDATE users SET email_verified = true WHERE email_verified = false AND verification_token IS NULL`);
+    console.log('Email verification columns ensured');
+  } catch (err) {
+    console.warn('Could not add email verification columns:', err.message);
   }
 }
 
@@ -802,14 +897,20 @@ function auth(req, res, next) {
 }
 
 function admin(req, res, next) {
-  if (req.user.role !== 'admin')
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin')
     return res.status(403).json({ error: 'Admin only' });
+  next();
+}
+
+function superadmin(req, res, next) {
+  if (req.user.role !== 'superadmin')
+    return res.status(403).json({ error: 'Super Admin only' });
   next();
 }
 
 /* ===================== AUTH ===================== */
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password } = req.body;
 
   try {
     const normalizedName = sanitizeNameInput(name).trim();
@@ -821,22 +922,42 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const hashed = await bcrypt.hash(password, 10);
+
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+
     const columns = hasPhoneColumn
-      ? `name, email, ${passwordColumn}, phone, role`
-      : `name, email, ${passwordColumn}, role`;
+      ? `name, email, ${passwordColumn}, phone, role, email_verified, verification_token, verification_token_expires`
+      : `name, email, ${passwordColumn}, role, email_verified, verification_token, verification_token_expires`;
     const values = hasPhoneColumn
-      ? [normalizedName, email, hashed, '', role || 'member']
-      : [normalizedName, email, hashed, role || 'member'];
+      ? [normalizedName, email, hashed, '', 'member', false, verificationToken, tokenExpires]
+      : [normalizedName, email, hashed, 'member', false, verificationToken, tokenExpires];
     const result = await dbRun(
       `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')}) RETURNING id`,
       ...values
     );
 
     const userId = result.lastInsertRowid || result?.id || result?.rows?.[0]?.id;
-    const user = { id: userId, name: normalizedName, email, role: role || 'member' };
-    const token = jwt.sign(user, JWT_SECRET);
 
-    res.json({ token, user });
+    // Send verification email (non-blocking — don't fail registration if email fails)
+    let emailSent = false;
+    try {
+      emailSent = await sendVerificationEmail(email, verificationToken);
+    } catch (emailErr) {
+      console.warn('Failed to send verification email:', emailErr.message);
+    }
+
+    const user = { id: userId, name: normalizedName, email, role: 'member' };
+
+    // If SMTP is not configured, auto-verify and return token (dev/fallback mode)
+    if (!emailTransporter) {
+      await dbRun('UPDATE users SET email_verified = true, verification_token = NULL, verification_token_expires = NULL WHERE id = ?', userId);
+      const token = jwt.sign(user, JWT_SECRET);
+      return res.json({ token, user });
+    }
+
+    res.json({ message: 'Registration successful! Please check your email to verify your account.', emailSent, requiresVerification: true });
   } catch (err) {
     if (err?.code === '23505') {
       return res.status(409).json({ error: 'Email already exists' });
@@ -873,6 +994,11 @@ app.post('/api/auth/login', async (req, res) => {
   if (!passwordOk)
     return res.status(401).json({ error: 'Invalid credentials' });
 
+  // Check email verification (skip check if SMTP not configured or user is admin/superadmin)
+  if (emailTransporter && user.email_verified === false && user.role !== 'admin' && user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Please verify your email before logging in. Check your inbox for a verification link.', requiresVerification: true, email: user.email });
+  }
+
   const token = jwt.sign(
     { id: user.id, name: user.name, email: user.email, role: user.role },
     JWT_SECRET
@@ -882,6 +1008,111 @@ app.post('/api/auth/login', async (req, res) => {
     token,
     user: { id: user.id, name: user.name, email: user.email, role: user.role }
   });
+});
+
+/* ========== EMAIL VERIFICATION ROUTES ========== */
+app.get('/api/auth/verify-email', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'Verification token is required' });
+
+  try {
+    const user = await dbGet('SELECT id, email, email_verified, verification_token_expires FROM users WHERE verification_token = ?', token);
+    if (!user) return res.status(400).json({ error: 'Invalid or expired verification link' });
+    if (user.email_verified) return res.json({ message: 'Email already verified. You can log in.' });
+
+    // Check token expiry
+    if (user.verification_token_expires && new Date(user.verification_token_expires) < new Date()) {
+      return res.status(400).json({ error: 'Verification link has expired. Please request a new one.' });
+    }
+
+    await dbRun('UPDATE users SET email_verified = true, verification_token = NULL, verification_token_expires = NULL WHERE id = ?', user.id);
+    res.json({ message: 'Email verified successfully! You can now log in.' });
+  } catch (err) {
+    console.error('Email verification failed:', err);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+app.post('/api/auth/resend-verification', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    const user = await dbGet('SELECT id, email_verified FROM users WHERE email = ?', email);
+    if (!user) return res.json({ message: 'If that email is registered, a verification link has been sent.' });
+    if (user.email_verified) return res.json({ message: 'Email is already verified. You can log in.' });
+
+    if (!emailTransporter) return res.status(503).json({ error: 'Email service is not configured' });
+
+    const newToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await dbRun('UPDATE users SET verification_token = ?, verification_token_expires = ? WHERE id = ?', newToken, tokenExpires, user.id);
+
+    await sendVerificationEmail(email, newToken);
+    res.json({ message: 'If that email is registered, a verification link has been sent.' });
+  } catch (err) {
+    console.error('Resend verification failed:', err);
+    res.status(500).json({ error: 'Failed to resend verification email' });
+  }
+});
+
+// Forgot password - request reset link
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    // Always return same message to prevent email enumeration
+    const user = await dbGet('SELECT id FROM users WHERE email = ?', email);
+    if (!user) return res.json({ message: 'If that email is registered, a password reset link has been sent.' });
+
+    if (!emailTransporter) return res.status(503).json({ error: 'Email service is not configured' });
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+    await dbRun(
+      'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
+      resetToken, tokenExpires, user.id
+    );
+
+    await sendPasswordResetEmail(email, resetToken);
+    res.json({ message: 'If that email is registered, a password reset link has been sent.' });
+  } catch (err) {
+    console.error('Forgot password failed:', err);
+    res.status(500).json({ error: 'Failed to send reset email' });
+  }
+});
+
+// Reset password with token
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Token and new password are required' });
+
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+  try {
+    const user = await dbGet(
+      'SELECT id, reset_token_expires FROM users WHERE reset_token = ?',
+      token
+    );
+    if (!user) return res.status(400).json({ error: 'Invalid or expired reset link' });
+
+    if (user.reset_token_expires && new Date(user.reset_token_expires) < new Date()) {
+      return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    await dbRun(
+      `UPDATE users SET ${passwordColumn} = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?`,
+      hashed, user.id
+    );
+
+    res.json({ message: 'Password has been reset successfully. You can now log in.' });
+  } catch (err) {
+    console.error('Reset password failed:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
 });
 
 /* ===================== BOOKINGS ===================== */
@@ -897,7 +1128,7 @@ app.get('/api/bookings', auth, async (req, res) => {
       ? `date >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`
       : '';
 
-  if (req.user.role === 'admin') {
+  if (req.user.role === 'admin' || req.user.role === 'superadmin') {
     const whereParts = [clause, filterClause].filter(Boolean);
     const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
     const rows = await dbAll(
@@ -999,7 +1230,7 @@ app.post('/api/bookings', auth, async (req, res) => {
   }
 
   io.emit('booking_request_created', { date, slot, service, userId: req.user.id });
-  const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  const admins = await dbAll(`SELECT id FROM users WHERE role IN ('admin', 'superadmin')`);
   await Promise.all(admins.map(adminUser =>
     createNotification(
       adminUser.id,
@@ -1463,7 +1694,7 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
       );
     }
 
-    const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+    const admins = await dbAll(`SELECT id FROM users WHERE role IN ('admin', 'superadmin')`);
     await Promise.all(admins.map(adminUser =>
       createNotification(
         adminUser.id,
@@ -1506,7 +1737,7 @@ app.post('/api/booking-request-edit-proposals/:id/respond', auth, async (req, re
     );
   }
 
-  const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  const admins = await dbAll(`SELECT id FROM users WHERE role IN ('admin', 'superadmin')`);
   await Promise.all(admins.map(adminUser =>
     createNotification(
       adminUser.id,
@@ -1671,7 +1902,7 @@ app.post('/api/booking-edit-proposals/:id/respond', auth, async (req, res) => {
       );
     }
 
-    const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+    const admins = await dbAll(`SELECT id FROM users WHERE role IN ('admin', 'superadmin')`);
     await Promise.all(admins.map(adminUser =>
       createNotification(
         adminUser.id,
@@ -1713,7 +1944,7 @@ app.post('/api/booking-edit-proposals/:id/respond', auth, async (req, res) => {
     );
   }
 
-  const admins = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  const admins = await dbAll(`SELECT id FROM users WHERE role IN ('admin', 'superadmin')`);
   await Promise.all(admins.map(adminUser =>
     createNotification(
       adminUser.id,
@@ -1831,7 +2062,7 @@ app.delete('/api/bookings/:id', auth, async (req, res) => {
 
   const normalized = normalizeBooking(booking);
   const isOwner = normalized.userId === req.user.id;
-  const isAdmin = req.user.role === 'admin';
+  const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
 
   if (!isAdmin && !isOwner)
     return res.status(403).json({ error: 'Forbidden' });
@@ -1896,11 +2127,13 @@ app.post('/api/events', auth, admin, async (req, res) => {
   );
 
   io.emit('event_created');
-  await createNotification(
-    req.user.id,
-    'info',
-    `Event created: ${req.body.title} (${req.body.date})`
-  );
+
+  // Notify all users about the new event
+  const allUsers = await dbAll('SELECT id FROM users');
+  await Promise.all(allUsers.map(u =>
+    createNotification(u.id, 'info', `New event: ${req.body.title} on ${req.body.date}${req.body.time ? ` at ${req.body.time}` : ''}`)
+  ));
+
   res.json({ success: true });
 });
 
@@ -1989,7 +2222,12 @@ app.post('/api/mass-services', auth, admin, async (req, res) => {
   `, service_type, date, time, String(description || '').trim() || null, chapel, capacity || null, req.user.id);
 
   io.emit('mass_service_created', { id: row.id });
-  await createNotification(req.user.id, 'info', `Mass Service created: ${service_type} (${date})`);
+
+  // Notify all users about the new mass service
+  const allUsers = await dbAll('SELECT id FROM users');
+  await Promise.all(allUsers.map(u =>
+    createNotification(u.id, 'info', `New Mass Service: ${service_type} on ${date}${time ? ` at ${time}` : ''}${chapel ? ` — ${chapel}` : ''}`)
+  ));
 
   res.json({ success: true, service: normalizeMassService(row) });
 });
@@ -2095,7 +2333,7 @@ app.post('/api/mass-services/:id/apply', auth, async (req, res) => {
   io.emit('mass_service_application_created', { service_id: serviceId, app_id: row.id });
   await createNotification(req.user.id, 'request', `Your application for ${service.service_type} is pending admin review`);
 
-  const adminUsers = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  const adminUsers = await dbAll(`SELECT id FROM users WHERE role IN ('admin', 'superadmin')`);
   for (const adminUser of adminUsers) {
     await createNotification(adminUser.id, 'info', `New application for ${service.service_type} (${service.date})`);
   }
@@ -2193,7 +2431,7 @@ app.post('/api/mass-services/applications/:appId/cancel', auth, async (req, res)
   io.emit('mass_service_application_updated', { app_id: appId, status: 'cancelled' });
   
   await createNotification(req.user.id, 'info', `Your application for ${service?.service_type} has been cancelled`);
-  const adminUsers = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  const adminUsers = await dbAll(`SELECT id FROM users WHERE role IN ('admin', 'superadmin')`);
   for (const adminUser of adminUsers) {
     await createNotification(adminUser.id, 'info', `Application cancelled for ${service?.service_type}`);
   }
@@ -2281,7 +2519,7 @@ app.post('/api/concerns', auth, async (req, res) => {
     'concern',
     `Concern submitted: ${subject}`
   );
-  const adminUsers = await dbAll(`SELECT id FROM users WHERE role='admin'`);
+  const adminUsers = await dbAll(`SELECT id FROM users WHERE role IN ('admin', 'superadmin')`);
   for (const adminUser of adminUsers) {
     await createNotification(
       adminUser.id,
@@ -2438,6 +2676,69 @@ app.get('/api/users', auth, admin, async (_, res) => {
   res.json(rows);
 });
 
+// Change user role (superadmin only)
+app.put('/api/users/:id/role', auth, superadmin, async (req, res) => {
+  const targetId = Number(req.params.id);
+  const { role } = req.body;
+
+  if (!['member', 'admin'].includes(role)) {
+    return res.status(400).json({ error: 'Role must be "member" or "admin"' });
+  }
+
+  if (targetId === req.user.id) {
+    return res.status(400).json({ error: 'You cannot change your own role' });
+  }
+
+  const target = await dbGet('SELECT id, role FROM users WHERE id=?', targetId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  if (target.role === 'superadmin') {
+    return res.status(403).json({ error: 'Cannot change the role of a super admin' });
+  }
+
+  await dbRun('UPDATE users SET role=? WHERE id=?', role, targetId);
+  res.json({ success: true, message: `User role updated to ${role}` });
+});
+
+// Delete user account (superadmin only)
+app.delete('/api/users/:id', auth, superadmin, async (req, res) => {
+  const targetId = Number(req.params.id);
+
+  if (targetId === req.user.id) {
+    return res.status(400).json({ error: 'You cannot delete your own account' });
+  }
+
+  const target = await dbGet('SELECT id, role, name FROM users WHERE id=?', targetId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  if (target.role === 'superadmin') {
+    return res.status(403).json({ error: 'Cannot delete a super admin account' });
+  }
+
+  // Clean up user's related data across all tables
+  try {
+    const bkCol = bookingUserIdCol || '"userId"';
+    const brCol = bookingRecordUserIdCol || '"userId"';
+    const rqCol = requestUserIdCol || '"userId"';
+    const cnCol = concernUserIdCol || '"userId"';
+    const ntCol = notificationUserIdCol || '"userId"';
+
+    await dbRun(`DELETE FROM notifications WHERE ${ntCol} = ?`, targetId);
+    await dbRun(`DELETE FROM concerns WHERE ${cnCol} = ?`, targetId);
+    await dbRun(`DELETE FROM booking_records WHERE ${brCol} = ?`, targetId);
+    await dbRun('DELETE FROM booking_edit_proposals WHERE user_id = ?', targetId);
+    await dbRun('DELETE FROM booking_request_edit_proposals WHERE user_id = ?', targetId);
+    await dbRun(`DELETE FROM booking_requests WHERE ${rqCol} = ?`, targetId);
+    await dbRun(`DELETE FROM bookings WHERE ${bkCol} = ?`, targetId);
+    await dbRun('DELETE FROM mass_service_applications WHERE user_id = ?', targetId);
+    await dbRun('DELETE FROM users WHERE id=?', targetId);
+    res.json({ success: true, message: `User ${target.name} has been deleted` });
+  } catch (err) {
+    console.error('Failed to delete user:', err);
+    res.status(500).json({ error: 'Failed to delete user. Please try again.' });
+  }
+});
+
 app.put('/api/users/me', auth, async (req, res) => {
   const userId = req.user.id;
   const { name, email, password } = req.body || {};
@@ -2462,6 +2763,16 @@ app.put('/api/users/me', auth, async (req, res) => {
     if (duplicate) return res.status(409).json({ error: 'Email already in use' });
     updates.push('email=?');
     values.push(email);
+    // Reset email verification when email changes
+    updates.push('email_verified=?');
+    values.push(false);
+    updates.push('verification_token=?');
+    const newToken = crypto.randomBytes(32).toString('hex');
+    values.push(newToken);
+    updates.push('verification_token_expires=?');
+    values.push(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+    // Send verification email for the new address
+    sendVerificationEmail(email, newToken).catch(err => console.error('Failed to send re-verification email:', err));
   }
 
   if (normalizedName && normalizedName !== existing.name) {
@@ -2584,7 +2895,7 @@ app.get('/health', (req, res) => {
  * System info endpoint
  */
 app.get('/api/system-info', auth, async (req, res) => {
-  if (req.user?.role !== 'admin') {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'superadmin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
@@ -2617,6 +2928,18 @@ io.on('connection', (s) => {
   s.on('disconnect', (reason) => {
     console.log('Socket disconnected:', s.id, reason);
   });
+});
+
+/* ===================== GLOBAL ERROR HANDLER ===================== */
+app.use((err, req, res, _next) => {
+  console.error('Unhandled error:', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Promise Rejection:', reason);
 });
 
 /* ===================== START SERVER ===================== */
