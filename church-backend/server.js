@@ -167,9 +167,9 @@ async function sendMailWithRetry(mailOptions, retries = 2) {
       return true;
     } catch (err) {
       const isTransient = ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(err.code)
-        || /timeout/i.test(err.message);
+        || (err.message && /timeout/i.test(err.message));
       if (attempt < retries && isTransient) {
-        const delay = 1000 * Math.pow(2, attempt);
+        const delay = 1000 * Math.pow(2, attempt + 1);
         console.warn(`Email send attempt ${attempt + 1} failed (${err.code || err.message}), retrying in ${delay}ms…`);
         await new Promise(r => setTimeout(r, delay));
         continue;
