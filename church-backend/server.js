@@ -143,13 +143,16 @@ async function sendMailWithRetry(msg, retries = 2) {
       await sgMail.send(msg);
       return true;
     } catch (err) {
-      const statusCode = err?.code;
-      const isTransient = statusCode >= 500 || statusCode === 429
-        || ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(err.code)
+      // SendGrid errors: err.code is numeric HTTP status (e.g. 429, 500)
+      // Network errors: err.code is a string (e.g. 'ETIMEDOUT', 'ECONNRESET')
+      const httpStatus = typeof err.code === 'number' ? err.code : null;
+      const errCode = typeof err.code === 'string' ? err.code : null;
+      const isTransient = (httpStatus !== null && (httpStatus >= 500 || httpStatus === 429))
+        || ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(errCode)
         || (err.message && /timeout/i.test(err.message));
       if (attempt < retries && isTransient) {
         const delay = 1000 * Math.pow(2, attempt + 1);
-        console.warn(`Email send attempt ${attempt + 1} failed (${statusCode || err.message}), retrying in ${delay}ms…`);
+        console.warn(`Email send attempt ${attempt + 1} failed (${httpStatus || errCode || err.message}), retrying in ${delay}ms…`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
