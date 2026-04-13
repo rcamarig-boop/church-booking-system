@@ -74,17 +74,17 @@ export function StatusTimeline({ currentStatus, allStatuses }) {
 // Permission display component
 export function PermissionDisplay({ role }) {
   const permissions = {
-    admin: {
-      can: ['Approve applications', 'Reject applications', 'Create services', 'Delete services', 'Edit bookings', 'Export reports', 'View all records'],
+    superadmin: {
+      can: ['Full system access', 'Appoint & remove admins', 'Delete user accounts', 'Approve & reject applications', 'Create & delete services', 'Create & manage events', 'Edit & delete bookings', 'View all records & reports', 'Manage mass services', 'Respond to concerns'],
       cannot: []
     },
-    secretary: {
-      can: ['Approve applications', 'Reject applications', 'Create services', 'Edit bookings', 'Export reports'],
-      cannot: ['Delete services', 'Delete bookings', 'Delete members']
+    admin: {
+      can: ['Approve & reject applications', 'Create & delete services', 'Create & manage events', 'Edit & delete bookings', 'View all records & reports', 'Manage mass services', 'Respond to concerns'],
+      cannot: ['Appoint or remove admins', 'Delete user accounts']
     },
     member: {
-      can: ['View my bookings', 'Create applications', 'Edit my own applications', 'Cancel pending applications'],
-      cannot: ['Approve applications', 'Create services', 'View other members\' data', 'Export data']
+      can: ['View calendar & events', 'Book sacrament services', 'Submit booking requests', 'Apply for mass services', 'Track my bookings & requests', 'Raise & view my concerns', 'Edit my profile & password'],
+      cannot: ['Approve or reject applications', 'Create or manage events', 'View other members\' data', 'Access admin reports', 'Delete bookings']
     }
   };
 

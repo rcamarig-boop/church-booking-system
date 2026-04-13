@@ -3600,61 +3600,129 @@ export default function AdminDashboard({ user, onLogout }) {
               gap: 12,
               marginBottom: 20
             }}>
-              <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, margin: 0, fontWeight: 800, fontSize: 22 }}>⚙️ System Settings</h2>
+              <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, margin: 0, fontWeight: 800, fontSize: 22 }}>⚙️ Settings</h2>
               <HelpIcon 
                 title="Settings Help"
-                description="Configure parish management system preferences and defaults"
+                description="Manage your profile, view permissions, and system configuration"
                 steps={[
-                  'View current system configuration',
-                  'Manage booking constraints',
-                  'Configure staff permissions',
-                  'Set service defaults and templates'
+                  'Edit your name, email, or password',
+                  'View your role permissions',
+                  'Check system feature status',
+                  'View session information'
                 ]}
               />
             </div>
-            <div style={{
-              display: 'grid',
-              gap: 16
-            }}>
+            <div style={{ display: 'grid', gap: 16 }}>
+
+              {/* 👤 PROFILE */}
               <div style={{
-                padding: '16px',
+                padding: '20px',
                 background: '#fff',
                 borderRadius: 12,
                 border: `1px solid ${mist}`,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
               }}>
-                <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 16, color: ink }}>📋 Current System Status</div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                  gap: 12,
-                  marginBottom: 16
-                }}>
-                  <InfoCard 
-                    icon="👥"
-                    title="Staff Members"
-                    description={`${users.length} users registered`}
-                  />
-                  <InfoCard 
-                    icon="📅"
-                    title="Total Bookings"
-                    description={`${bookings.length} bookings scheduled`}
-                  />
-                  <InfoCard 
-                    icon="📢"
-                    title="Open Concerns"
-                    description={`${concerns.filter(c => c.status?.toLowerCase() === 'open').length} issues`}
-                  />
-                  <InfoCard 
-                    icon="🎫"
-                    title="Mass Services"
-                    description="Collective service feature enabled"
-                  />
+                <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 16, color: ink }}>👤 My Profile</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Name</label>
+                    <input
+                      type="text"
+                      value={profileName}
+                      onChange={e => setProfileName(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Email</label>
+                    <input
+                      type="email"
+                      value={profileEmail}
+                      onChange={e => setProfileEmail(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>New Password</label>
+                    <input
+                      type="password"
+                      value={profilePassword}
+                      onChange={e => setProfilePassword(e.target.value)}
+                      placeholder="Leave blank to keep current"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Confirm Password</label>
+                    <input
+                      type="password"
+                      value={profileConfirm}
+                      onChange={e => setProfileConfirm(e.target.value)}
+                      placeholder="Confirm new password"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                    />
+                  </div>
+                </div>
+                {profileError && (
+                  <div style={{ color: '#b0413e', fontSize: 13, marginTop: 10, padding: '8px 12px', background: '#fff5f5', borderRadius: 8, border: '1px solid #fdd2d2' }}>
+                    {profileError}
+                  </div>
+                )}
+                <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+                  <button
+                    disabled={profileSaving}
+                    onClick={async () => {
+                      setProfileError('');
+                      if (profilePassword && profilePassword !== profileConfirm) {
+                        setProfileError('Passwords do not match.');
+                        return;
+                      }
+                      if (!profileName.trim() || !profileEmail.trim()) {
+                        setProfileError('Name and email are required.');
+                        return;
+                      }
+                      if (!isValidNameValue(profileName)) {
+                        setProfileError(`Name must be ${NAME_MAX_LENGTH} characters or fewer and use letters, spaces, apostrophes, or hyphens only.`);
+                        return;
+                      }
+                      try {
+                        setProfileSaving(true);
+                        const res = await api.users.updateMe({
+                          name: profileName.trim(),
+                          email: profileEmail.trim(),
+                          password: profilePassword ? profilePassword : undefined
+                        });
+                        onUserUpdate?.(res.data);
+                        setProfilePassword('');
+                        setProfileConfirm('');
+                        setProfileError('');
+                      } catch (err) {
+                        setProfileError(err.response?.data?.error || 'Failed to update profile.');
+                      } finally {
+                        setProfileSaving(false);
+                      }
+                    }}
+                    style={{
+                      padding: '10px 24px',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      borderRadius: 10,
+                      border: 'none',
+                      background: accentBlue,
+                      color: '#fff',
+                      cursor: profileSaving ? 'not-allowed' : 'pointer',
+                      opacity: profileSaving ? 0.7 : 1,
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {profileSaving ? 'Saving...' : 'Save Profile'}
+                  </button>
                 </div>
               </div>
 
+              {/* 🔐 PERMISSIONS & ROLES */}
               <div style={{
-                padding: '16px',
+                padding: '20px',
                 background: '#fff',
                 borderRadius: 12,
                 border: `1px solid ${mist}`,
@@ -3665,79 +3733,88 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div style={{
                   marginTop: 16,
                   padding: '12px',
-                  background: '#f0fdf4',
+                  background: user?.role === 'superadmin' ? '#f5f3ff' : '#f0fdf4',
                   borderRadius: 8,
-                  borderLeft: '4px solid #22c55e',
-                  color: '#15803d',
+                  borderLeft: `4px solid ${user?.role === 'superadmin' ? '#8b5cf6' : '#22c55e'}`,
+                  color: user?.role === 'superadmin' ? '#6d28d9' : '#15803d',
                   fontSize: 13
                 }}>
-                  <strong>Current Role:</strong> {user?.role?.toUpperCase() || 'MEMBER'}
+                  <strong>Current Role:</strong> {user?.role === 'superadmin' ? '👑 SUPER ADMIN' : user?.role === 'admin' ? '🛡️ ADMIN' : 'MEMBER'}
                 </div>
               </div>
 
+              {/* 📋 SYSTEM STATUS (admin/superadmin) */}
               <div style={{
-                padding: '16px',
+                padding: '20px',
+                background: '#fff',
+                borderRadius: 12,
+                border: `1px solid ${mist}`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 16, color: ink }}>📋 System Overview</div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: 12
+                }}>
+                  <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{users.length}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Parishioners</div>
+                  </div>
+                  <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{bookings.length}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Bookings</div>
+                  </div>
+                  <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{events.length}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Events</div>
+                  </div>
+                  <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{concerns.filter(c => c.status?.toLowerCase() === 'open').length}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Open Concerns</div>
+                  </div>
+                  <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{requests.length}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Requests</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 📱 FEATURE STATUS */}
+              <div style={{
+                padding: '20px',
                 background: '#fff',
                 borderRadius: 12,
                 border: `1px solid ${mist}`,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
               }}>
                 <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: ink }}>📱 Feature Status</div>
-                <div style={{
-                  display: 'grid',
-                  gap: 10
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '10px 12px',
-                    background: '#f8fafc',
-                    borderRadius: 8,
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    <span style={{ color: ink }}>Booking Conflict Detection</span>
-                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Enabled</span>
-                  </div>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '10px 12px',
-                    background: '#f8fafc',
-                    borderRadius: 8,
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    <span style={{ color: ink }}>Mass Services (Collective)</span>
-                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Enabled</span>
-                  </div>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '10px 12px',
-                    background: '#f8fafc',
-                    borderRadius: 8,
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    <span style={{ color: ink }}>Real-time Notifications</span>
-                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Enabled</span>
-                  </div>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '10px 12px',
-                    background: '#f8fafc',
-                    borderRadius: 8,
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    <span style={{ color: ink }}>Activity Logging</span>
-                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Enabled</span>
-                  </div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {[
+                    'Booking Conflict Detection',
+                    'Mass Services (Collective)',
+                    'Real-time Notifications',
+                    'Activity Logging',
+                    'Email Verification',
+                    'Password Reset'
+                  ].map(feature => (
+                    <div key={feature} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      background: '#f8fafc',
+                      borderRadius: 8,
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      <span style={{ color: ink, fontSize: 13 }}>{feature}</span>
+                      <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 13 }}>✓ Enabled</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
+              {/* 📝 SESSION INFORMATION */}
               <div style={{
                 padding: '16px',
                 background: `linear-gradient(135deg, ${stone}40, ${mist}40)`,
@@ -3749,7 +3826,7 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div style={{ fontSize: 14, marginBottom: 8 }}>📝 Session Information</div>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>
                   Logged in as: <strong>{user?.email || 'Unknown'}</strong><br />
-                  Role: <strong>{user?.role?.toUpperCase() || 'MEMBER'}</strong><br />
+                  Role: <strong>{user?.role === 'superadmin' ? '👑 Super Admin' : user?.role === 'admin' ? '🛡️ Admin' : 'Member'}</strong><br />
                   Session: Active
                 </div>
               </div>

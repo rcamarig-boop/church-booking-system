@@ -5,6 +5,7 @@ import MassServiceApplyModal from './MassServiceApplyModal';
 import { SocketContext } from './App';
 import { loadSidebarContact } from './sidebarContact';
 import { NAME_MAX_LENGTH, isValidNameValue, sanitizeNameInput } from './inputValidation';
+import { PermissionDisplay } from './StatusComponents';
 
 const stone = '#f8f4ec';
 const ink = '#1f2a44';
@@ -225,7 +226,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   }, []);
 
   useEffect(() => {
-    if (activeTab !== 'events' && activeTab !== 'bookings' && activeTab !== 'requests' && activeTab !== 'calendar' && activeTab !== 'concerns' && activeTab !== 'tracking') return;
+    if (activeTab !== 'events' && activeTab !== 'bookings' && activeTab !== 'requests' && activeTab !== 'calendar' && activeTab !== 'concerns' && activeTab !== 'tracking' && activeTab !== 'settings') return;
     const intervalId = setInterval(() => {
       loadData();
     }, 30000);
@@ -419,7 +420,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
     requests: 'My Requests',
     calendar: 'Calendar',
     concerns: 'My Concerns',
-    tracking: 'Tracking Actions'
+    tracking: 'Tracking Actions',
+    settings: 'Settings'
   }[activeTab] || 'Events';
 
   return (
@@ -1343,6 +1345,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   { key: 'requests', label: 'My Requests', icon: '📜' },
                   { key: 'concerns', label: 'My Concerns', icon: '📣' },
                   { key: 'tracking', label: 'Actions', icon: '📊' },
+                  { key: 'settings', label: 'Settings', icon: '⚙️' },
                 ].map(tab => (
                 <button
                   className="dashboard-tab-btn dashboard-tab-btn--member"
@@ -2010,6 +2013,160 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                           <div style={{ fontSize: 12, color: '#9ca3af' }}>Your bookings, requests, and concerns will appear here.</div>
                         </div>
                       )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'settings' && (
+              <div>
+                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 20, fontWeight: 800, fontSize: 22 }}>⚙️ Settings</h2>
+                <div style={{ display: 'grid', gap: 16 }}>
+
+                  {/* 👤 PROFILE */}
+                  <div style={{
+                    padding: '20px',
+                    background: '#fff',
+                    borderRadius: 12,
+                    border: `1px solid ${mist}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 16, color: ink }}>👤 My Profile</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Name</label>
+                        <input
+                          type="text"
+                          value={profileName}
+                          onChange={e => setProfileName(e.target.value)}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Email</label>
+                        <input
+                          type="email"
+                          value={profileEmail}
+                          onChange={e => setProfileEmail(e.target.value)}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>New Password</label>
+                        <input
+                          type="password"
+                          value={profilePassword}
+                          onChange={e => setProfilePassword(e.target.value)}
+                          placeholder="Leave blank to keep current"
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Confirm Password</label>
+                        <input
+                          type="password"
+                          value={profileConfirm}
+                          onChange={e => setProfileConfirm(e.target.value)}
+                          placeholder="Confirm new password"
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                        />
+                      </div>
+                    </div>
+                    {profileError && (
+                      <div style={{ color: '#b0413e', fontSize: 13, marginTop: 10, padding: '8px 12px', background: '#fff5f5', borderRadius: 8, border: '1px solid #fdd2d2' }}>
+                        {profileError}
+                      </div>
+                    )}
+                    <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+                      <button
+                        disabled={profileSaving}
+                        onClick={async () => {
+                          setProfileError('');
+                          if (profilePassword && profilePassword !== profileConfirm) {
+                            setProfileError('Passwords do not match.');
+                            return;
+                          }
+                          if (!profileName.trim() || !profileEmail.trim()) {
+                            setProfileError('Name and email are required.');
+                            return;
+                          }
+                          if (!isValidNameValue(profileName)) {
+                            setProfileError(`Name must be ${NAME_MAX_LENGTH} characters or fewer and use letters, spaces, apostrophes, or hyphens only.`);
+                            return;
+                          }
+                          try {
+                            setProfileSaving(true);
+                            const res = await api.users.updateMe({
+                              name: profileName.trim(),
+                              email: profileEmail.trim(),
+                              password: profilePassword ? profilePassword : undefined
+                            });
+                            onUserUpdate?.(res.data);
+                            setProfilePassword('');
+                            setProfileConfirm('');
+                            setProfileError('');
+                          } catch (err) {
+                            setProfileError(err.response?.data?.error || 'Failed to update profile.');
+                          } finally {
+                            setProfileSaving(false);
+                          }
+                        }}
+                        style={{
+                          padding: '10px 24px',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          borderRadius: 10,
+                          border: 'none',
+                          background: accentBlue,
+                          color: '#fff',
+                          cursor: profileSaving ? 'not-allowed' : 'pointer',
+                          opacity: profileSaving ? 0.7 : 1,
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {profileSaving ? 'Saving...' : 'Save Profile'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 🔐 PERMISSIONS */}
+                  <div style={{
+                    padding: '20px',
+                    background: '#fff',
+                    borderRadius: 12,
+                    border: `1px solid ${mist}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: ink }}>🔐 Permissions & Roles</div>
+                    <PermissionDisplay role="member" />
+                    <div style={{
+                      marginTop: 16,
+                      padding: '12px',
+                      background: '#f0fdf4',
+                      borderRadius: 8,
+                      borderLeft: '4px solid #22c55e',
+                      color: '#15803d',
+                      fontSize: 13
+                    }}>
+                      <strong>Current Role:</strong> MEMBER
+                    </div>
+                  </div>
+
+                  {/* 📝 SESSION INFO */}
+                  <div style={{
+                    padding: '16px',
+                    background: `linear-gradient(135deg, ${stone}40, ${mist}40)`,
+                    borderRadius: 12,
+                    border: `2px dashed ${gold}`,
+                    color: ink,
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: 14, marginBottom: 8 }}>📝 Session Information</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>
+                      Logged in as: <strong>{user?.email || 'Unknown'}</strong><br />
+                      Role: <strong>Member</strong><br />
+                      Session: Active
                     </div>
                   </div>
                 </div>
