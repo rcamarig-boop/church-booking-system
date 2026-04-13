@@ -161,7 +161,11 @@ export default function CalendarViewNew({
     const map = {};
     bookingSource.forEach(b => {
       if (!b?.date) return;
-      map[b.date] = (map[b.date] || 0) + 1;
+      if (!map[b.date]) map[b.date] = { count: 0, services: [] };
+      map[b.date].count += 1;
+      if (b.service && !map[b.date].services.includes(b.service)) {
+        map[b.date].services.push(b.service);
+      }
     });
     return map;
   }, [bookingSource]);
@@ -172,7 +176,7 @@ export default function CalendarViewNew({
   --------------------------- */
   const getLoadStatus = (date) => {
     const max = dateMap[date]?.max_slots ?? DEFAULT_MAX_SLOTS;
-    const booked = bookingsByDate[date] || 0;
+    const booked = bookingsByDate[date]?.count || 0;
     if (booked >= max) return 'red';
     if (booked <= 0) return 'green';
     if (booked > max / 2) return 'orange';
@@ -368,7 +372,8 @@ export default function CalendarViewNew({
           const status = getLoadStatus(dateStr);
           const isFuture = dateStr >= tomorrowIso && dateStr <= sixMonthsAheadIso;
           const max = dateMap[dateStr]?.max_slots ?? DEFAULT_MAX_SLOTS;
-          const booked = bookingsByDate[dateStr] || 0;
+          const booked = bookingsByDate[dateStr]?.count || 0;
+          const services = bookingsByDate[dateStr]?.services || [];
           const isClosed = max <= 0;
           const isSelectable = isFuture && !isClosed;
           const palette = isSelectable ? STATUS_COLORS[status] : STATUS_COLORS.gray;
@@ -396,8 +401,19 @@ export default function CalendarViewNew({
             >
               <div style={{ fontWeight: 700, fontSize: compactLayout ? 12 : 15 }}>{day}</div>
               {!compactLayout && (
-                <div style={{ fontSize: 12, marginTop: 6 }}>
-                  {isSelectable ? `${booked}/${max} booked` : unavailableLabel}
+                <div style={{ fontSize: 11, marginTop: 4 }}>
+                  {isSelectable ? (
+                    <>
+                      <div>{booked}/{max} booked</div>
+                      {services.length > 0 && (
+                        <div style={{ fontSize: 10, marginTop: 2, lineHeight: 1.3, color: '#4a5568' }}>
+                          {services.map((s, idx) => (
+                            <div key={idx} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s}</div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : unavailableLabel}
                 </div>
               )}
             </div>
