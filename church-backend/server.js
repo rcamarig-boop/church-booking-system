@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
@@ -124,45 +124,40 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@church.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-/* ========== EMAIL (Resend) ========== */
+/* ========== EMAIL (Nodemailer Gmail) ========== */
 let emailConfigured = false;
-// Resend's shared test sender works without a verified domain (limited to ~100 emails/day).
-// For production, set RESEND_FROM to a sender on a domain you've verified at https://resend.com/domains.
-const RESEND_DEFAULT_FROM = 'Parish Booking <onboarding@resend.dev>';
-const EMAIL_FROM = process.env.RESEND_FROM || process.env.SENDGRID_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.RESEND_API_KEY ? RESEND_DEFAULT_FROM : undefined);
-let resend;
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+const EMAIL_FROM = process.env.EMAIL_FROM || GMAIL_USER;
+let mailTransporter;
 
-if (process.env.RESEND_API_KEY && EMAIL_FROM) {
-  resend = new Resend(process.env.RESEND_API_KEY);
+if (GMAIL_USER && GMAIL_APP_PASSWORD && EMAIL_FROM) {
+  mailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: GMAIL_USER,
+      pass: GMAIL_APP_PASSWORD
+    }
+  });
   emailConfigured = true;
-  if (EMAIL_FROM === RESEND_DEFAULT_FROM) {
-    console.log('Email service ready (Resend — using shared onboarding@resend.dev sender)');
-    console.warn('⚠  For production, set RESEND_FROM to a sender on your verified domain. See https://resend.com/domains');
-  } else {
-    console.log('Email service ready (Resend)');
-  }
+  console.log('Email service ready (Nodemailer Gmail)');
 } else {
-  console.warn('RESEND_API_KEY or sender address not configured — email verification will be skipped');
+  console.warn('GMAIL_USER or GMAIL_APP_PASSWORD not configured - email verification will be skipped');
 }
 
 async function sendMailWithRetry(msg, retries = 2) {
   if (!emailConfigured) return false;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const { error } = await resend.emails.send(msg);
-      if (error) throw error;
+      await mailTransporter.sendMail(msg);
       return true;
     } catch (err) {
-      // Resend errors: err.statusCode is numeric HTTP status (e.g. 429, 500)
-      // Network errors: err.code is a string (e.g. 'ETIMEDOUT', 'ECONNRESET')
-      const httpStatus = typeof err.statusCode === 'number' ? err.statusCode : null;
       const errCode = typeof err.code === 'string' ? err.code : null;
-      const isTransient = (httpStatus !== null && (httpStatus >= 500 || httpStatus === 429))
-        || ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(errCode)
+      const isTransient = ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED', 'EAI_AGAIN'].includes(errCode)
         || (err.message && /timeout/i.test(err.message));
       if (attempt < retries && isTransient) {
         const delay = 1000 * Math.pow(2, attempt + 1);
-        console.warn(`Email send attempt ${attempt + 1} failed (${httpStatus || errCode || err.message}), retrying in ${delay}ms…`);
+        console.warn(`Email send attempt ${attempt + 1} failed (${errCode || err.message}), retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
@@ -1072,7 +1067,7 @@ app.post('/api/auth/resend-verification', async (req, res) => {
     await sendVerificationEmail(email, newToken);
     res.json({ message: 'If that email is registered, a verification link has been sent.' });
   } catch (err) {
-    console.error('Resend verification failed:', err);
+    console.error('Verification email resend failed:', err);
     res.status(500).json({ error: 'Failed to resend verification email' });
   }
 });
