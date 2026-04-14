@@ -126,13 +126,21 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 /* ========== EMAIL (Resend) ========== */
 let emailConfigured = false;
-const EMAIL_FROM = process.env.RESEND_FROM || process.env.SENDGRID_FROM || process.env.SMTP_FROM || process.env.SMTP_USER;
+// Resend's shared test sender works without a verified domain (limited to ~100 emails/day).
+// For production, set RESEND_FROM to a sender on a domain you've verified at https://resend.com/domains.
+const RESEND_DEFAULT_FROM = 'Parish Booking <onboarding@resend.dev>';
+const EMAIL_FROM = process.env.RESEND_FROM || process.env.SENDGRID_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.RESEND_API_KEY ? RESEND_DEFAULT_FROM : undefined);
 let resend;
 
 if (process.env.RESEND_API_KEY && EMAIL_FROM) {
   resend = new Resend(process.env.RESEND_API_KEY);
   emailConfigured = true;
-  console.log('Email service ready (Resend)');
+  if (EMAIL_FROM === RESEND_DEFAULT_FROM) {
+    console.log('Email service ready (Resend — using shared onboarding@resend.dev sender)');
+    console.warn('⚠  For production, set RESEND_FROM to a sender on your verified domain. See https://resend.com/domains');
+  } else {
+    console.log('Email service ready (Resend)');
+  }
 } else {
   console.warn('RESEND_API_KEY or sender address not configured — email verification will be skipped');
 }
