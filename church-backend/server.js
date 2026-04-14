@@ -153,6 +153,18 @@ async function sendMailWithRetry(msg, retries = 2) {
       if (error) throw error;
       return true;
     } catch (err) {
+      // Resend test-sender restriction: the shared onboarding@resend.dev sender
+      // can only deliver to the Resend account owner's email address.
+      // Detect this and return false instead of throwing so callers can degrade gracefully.
+      const errMsg = typeof err.message === 'string' ? err.message : '';
+      if (errMsg.includes('only send testing emails to your own email') || errMsg.includes('verify a domain')) {
+        console.warn(
+          `⚠  Resend test-sender restriction: cannot send to <${msg.to}>. ` +
+          'Verify a domain at https://resend.com/domains and set RESEND_FROM to use it.'
+        );
+        return false;
+      }
+
       // Resend errors: err.statusCode is numeric HTTP status (e.g. 429, 500)
       // Network errors: err.code is a string (e.g. 'ETIMEDOUT', 'ECONNRESET')
       const httpStatus = typeof err.statusCode === 'number' ? err.statusCode : null;
@@ -978,7 +990,11 @@ app.post('/api/auth/register', async (req, res) => {
       console.warn('Email not configured — verification email could not be sent for', email);
     }
 
-    res.json({ message: 'Registration successful! Please check your email to verify your account.', emailSent, requiresVerification: true });
+    const message = emailSent
+      ? 'Registration successful! Please check your email to verify your account.'
+      : 'Registration successful! Email verification could not be sent — please contact an administrator to verify your account.';
+
+    res.json({ message, emailSent, requiresVerification: true });
   } catch (err) {
     if (err?.code === '23505') {
       return res.status(409).json({ error: 'Email already exists' });
@@ -1073,7 +1089,7 @@ app.post('/api/auth/resend-verification', async (req, res) => {
     res.json({ message: 'If that email is registered, a verification link has been sent.' });
   } catch (err) {
     console.error('Resend verification failed:', err);
-    res.status(500).json({ error: 'Failed to resend verification email' });
+    res.status(500).json({ error: 'Failed to resend verification email. Please contact an administrator to verify your account.' });
   }
 });
 
@@ -1101,7 +1117,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     res.json({ message: 'If that email is registered, a password reset link has been sent.' });
   } catch (err) {
     console.error('Forgot password failed:', err);
-    res.status(500).json({ error: 'Failed to send reset email' });
+    res.status(500).json({ error: 'Failed to send reset email. The email service may be misconfigured — please contact an administrator.' });
   }
 });
 

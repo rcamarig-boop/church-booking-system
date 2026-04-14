@@ -17,6 +17,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [emailNotSent, setEmailNotSent] = useState(false);
 
   const submit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -41,6 +42,9 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
       const res = await api.auth.register({ name, email, password });
       if (res.data.requiresVerification) {
         setRegistrationSuccess(true);
+        if (res.data.emailSent === false) {
+          setEmailNotSent(true);
+        }
       } else {
         onLogin({ token: res.data.token, user: res.data.user });
       }
@@ -94,7 +98,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
             textAlign: 'center',
             letterSpacing: '-1px'
           }}>
-            {registrationSuccess ? 'Check Your Email' : 'Join Our Parish'}
+            {registrationSuccess ? (emailNotSent ? 'Registration Successful' : 'Check Your Email') : 'Join Our Parish'}
           </h1>
 
           {registrationSuccess ? (
@@ -107,23 +111,37 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
               }}>
                 ✉
               </div>
-              <p style={{
-                fontSize: 14,
-                color: '#374151',
-                textAlign: 'center',
-                marginBottom: 12,
-                lineHeight: 1.6
-              }}>
-                We've sent a verification link to <strong>{email}</strong>. Please check your inbox and click the link to verify your account.
-              </p>
-              <p style={{
-                fontSize: 12,
-                color: '#6b7280',
-                textAlign: 'center',
-                marginBottom: 24,
-              }}>
-                The link expires in 24 hours. Check your spam folder if you don't see it.
-              </p>
+              {!emailNotSent ? (
+                <>
+                  <p style={{
+                    fontSize: 14,
+                    color: '#374151',
+                    textAlign: 'center',
+                    marginBottom: 12,
+                    lineHeight: 1.6
+                  }}>
+                    We've sent a verification link to <strong>{email}</strong>. Please check your inbox and click the link to verify your account.
+                  </p>
+                  <p style={{
+                    fontSize: 12,
+                    color: '#6b7280',
+                    textAlign: 'center',
+                    marginBottom: 24,
+                  }}>
+                    The link expires in 24 hours. Check your spam folder if you don't see it.
+                  </p>
+                </>
+              ) : (
+                <p style={{
+                  fontSize: 14,
+                  color: '#374151',
+                  textAlign: 'center',
+                  marginBottom: 24,
+                  lineHeight: 1.6
+                }}>
+                  Your account has been created, but we were unable to send a verification email to <strong>{email}</strong>. Please contact an administrator to verify your account.
+                </p>
+              )}
               <button
                 onClick={onGoToLogin || onBack}
                 style={{
