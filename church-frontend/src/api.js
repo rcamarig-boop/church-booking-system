@@ -66,11 +66,7 @@ export default {
 
   auth: {
     login: data => api.post('/auth/login', data),
-    register: data => api.post('/auth/register', data),
-    verifyEmail: token => api.get('/auth/verify-email', { params: { token } }),
-    resendVerification: email => api.post('/auth/resend-verification', { email }),
-    forgotPassword: email => api.post('/auth/forgot-password', { email }),
-    resetPassword: (token, password) => api.post('/auth/reset-password', { token, password })
+    register: data => api.post('/auth/register', data)
   },
 
   bookings: {
@@ -155,6 +151,7 @@ export default {
     list: (params) => api.get('/users', { params }),
     updateMe: data => api.put('/users/me', data),
     verifyEmail: (id) => api.put(`/users/${id}/verify-email`),
+    resetPassword: (id, newPassword) => api.put(`/users/${id}/reset-password`, { newPassword }),
     updateRole: (id, role) => api.put(`/users/${id}/role`, { role }),
     delete: (id) => api.delete(`/users/${id}`)
   }

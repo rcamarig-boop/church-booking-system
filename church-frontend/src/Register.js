@@ -12,11 +12,13 @@ const accentBlue = '#3b5b8a';
 export default function Register({ onLogin, onBack, onGoToLogin }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [registrationMessage, setRegistrationMessage] = useState('');
 
   const submit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -38,8 +40,9 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.auth.register({ name, email, password });
+      const res = await api.auth.register({ name, email, password, inviteCode });
       if (res.data.requiresVerification) {
+        setRegistrationMessage(res.data.message || 'Registration successful. Your account is pending admin approval.');
         setRegistrationSuccess(true);
       } else {
         onLogin({ token: res.data.token, user: res.data.user });
@@ -94,7 +97,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
             textAlign: 'center',
             letterSpacing: '-1px'
           }}>
-            {registrationSuccess ? 'Check Your Email' : 'Join Our Parish'}
+            {registrationSuccess ? 'Registration Submitted' : 'Join Our Parish'}
           </h1>
 
           {registrationSuccess ? (
@@ -114,7 +117,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
                 marginBottom: 12,
                 lineHeight: 1.6
               }}>
-                We've sent a verification link to <strong>{email}</strong>. Please check your inbox and click the link to verify your account.
+                {registrationMessage || <>Your account for <strong>{email}</strong> is pending admin approval.</>}
               </p>
               <p style={{
                 fontSize: 12,
@@ -122,7 +125,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
                 textAlign: 'center',
                 marginBottom: 24,
               }}>
-                The link expires in 24 hours. Check your spam folder if you don't see it.
+                You can log in after an admin or superadmin reviews and approves your member account.
               </p>
               <button
                 onClick={onGoToLogin || onBack}
@@ -194,6 +197,49 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
                 e.target.style.boxShadow = 'none';
               }}
             />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{
+              display: 'block',
+              marginBottom: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              color: ink
+            }}>
+              Invite Code
+            </label>
+            <input
+              type="text"
+              placeholder="Optional member invite code"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              onKeyPress={handleKeyPress}
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                fontSize: 14,
+                borderRadius: 10,
+                border: `1.5px solid ${mist}`,
+                background: '#fafafa',
+                color: ink,
+                transition: 'all 0.2s ease',
+                boxSizing: 'border-box'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = gold;
+                e.target.style.background = '#fff';
+                e.target.style.boxShadow = `0 0 0 3px ${gold}15`;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = mist;
+                e.target.style.background = '#fafafa';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6, lineHeight: 1.5 }}>
+              Leave blank if you do not have one. Valid invite codes auto-approve member accounts only.
+            </div>
           </div>
 
           {/* Email Input */}

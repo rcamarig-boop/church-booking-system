@@ -6,7 +6,6 @@ const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-const nodemailer = require('nodemailer');
 
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
@@ -123,109 +122,12 @@ const ADMIN_NAME = process.env.ADMIN_NAME || 'Admin User';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@church.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const MEMBER_INVITE_CODES = String(process.env.MEMBER_INVITE_CODES || '')
+  .split(',')
+  .map(code => code.trim().toUpperCase())
+  .filter(Boolean);
 
-/* ========== EMAIL (Nodemailer Gmail) ========== */
-let emailConfigured = false;
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-const EMAIL_FROM = process.env.EMAIL_FROM || GMAIL_USER;
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
-const SMTP_PORT = Number(process.env.SMTP_PORT) || 465;
-const SMTP_SECURE = String(process.env.SMTP_SECURE || 'true').toLowerCase() === 'true';
-const SMTP_CONNECTION_TIMEOUT = Number(process.env.SMTP_CONNECTION_TIMEOUT) || 15000;
-const SMTP_GREETING_TIMEOUT = Number(process.env.SMTP_GREETING_TIMEOUT) || 10000;
-const SMTP_SOCKET_TIMEOUT = Number(process.env.SMTP_SOCKET_TIMEOUT) || 20000;
-let mailTransporter;
-
-if (GMAIL_USER && GMAIL_APP_PASSWORD && EMAIL_FROM) {
-  mailTransporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_SECURE,
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD
-    },
-    connectionTimeout: SMTP_CONNECTION_TIMEOUT,
-    greetingTimeout: SMTP_GREETING_TIMEOUT,
-    socketTimeout: SMTP_SOCKET_TIMEOUT
-  });
-  emailConfigured = true;
-  console.log(`Email service ready (Nodemailer Gmail via ${SMTP_HOST}:${SMTP_PORT}, secure=${SMTP_SECURE})`);
-  mailTransporter.verify()
-    .then(() => {
-      console.log('Email transporter verification succeeded');
-    })
-    .catch((err) => {
-      const details = err?.code || err?.response || err?.message || 'Unknown error';
-      console.warn(`Email transporter verification failed: ${details}`);
-    });
-} else {
-  console.warn('GMAIL_USER or GMAIL_APP_PASSWORD not configured - email verification will be skipped');
-}
-
-async function sendMailWithRetry(msg, retries = 2) {
-  if (!emailConfigured) return false;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      await mailTransporter.sendMail(msg);
-      return true;
-    } catch (err) {
-      const errCode = typeof err.code === 'string' ? err.code : null;
-      const isTransient = ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED', 'EAI_AGAIN'].includes(errCode)
-        || (err.message && /timeout/i.test(err.message));
-      if (attempt < retries && isTransient) {
-        const delay = 1000 * Math.pow(2, attempt + 1);
-        console.warn(`Email send attempt ${attempt + 1} failed (${errCode || err.message}) via ${SMTP_HOST}:${SMTP_PORT}, retrying in ${delay}ms...`);
-        await new Promise(r => setTimeout(r, delay));
-        continue;
-      }
-      console.error(`Email send failed permanently (${errCode || err.message}) via ${SMTP_HOST}:${SMTP_PORT}`);
-      throw err;
-    }
-  }
-  return false;
-}
-
-async function sendVerificationEmail(email, token) {
-  if (!emailConfigured) return false;
-  const verifyUrl = `${FRONTEND_URL}?verify=${token}`;
-  return sendMailWithRetry({
-    to: email,
-    from: EMAIL_FROM,
-    subject: 'Verify your email — Parish Booking System',
-    html: `
-      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 30px; border: 1px solid #e7dfcf; border-radius: 12px;">
-        <h2 style="color: #1f2a44; text-align: center;">✦ Parish Booking System</h2>
-        <p style="color: #374151;">Thank you for registering! Please verify your email address by clicking the button below:</p>
-        <div style="text-align: center; margin: 24px 0;">
-          <a href="${verifyUrl}" style="display: inline-block; padding: 14px 32px; background: #3b5b8a; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px;">Verify Email</a>
-        </div>
-        <p style="color: #6b7280; font-size: 13px;">This link expires in 24 hours. If you didn't create an account, you can ignore this email.</p>
-      </div>
-    `
-  });
-}
-
-async function sendPasswordResetEmail(email, token) {
-  if (!emailConfigured) return false;
-  const resetUrl = `${FRONTEND_URL}?reset=${token}`;
-  return sendMailWithRetry({
-    to: email,
-    from: EMAIL_FROM,
-    subject: 'Reset your password — Parish Booking System',
-    html: `
-      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 30px; border: 1px solid #e7dfcf; border-radius: 12px;">
-        <h2 style="color: #1f2a44; text-align: center;">✦ Parish Booking System</h2>
-        <p style="color: #374151;">We received a request to reset your password. Click the button below to set a new password:</p>
-        <div style="text-align: center; margin: 24px 0;">
-          <a href="${resetUrl}" style="display: inline-block; padding: 14px 32px; background: #3b5b8a; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px;">Reset Password</a>
-        </div>
-        <p style="color: #6b7280; font-size: 13px;">This link expires in 1 hour. If you didn't request a password reset, you can ignore this email.</p>
-      </div>
-    `
-  });
-}
+/* ========== ACCOUNT APPROVAL (NO EMAIL DELIVERY) ========== */
 
 function getPagination(req) {
   const limit = Number.parseInt(req.query.limit, 10);
@@ -951,7 +853,7 @@ function superadmin(req, res, next) {
 
 /* ===================== AUTH ===================== */
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, inviteCode } = req.body;
 
   try {
     const normalizedName = sanitizeNameInput(name).trim();
@@ -963,17 +865,20 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const hashed = await bcrypt.hash(password, 10);
+    const normalizedInviteCode = String(inviteCode || '').trim().toUpperCase();
+    const inviteCodeAccepted = normalizedInviteCode.length > 0 && MEMBER_INVITE_CODES.includes(normalizedInviteCode);
+    const emailVerified = inviteCodeAccepted;
 
-    // Generate email verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+    // Generate placeholder approval metadata for accounts awaiting admin approval.
+    const verificationToken = emailVerified ? null : crypto.randomBytes(32).toString('hex');
+    const tokenExpires = emailVerified ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
 
     const columns = hasPhoneColumn
       ? `name, email, ${passwordColumn}, phone, role, email_verified, verification_token, verification_token_expires`
       : `name, email, ${passwordColumn}, role, email_verified, verification_token, verification_token_expires`;
     const values = hasPhoneColumn
-      ? [normalizedName, email, hashed, '', 'member', false, verificationToken, tokenExpires]
-      : [normalizedName, email, hashed, 'member', false, verificationToken, tokenExpires];
+      ? [normalizedName, email, hashed, '', 'member', emailVerified, verificationToken, tokenExpires]
+      : [normalizedName, email, hashed, 'member', emailVerified, verificationToken, tokenExpires];
     const result = await dbRun(
       `INSERT INTO users (${columns}) VALUES (${values.map(() => '?').join(', ')}) RETURNING id`,
       ...values
@@ -981,19 +886,30 @@ app.post('/api/auth/register', async (req, res) => {
 
     const userId = result.lastInsertRowid || result?.id || result?.rows?.[0]?.id;
 
-    // Send verification email (non-blocking — don't fail registration if email fails)
-    let emailSent = false;
-    try {
-      emailSent = await sendVerificationEmail(email, verificationToken);
-    } catch (emailErr) {
-      console.warn('Failed to send verification email:', emailErr.message);
+    if (inviteCodeAccepted) {
+      console.log(`Member invite code accepted for ${email}`);
     }
 
-    if (!emailConfigured) {
-      console.warn('Email not configured — verification email could not be sent for', email);
+    if (emailVerified) {
+      const token = jwt.sign(
+        { id: userId, name: normalizedName, email, role: 'member' },
+        JWT_SECRET
+      );
+      return res.json({
+        message: 'Registration successful. Your invite code approved your member account.',
+        token,
+        user: { id: userId, name: normalizedName, email, role: 'member' },
+        inviteCodeAccepted: true,
+        requiresVerification: false
+      });
     }
 
-    res.json({ message: 'Registration successful! Please check your email to verify your account.', emailSent, requiresVerification: true });
+    res.json({
+      message: 'Registration successful. Your account is pending admin approval.',
+      inviteCodeAccepted: false,
+      pendingApproval: true,
+      requiresVerification: true
+    });
   } catch (err) {
     if (err?.code === '23505') {
       return res.status(409).json({ error: 'Email already exists' });
@@ -1032,7 +948,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   // Check email verification (always enforce for non-admin users)
   if (user.email_verified === false && user.role !== 'admin' && user.role !== 'superadmin') {
-    return res.status(403).json({ error: 'Please verify your email before logging in. Check your inbox for a verification link.', requiresVerification: true, email: user.email });
+    return res.status(403).json({ error: 'Your account is pending admin approval.', requiresVerification: true, pendingApproval: true, email: user.email });
   }
 
   const token = jwt.sign(
@@ -1046,110 +962,6 @@ app.post('/api/auth/login', async (req, res) => {
   });
 });
 
-/* ========== EMAIL VERIFICATION ROUTES ========== */
-app.get('/api/auth/verify-email', async (req, res) => {
-  const { token } = req.query;
-  if (!token) return res.status(400).json({ error: 'Verification token is required' });
-
-  try {
-    const user = await dbGet('SELECT id, email, email_verified, verification_token_expires FROM users WHERE verification_token = ?', token);
-    if (!user) return res.status(400).json({ error: 'Invalid or expired verification link' });
-    if (user.email_verified) return res.json({ message: 'Email already verified. You can log in.' });
-
-    // Check token expiry
-    if (user.verification_token_expires && new Date(user.verification_token_expires) < new Date()) {
-      return res.status(400).json({ error: 'Verification link has expired. Please request a new one.' });
-    }
-
-    await dbRun('UPDATE users SET email_verified = true, verification_token = NULL, verification_token_expires = NULL WHERE id = ?', user.id);
-    res.json({ message: 'Email verified successfully! You can now log in.' });
-  } catch (err) {
-    console.error('Email verification failed:', err);
-    res.status(500).json({ error: 'Verification failed' });
-  }
-});
-
-app.post('/api/auth/resend-verification', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
-
-  try {
-    const user = await dbGet('SELECT id, email_verified FROM users WHERE email = ?', email);
-    if (!user) return res.json({ message: 'If that email is registered, a verification link has been sent.' });
-    if (user.email_verified) return res.json({ message: 'Email is already verified. You can log in.' });
-
-    if (!emailConfigured) return res.status(503).json({ error: 'Email service is not configured' });
-
-    const newToken = crypto.randomBytes(32).toString('hex');
-    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await dbRun('UPDATE users SET verification_token = ?, verification_token_expires = ? WHERE id = ?', newToken, tokenExpires, user.id);
-
-    await sendVerificationEmail(email, newToken);
-    res.json({ message: 'If that email is registered, a verification link has been sent.' });
-  } catch (err) {
-    console.error('Verification email resend failed:', err);
-    res.status(500).json({ error: 'Failed to resend verification email' });
-  }
-});
-
-// Forgot password - request reset link
-app.post('/api/auth/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
-
-  try {
-    // Always return same message to prevent email enumeration
-    const user = await dbGet('SELECT id FROM users WHERE email = ?', email);
-    if (!user) return res.json({ message: 'If that email is registered, a password reset link has been sent.' });
-
-    if (!emailConfigured) return res.status(503).json({ error: 'Email service is not configured' });
-
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const tokenExpires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
-
-    await dbRun(
-      'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
-      resetToken, tokenExpires, user.id
-    );
-
-    await sendPasswordResetEmail(email, resetToken);
-    res.json({ message: 'If that email is registered, a password reset link has been sent.' });
-  } catch (err) {
-    console.error('Forgot password failed:', err);
-    res.status(500).json({ error: 'Failed to send reset email' });
-  }
-});
-
-// Reset password with token
-app.post('/api/auth/reset-password', async (req, res) => {
-  const { token, password } = req.body;
-  if (!token || !password) return res.status(400).json({ error: 'Token and new password are required' });
-
-  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
-
-  try {
-    const user = await dbGet(
-      'SELECT id, reset_token_expires FROM users WHERE reset_token = ?',
-      token
-    );
-    if (!user) return res.status(400).json({ error: 'Invalid or expired reset link' });
-
-    if (user.reset_token_expires && new Date(user.reset_token_expires) < new Date()) {
-      return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
-    }
-
-    const hashed = await bcrypt.hash(password, 10);
-    await dbRun(
-      `UPDATE users SET ${passwordColumn} = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?`,
-      hashed, user.id
-    );
-
-    res.json({ message: 'Password has been reset successfully. You can now log in.' });
-  } catch (err) {
-    console.error('Reset password failed:', err);
-    res.status(500).json({ error: 'Failed to reset password' });
-  }
-});
 
 /* ===================== BOOKINGS ===================== */
 app.get('/api/bookings', auth, async (req, res) => {
@@ -2751,15 +2563,48 @@ app.put('/api/users/:id/role', auth, superadmin, async (req, res) => {
   res.json({ success: true, message: `User role updated to ${role}` });
 });
 
-// Manually verify a user's email (admin only)
+// Manually approve a pending member account (admin only)
 app.put('/api/users/:id/verify-email', auth, admin, async (req, res) => {
   const targetId = Number(req.params.id);
   const target = await dbGet('SELECT id, name, email, email_verified FROM users WHERE id=?', targetId);
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (target.email_verified) return res.json({ success: true, message: `${target.name}'s email is already verified.` });
+  if (target.email_verified) return res.json({ success: true, message: `${target.name} is already approved.` });
 
   await dbRun('UPDATE users SET email_verified = true, verification_token = NULL, verification_token_expires = NULL WHERE id = ?', targetId);
-  res.json({ success: true, message: `Email for ${target.name} has been manually verified.` });
+  res.json({ success: true, message: `${target.name} has been approved successfully.` });
+});
+
+// Admin-issued password reset for accounts without email recovery
+app.put('/api/users/:id/reset-password', auth, admin, async (req, res) => {
+  const targetId = Number(req.params.id);
+  const { newPassword } = req.body || {};
+
+  if (!newPassword || String(newPassword).length < 6) {
+    return res.status(400).json({ error: 'Temporary password must be at least 6 characters.' });
+  }
+
+  if (targetId === req.user.id) {
+    return res.status(400).json({ error: 'Use your profile settings to change your own password.' });
+  }
+
+  const target = await dbGet('SELECT id, name, role FROM users WHERE id=?', targetId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  if (target.role === 'superadmin') {
+    return res.status(403).json({ error: 'Cannot reset a super admin password here.' });
+  }
+
+  if (req.user.role !== 'superadmin' && target.role === 'admin') {
+    return res.status(403).json({ error: 'Only a super admin can reset another admin password.' });
+  }
+
+  const hashed = await bcrypt.hash(String(newPassword), 10);
+  await dbRun(
+    `UPDATE users SET ${passwordColumn}=?, reset_token=NULL, reset_token_expires=NULL WHERE id=?`,
+    hashed,
+    targetId
+  );
+  res.json({ success: true, message: `Password reset for ${target.name}. Share the temporary password securely.` });
 });
 
 // Delete user account (superadmin only)
@@ -2825,16 +2670,6 @@ app.put('/api/users/me', auth, async (req, res) => {
     if (duplicate) return res.status(409).json({ error: 'Email already in use' });
     updates.push('email=?');
     values.push(email);
-    // Reset email verification when email changes
-    updates.push('email_verified=?');
-    values.push(false);
-    updates.push('verification_token=?');
-    const newToken = crypto.randomBytes(32).toString('hex');
-    values.push(newToken);
-    updates.push('verification_token_expires=?');
-    values.push(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
-    // Send verification email for the new address
-    sendVerificationEmail(email, newToken).catch(err => console.error('Failed to send re-verification email:', err));
   }
 
   if (normalizedName && normalizedName !== existing.name) {

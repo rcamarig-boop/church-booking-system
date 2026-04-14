@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import api from './api';
 import PageWrapper from './PageWrapper';
 
 const ink = '#1f2a44';
@@ -11,24 +10,14 @@ export default function ForgotPassword({ onBack }) {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
     if (!email.trim()) {
       setError('Please enter your email address');
       return;
     }
-    try {
-      setLoading(true);
-      setError(null);
-      setMessage(null);
-      const res = await api.auth.forgotPassword(email);
-      setMessage(res.data.message || 'If that email is registered, a reset link has been sent.');
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to send reset email. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    setError(null);
+    setMessage(`Password resets are handled by a parish admin. Please contact the office or an administrator and ask them to reset the password for ${email.trim()}.`);
   };
 
   const handleKeyPress = (e) => {
@@ -75,22 +64,22 @@ export default function ForgotPassword({ onBack }) {
             marginBottom: 28,
             fontWeight: 500
           }}>
-            Enter your email and we'll send you a reset link
+            Enter your account email and we will show you what to tell an administrator
           </p>
 
           {message && (
             <div style={{
-              background: '#f0fdf4',
-              color: '#166534',
+              background: '#eff6ff',
+              color: '#1d4ed8',
               padding: '12px 14px',
               borderRadius: 10,
               marginBottom: 20,
               fontSize: 13,
-              border: '1px solid #bbf7d0',
+              border: '1px solid #bfdbfe',
               fontWeight: 500,
               textAlign: 'center'
             }}>
-              <div style={{ fontSize: 28, marginBottom: 6 }}>✉️</div>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>i</div>
               {message}
             </div>
           )}
@@ -154,7 +143,6 @@ export default function ForgotPassword({ onBack }) {
 
               <button
                 onClick={handleSubmit}
-                disabled={loading}
                 style={{
                   width: '100%',
                   padding: '14px 16px',
@@ -164,14 +152,13 @@ export default function ForgotPassword({ onBack }) {
                   border: `2px solid ${accentBlue}`,
                   background: accentBlue,
                   color: '#fff',
-                  cursor: loading ? 'not-allowed' : 'pointer',
+                  cursor: 'pointer',
                   transition: 'all 0.3s ease',
                   boxShadow: `0 8px 20px ${accentBlue}30`,
-                  opacity: loading ? 0.7 : 1,
                   marginBottom: 16
                 }}
               >
-                {loading ? 'Sending...' : 'Send Reset Link'}
+                Get Reset Instructions
               </button>
             </>
           )}

@@ -91,9 +91,7 @@ npm install
 # Create .env file with:
 # DATABASE_URL=your_database_url
 # JWT_SECRET=your_secret_key
-# GMAIL_USER=yourgmail@gmail.com
-# GMAIL_APP_PASSWORD=your-16-char-app-password
-# EMAIL_FROM=Parish Booking <yourgmail@gmail.com>
+# MEMBER_INVITE_CODES=PARISH2026,YOUTHMINISTRY
 npm start
 ```
 Runs on `http://localhost:5000`

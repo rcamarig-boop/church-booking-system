@@ -3,9 +3,7 @@ import io from 'socket.io-client';
 import LandingPage from './LandingPage';
 import Login from './Login';
 import Register from './Register';
-import VerifyEmail from './VerifyEmail';
 import ForgotPassword from './ForgotPassword';
-import ResetPassword from './ResetPassword';
 import Dashboard from './Dashboard';
 import AdminDashboard from './AdminDashboard';
 import NotificationCenter from './NotificationCenter';
@@ -47,24 +45,6 @@ export default function App() {
   const eventRefreshTimerRef = useRef(null);
   const sessionManagerRef = useRef(null);
   const [sessionWarning, setSessionWarning] = useState(null);
-  const [verifyToken, setVerifyToken] = useState(null);
-  const [resetToken, setResetToken] = useState(null);
-
-  // Check for email verification or password reset token in URL on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const vToken = params.get('verify');
-    const rToken = params.get('reset');
-    if (vToken) {
-      setVerifyToken(vToken);
-      setCurrentPage('verify-email');
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (rToken) {
-      setResetToken(rToken);
-      setCurrentPage('reset-password');
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
 
   const initSessionManager = useCallback(() => {
     if (sessionManagerRef.current) sessionManagerRef.current.destroy();
@@ -437,16 +417,8 @@ export default function App() {
         <Register onLogin={handleLogin} onBack={() => setCurrentPage('landing')} onGoToLogin={() => setCurrentPage('login')} />
       )}
 
-      {currentPage === 'verify-email' && (
-        <VerifyEmail token={verifyToken} onGoToLogin={() => setCurrentPage('login')} />
-      )}
-
       {currentPage === 'forgot-password' && (
         <ForgotPassword onBack={() => setCurrentPage('login')} />
-      )}
-
-      {currentPage === 'reset-password' && (
-        <ResetPassword token={resetToken} onGoToLogin={() => setCurrentPage('login')} />
       )}
 
       {currentPage === 'dashboard' && user && (

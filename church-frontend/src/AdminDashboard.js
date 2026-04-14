@@ -2537,7 +2537,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <th style={th}>ID</th>
                   <th style={th}>Name</th>
                   <th style={th}>Email</th>
-                  <th style={th}>Verification</th>
+                  <th style={th}>Approval</th>
                   <th style={th}>Role</th>
                   <th style={th}>Actions</th>
                 </tr>
@@ -2558,7 +2558,7 @@ export default function AdminDashboard({ user, onLogout }) {
                         background: u.email_verified === false ? '#fef3c7' : '#dcfce7',
                         color: u.email_verified === false ? '#92400e' : '#166534'
                       }}>
-                        {u.email_verified === false ? 'Pending' : 'Verified'}
+                        {u.email_verified === false ? 'Pending' : 'Approved'}
                       </span>
                     </td>
                     <td style={td}>
@@ -2580,10 +2580,10 @@ export default function AdminDashboard({ user, onLogout }) {
                           onClick={async () => {
                             try {
                               const res = await api.users.verifyEmail(u.id);
-                              addToast(res.data?.message || `${u.name} verified successfully.`, 'success');
+                              addToast(res.data?.message || `${u.name} approved successfully.`, 'success');
                               setRefreshKey(k => k + 1);
                             } catch (err) {
-                              addToast(err.response?.data?.error || 'Failed to verify user email.', 'error');
+                              addToast(err.response?.data?.error || 'Failed to approve account.', 'error');
                             }
                           }}
                           style={{
@@ -2598,7 +2598,39 @@ export default function AdminDashboard({ user, onLogout }) {
                             marginRight: user.role === 'superadmin' ? 6 : 0
                           }}
                         >
-                          Verify
+                          Approve
+                        </button>
+                      )}
+                      {u.id !== user.id && u.role !== 'superadmin' && (
+                        <button
+                          onClick={async () => {
+                            const temporaryPassword = window.prompt(`Enter a temporary password for ${u.name}:`);
+                            if (temporaryPassword === null) return;
+                            if (temporaryPassword.trim().length < 6) {
+                              addToast('Temporary password must be at least 6 characters.', 'error');
+                              return;
+                            }
+                            try {
+                              const res = await api.users.resetPassword(u.id, temporaryPassword.trim());
+                              addToast(res.data?.message || `Password reset for ${u.name}.`, 'success');
+                            } catch (err) {
+                              addToast(err.response?.data?.error || 'Failed to reset password.', 'error');
+                            }
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            border: 'none',
+                            background: '#2563eb',
+                            color: '#fff',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            marginRight: user.role === 'superadmin' ? 6 : 0,
+                            marginTop: u.email_verified === false ? 6 : 0
+                          }}
+                        >
+                          Reset Password
                         </button>
                       )}
                       {user.role === 'superadmin' && u.role !== 'superadmin' && u.id !== user.id && (
@@ -2647,7 +2679,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   <tr>
                     <td style={td} colSpan={6}>
                       {userVerificationFilter === 'pending'
-                        ? 'No users are waiting for email verification.'
+                        ? 'No users are waiting for admin approval.'
                         : 'No users match your search.'}
                     </td>
                   </tr>
