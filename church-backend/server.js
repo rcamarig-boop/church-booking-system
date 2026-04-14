@@ -156,6 +156,8 @@ async function sendMailWithRetry(msg, retries = 2) {
       // Resend test-sender restriction: the shared onboarding@resend.dev sender
       // can only deliver to the Resend account owner's email address.
       // Detect this and return false instead of throwing so callers can degrade gracefully.
+      // NOTE: This relies on Resend's error message text. If Resend changes the wording,
+      // this detection may need updating. No stable error code is currently provided by Resend.
       const errMsg = typeof err.message === 'string' ? err.message : '';
       if (errMsg.includes('only send testing emails to your own email') || errMsg.includes('verify a domain')) {
         console.warn(
@@ -992,7 +994,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const message = emailSent
       ? 'Registration successful! Please check your email to verify your account.'
-      : 'Registration successful! Email verification could not be sent — please contact an administrator to verify your account.';
+      : 'Registration successful! Email verification could not be sent - please contact an administrator to verify your account.';
 
     res.json({ message, emailSent, requiresVerification: true });
   } catch (err) {
