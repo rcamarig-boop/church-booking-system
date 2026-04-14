@@ -95,6 +95,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const [bookingControlMsg, setBookingControlMsg] = useState('');
   const [bookingControlBusy, setBookingControlBusy] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [userVerificationFilter, setUserVerificationFilter] = useState('all');
   const [eventSearch, setEventSearch] = useState('');
   const [bookingSearch, setBookingSearch] = useState('');
   const [recordSearch, setRecordSearch] = useState('');
@@ -456,7 +457,8 @@ export default function AdminDashboard({ user, onLogout }) {
         const res = await api.users.list({
           limit: PAGE_SIZE,
           offset: (userPage - 1) * PAGE_SIZE,
-          q: userSearchTerm
+          q: userSearchTerm,
+          emailVerified: userVerificationFilter === 'pending' ? 'false' : undefined
         });
         const rows = res.data || [];
         setUsers(rows);
@@ -466,7 +468,7 @@ export default function AdminDashboard({ user, onLogout }) {
         setUserHasMore(false);
       }
     })();
-  }, [userPage, refreshKey, userSearchTerm]);
+  }, [userPage, refreshKey, userSearchTerm, userVerificationFilter]);
 
   useEffect(() => {
     (async () => {
@@ -506,7 +508,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
   useEffect(() => { setBookingPage(1); }, [bookingSearchTerm, bookingFilter]);
   useEffect(() => { setEventPage(1); }, [eventSearchTerm, eventFilter]);
-  useEffect(() => { setUserPage(1); }, [userSearchTerm]);
+  useEffect(() => { setUserPage(1); }, [userSearchTerm, userVerificationFilter]);
   useEffect(() => { setRecordPage(1); }, [recordSearchTerm]);
 
   useEffect(() => {
@@ -520,6 +522,10 @@ export default function AdminDashboard({ user, onLogout }) {
   }, [bookingControlDate, calendarConfig]);
 
   const filteredUsers = useMemo(() => users, [users]);
+  const pendingVerificationCount = useMemo(
+    () => users.filter(u => u.email_verified === false).length,
+    [users]
+  );
   const filteredEvents = useMemo(() => events, [events]);
 
   const now = useMemo(() => new Date(), []);
@@ -2488,6 +2494,36 @@ export default function AdminDashboard({ user, onLogout }) {
         {activeTab === 'users' && (
           <div>
             <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Parishioners</h2>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 12 }}>
+              <button
+                onClick={() => setUserVerificationFilter('all')}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  border: `1px solid ${userVerificationFilter === 'all' ? accentBlue : mist}`,
+                  background: userVerificationFilter === 'all' ? accentBlue : '#fff',
+                  color: userVerificationFilter === 'all' ? '#fff' : ink,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                All Users
+              </button>
+              <button
+                onClick={() => setUserVerificationFilter('pending')}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  border: `1px solid ${userVerificationFilter === 'pending' ? '#f59e0b' : mist}`,
+                  background: userVerificationFilter === 'pending' ? '#f59e0b' : '#fff7ed',
+                  color: userVerificationFilter === 'pending' ? '#fff' : '#9a3412',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Pending Verification{pendingVerificationCount ? ` (${pendingVerificationCount})` : ''}
+              </button>
+            </div>
             <input
               type="text"
               placeholder="Search users by id, name, email, role"
@@ -2501,16 +2537,30 @@ export default function AdminDashboard({ user, onLogout }) {
                   <th style={th}>ID</th>
                   <th style={th}>Name</th>
                   <th style={th}>Email</th>
+                  <th style={th}>Verification</th>
                   <th style={th}>Role</th>
-                  {user.role === 'superadmin' && <th style={th}>Actions</th>}
+                  <th style={th}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {filteredUsers.map(u => (
                   <tr key={u.id}>
                     <td style={td}>{u.id}</td>
                     <td style={td}>{u.name}</td>
                     <td style={td}>{u.email}</td>
+                    <td style={td}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        background: u.email_verified === false ? '#fef3c7' : '#dcfce7',
+                        color: u.email_verified === false ? '#92400e' : '#166534'
+                      }}>
+                        {u.email_verified === false ? 'Pending' : 'Verified'}
+                      </span>
+                    </td>
                     <td style={td}>
                       <span style={{
                         display: 'inline-block',
@@ -2524,9 +2574,35 @@ export default function AdminDashboard({ user, onLogout }) {
                         {u.role === 'superadmin' ? 'Super Admin' : u.role === 'admin' ? 'Admin' : 'Member'}
                       </span>
                     </td>
-                    {user.role === 'superadmin' && (
-                      <td style={td}>
-                        {u.role !== 'superadmin' && u.id !== user.id && (
+                    <td style={td}>
+                      {u.email_verified === false && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await api.users.verifyEmail(u.id);
+                              addToast(res.data?.message || `${u.name} verified successfully.`, 'success');
+                              setRefreshKey(k => k + 1);
+                            } catch (err) {
+                              addToast(err.response?.data?.error || 'Failed to verify user email.', 'error');
+                            }
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            border: 'none',
+                            background: '#16a34a',
+                            color: '#fff',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            marginRight: user.role === 'superadmin' ? 6 : 0
+                          }}
+                        >
+                          Verify
+                        </button>
+                      )}
+                      {user.role === 'superadmin' && u.role !== 'superadmin' && u.id !== user.id && (
+                        <>
                           <select
                             value={u.role}
                             onChange={async (e) => {
@@ -2542,9 +2618,6 @@ export default function AdminDashboard({ user, onLogout }) {
                             <option value="member">Member</option>
                             <option value="admin">Admin</option>
                           </select>
-                        )}
-                        {u.role === 'superadmin' && <span style={{ color: '#6b7280', fontSize: 12 }}>—</span>}
-                        {u.role !== 'superadmin' && u.id !== user.id && (
                           <button
                             onClick={async () => {
                               if (!window.confirm(`Are you sure you want to delete ${u.name}'s account? This cannot be undone.`)) return;
@@ -2559,14 +2632,24 @@ export default function AdminDashboard({ user, onLogout }) {
                           >
                             Delete
                           </button>
-                        )}
-                      </td>
-                    )}
+                        </>
+                      )}
+                      {user.role === 'superadmin' && (u.role === 'superadmin' || u.id === user.id) && u.email_verified !== false && (
+                        <span style={{ color: '#6b7280', fontSize: 12 }}>—</span>
+                      )}
+                      {user.role !== 'superadmin' && u.email_verified !== false && (
+                        <span style={{ color: '#6b7280', fontSize: 12 }}>—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
-                {users.length === 0 && (
+                {filteredUsers.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={user.role === 'superadmin' ? 5 : 4}>No users match your search.</td>
+                    <td style={td} colSpan={6}>
+                      {userVerificationFilter === 'pending'
+                        ? 'No users are waiting for email verification.'
+                        : 'No users match your search.'}
+                    </td>
                   </tr>
                 )}
               </tbody>

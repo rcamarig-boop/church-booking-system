@@ -2680,14 +2680,29 @@ app.put('/api/concerns/:id/close', auth, async (req, res) => {
 });
 
 /* ===================== USERS ===================== */
-app.get('/api/users', auth, admin, async (_, res) => {
-  const { limit, offset } = getPagination(_);
-  const { clause, params } = buildSearchClause(_.query.q, [
+app.get('/api/users', auth, admin, async (req, res) => {
+  const { limit, offset } = getPagination(req);
+  const { clause, params } = buildSearchClause(req.query.q, [
     'id', 'name', 'email', 'role'
   ]);
+  const filters = [];
+  const values = [];
+
+  if (clause) {
+    filters.push(clause);
+    values.push(...params);
+  }
+
+  if (req.query.emailVerified === 'true') {
+    filters.push('email_verified = true');
+  } else if (req.query.emailVerified === 'false') {
+    filters.push('email_verified = false');
+  }
+
+  const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const rows = await dbAll(
-    `SELECT id,name,email,role FROM users ${clause ? `WHERE ${clause}` : ''} ${limit ? `LIMIT ${limit} OFFSET ${offset}` : ''}`,
-    ...params
+    `SELECT id,name,email,role,email_verified FROM users ${whereClause} ${limit ? `LIMIT ${limit} OFFSET ${offset}` : ''}`,
+    ...values
   );
   res.json(rows);
 });

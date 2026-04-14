@@ -154,6 +154,7 @@ export default {
   users: {
     list: (params) => api.get('/users', { params }),
     updateMe: data => api.put('/users/me', data),
+    verifyEmail: (id) => api.put(`/users/${id}/verify-email`),
     updateRole: (id, role) => api.put(`/users/${id}/role`, { role }),
     delete: (id) => api.delete(`/users/${id}`)
   }
