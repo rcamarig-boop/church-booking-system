@@ -129,18 +129,37 @@ let emailConfigured = false;
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 const EMAIL_FROM = process.env.EMAIL_FROM || GMAIL_USER;
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 465;
+const SMTP_SECURE = String(process.env.SMTP_SECURE || 'true').toLowerCase() === 'true';
+const SMTP_CONNECTION_TIMEOUT = Number(process.env.SMTP_CONNECTION_TIMEOUT) || 15000;
+const SMTP_GREETING_TIMEOUT = Number(process.env.SMTP_GREETING_TIMEOUT) || 10000;
+const SMTP_SOCKET_TIMEOUT = Number(process.env.SMTP_SOCKET_TIMEOUT) || 20000;
 let mailTransporter;
 
 if (GMAIL_USER && GMAIL_APP_PASSWORD && EMAIL_FROM) {
   mailTransporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
     auth: {
       user: GMAIL_USER,
       pass: GMAIL_APP_PASSWORD
-    }
+    },
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT,
+    greetingTimeout: SMTP_GREETING_TIMEOUT,
+    socketTimeout: SMTP_SOCKET_TIMEOUT
   });
   emailConfigured = true;
-  console.log('Email service ready (Nodemailer Gmail)');
+  console.log(`Email service ready (Nodemailer Gmail via ${SMTP_HOST}:${SMTP_PORT}, secure=${SMTP_SECURE})`);
+  mailTransporter.verify()
+    .then(() => {
+      console.log('Email transporter verification succeeded');
+    })
+    .catch((err) => {
+      const details = err?.code || err?.response || err?.message || 'Unknown error';
+      console.warn(`Email transporter verification failed: ${details}`);
+    });
 } else {
   console.warn('GMAIL_USER or GMAIL_APP_PASSWORD not configured - email verification will be skipped');
 }
@@ -157,10 +176,11 @@ async function sendMailWithRetry(msg, retries = 2) {
         || (err.message && /timeout/i.test(err.message));
       if (attempt < retries && isTransient) {
         const delay = 1000 * Math.pow(2, attempt + 1);
-        console.warn(`Email send attempt ${attempt + 1} failed (${errCode || err.message}), retrying in ${delay}ms...`);
+        console.warn(`Email send attempt ${attempt + 1} failed (${errCode || err.message}) via ${SMTP_HOST}:${SMTP_PORT}, retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
+      console.error(`Email send failed permanently (${errCode || err.message}) via ${SMTP_HOST}:${SMTP_PORT}`);
       throw err;
     }
   }
