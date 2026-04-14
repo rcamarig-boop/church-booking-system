@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
 const db = require('./db');
 const { DEFAULT_MAX_SLOTS, prepare, exec, transaction, warmPool } = db;
@@ -124,59 +124,40 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@church.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-/* ========== EMAIL (Resend) ========== */
+/* ========== EMAIL (Nodemailer + Gmail SMTP) ========== */
 let emailConfigured = false;
-// Resend's shared test sender works without a verified domain (limited to ~100 emails/day).
-// For production, set RESEND_FROM to a sender on a domain you've verified at https://resend.com/domains.
-const RESEND_DEFAULT_FROM = 'Parish Booking <onboarding@resend.dev>';
-const EMAIL_FROM = process.env.RESEND_FROM || process.env.SENDGRID_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || (process.env.RESEND_API_KEY ? RESEND_DEFAULT_FROM : undefined);
-let resend;
+const EMAIL_FROM = process.env.SMTP_FROM || process.env.SMTP_USER;
+let transporter;
 
-if (process.env.RESEND_API_KEY && EMAIL_FROM) {
-  resend = new Resend(process.env.RESEND_API_KEY);
+if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+  transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
   emailConfigured = true;
-  if (EMAIL_FROM === RESEND_DEFAULT_FROM) {
-    console.log('Email service ready (Resend — using shared onboarding@resend.dev sender)');
-    console.warn('⚠  For production, set RESEND_FROM to a sender on your verified domain. See https://resend.com/domains');
-  } else {
-    console.log('Email service ready (Resend)');
-  }
+  console.log(`Email service ready (SMTP via ${process.env.SMTP_HOST || 'smtp.gmail.com'})`);
 } else {
-  console.warn('RESEND_API_KEY or sender address not configured — email verification will be skipped');
+  console.warn('SMTP_USER or SMTP_PASS not configured — email verification will be skipped');
 }
 
 async function sendMailWithRetry(msg, retries = 2) {
   if (!emailConfigured) return false;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const { error } = await resend.emails.send(msg);
-      if (error) throw error;
+      await transporter.sendMail(msg);
       return true;
     } catch (err) {
-      // Resend test-sender restriction: the shared onboarding@resend.dev sender
-      // can only deliver to the Resend account owner's email address.
-      // Detect this and return false instead of throwing so callers can degrade gracefully.
-      // NOTE: This relies on Resend's error message text. If Resend changes the wording,
-      // this detection may need updating. No stable error code is currently provided by Resend.
-      const errMsg = typeof err.message === 'string' ? err.message : '';
-      if (errMsg.includes('only send testing emails to your own email') || errMsg.includes('verify a domain')) {
-        console.warn(
-          `⚠  Resend test-sender restriction: cannot send to <${msg.to}>. ` +
-          'Verify a domain at https://resend.com/domains and set RESEND_FROM to use it.'
-        );
-        return false;
-      }
-
-      // Resend errors: err.statusCode is numeric HTTP status (e.g. 429, 500)
-      // Network errors: err.code is a string (e.g. 'ETIMEDOUT', 'ECONNRESET')
-      const httpStatus = typeof err.statusCode === 'number' ? err.statusCode : null;
       const errCode = typeof err.code === 'string' ? err.code : null;
-      const isTransient = (httpStatus !== null && (httpStatus >= 500 || httpStatus === 429))
-        || ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(errCode)
+      const isTransient = ['ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'ENETUNREACH', 'ECONNREFUSED'].includes(errCode)
         || (err.message && /timeout/i.test(err.message));
       if (attempt < retries && isTransient) {
         const delay = 1000 * Math.pow(2, attempt + 1);
-        console.warn(`Email send attempt ${attempt + 1} failed (${httpStatus || errCode || err.message}), retrying in ${delay}ms…`);
+        console.warn(`Email send attempt ${attempt + 1} failed (${errCode || err.message}), retrying in ${delay}ms…`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
