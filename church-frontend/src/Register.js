@@ -19,6 +19,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
   const [loading, setLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const submit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -284,7 +285,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
           </div>
 
           {/* Password Input */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16, position: 'relative' }}>
             <label style={{
               display: 'block',
               marginBottom: 6,
@@ -295,14 +296,14 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
               Password
             </label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyPress={handleKeyPress}
               style={{
                 width: '100%',
-                padding: '12px 14px',
+                padding: '12px 40px 12px 14px',
                 fontSize: 14,
                 borderRadius: 10,
                 border: `1.5px solid ${mist}`,
@@ -322,10 +323,35 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
                 e.target.style.boxShadow = 'none';
               }}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: ink,
+                fontSize: 16,
+                padding: 0,
+                width: 24,
+                height: 24,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => { e.target.style.color = gold; }}
+              onMouseLeave={(e) => { e.target.style.color = ink; }}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
           </div>
 
           {/* Confirm Password Input */}
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 24, position: 'relative' }}>
             <label style={{
               display: 'block',
               marginBottom: 6,
@@ -336,14 +362,14 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
               Confirm Password
             </label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               onKeyPress={handleKeyPress}
               style={{
                 width: '100%',
-                padding: '12px 14px',
+                padding: '12px 40px 12px 14px',
                 fontSize: 14,
                 borderRadius: 10,
                 border: `1.5px solid ${mist}`,
@@ -363,6 +389,31 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
                 e.target.style.boxShadow = 'none';
               }}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: ink,
+                fontSize: 16,
+                padding: 0,
+                width: 24,
+                height: 24,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => { e.target.style.color = gold; }}
+              onMouseLeave={(e) => { e.target.style.color = ink; }}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
           </div>
 
           {/* Error Message */}

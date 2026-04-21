@@ -2825,13 +2825,31 @@ export default function AdminDashboard({ user, onLogout }) {
       {activeTab === 'bookings' && (
         <div>
           <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Bookings</h2>
-          <input
-            type="text"
-            placeholder="Search bookings by id, user, service, date, time"
-            value={bookingSearch}
-            onChange={e => setBookingSearch(e.target.value)}
-            style={{ width: '100%', maxWidth: 460, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
-          />
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Search bookings by id, user, service, date, time"
+              value={bookingSearch}
+              onChange={e => setBookingSearch(e.target.value)}
+              style={{ flex: 1, maxWidth: 460, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
+            />
+            <button
+              onClick={() => setRefreshKey(k => k + 1)}
+              style={{
+                padding: '10px 16px',
+                background: accentBlue,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+              onMouseEnter={(e) => { e.target.style.background = '#2c4a6b'; }}
+              onMouseLeave={(e) => { e.target.style.background = accentBlue; }}
+            >
+              🔄 Refresh
+            </button>
+          </div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
             <button
               onClick={() => setBookingFilter('upcoming')}
@@ -2892,17 +2910,19 @@ export default function AdminDashboard({ user, onLogout }) {
                       >
                         Edit
                       </button>
-                      <button
-                        style={dangerBtn}
-                        onClick={async () => {
-                          if (window.confirm('Cancel this booking?')) {
-                            await api.bookings.remove(b.id);
-                            loadData();
-                          }
-                        }}
-                      >
-                        Cancel
-                      </button>
+                      {!past && (
+                        <button
+                          style={dangerBtn}
+                          onClick={async () => {
+                            if (window.confirm('Cancel this booking?')) {
+                              await api.bookings.remove(b.id);
+                              loadData();
+                            }
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -3124,13 +3144,31 @@ export default function AdminDashboard({ user, onLogout }) {
         {activeTab === 'records' && (
           <div>
             <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Booking Records</h2>
-            <input
-              type="text"
-              placeholder="Search records by user, service, action, date, details"
-              value={recordSearch}
-              onChange={e => setRecordSearch(e.target.value)}
-              style={{ width: '100%', maxWidth: 500, marginBottom: 12, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
-            />
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="Search records by user, service, action, date, details"
+                value={recordSearch}
+                onChange={e => setRecordSearch(e.target.value)}
+                style={{ flex: 1, maxWidth: 500, padding: 10, border: `1px solid ${mist}`, borderRadius: 6, background: '#fff' }}
+              />
+              <button
+                onClick={() => setRefreshKey(k => k + 1)}
+                style={{
+                  padding: '10px 16px',
+                  background: accentBlue,
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+                onMouseEnter={(e) => { e.target.style.background = '#2c4a6b'; }}
+                onMouseLeave={(e) => { e.target.style.background = accentBlue; }}
+              >
+                🔄 Refresh
+              </button>
+            </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -3688,8 +3726,6 @@ export default function AdminDashboard({ user, onLogout }) {
               display: 'grid',
               gap: 16
             }}>
-              <ActivityFilters filters={['info', 'approve', 'reject', 'create', 'edit', 'delete']} selected={null} onSelect={() => {}} />
-              <ActivityLog activities={activityLog} isLoading={false} />
               <div style={{
                 padding: '16px',
                 background: `linear-gradient(135deg, ${stone}40, ${mist}40)`,

@@ -36,7 +36,7 @@ A comprehensive full-stack web application for managing church appointments, boo
 - ✅ Bulk approval/rejection of requests
 - ✅ Activity logging and audit trail
 - ✅ Real-time notifications
-- ✅ Role-based access control (Admin, Secretary, Member)
+- ✅ Role-based access control (Member, Admin, Super Admin)
 
 ### User Experience
 - ✅ 14 accessibility improvements implemented

@@ -14,6 +14,7 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [needsApproval, setNeedsApproval] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const submit = async () => {
     if (!email.trim() || !password.trim()) {
@@ -136,7 +137,7 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
           </div>
 
           {/* Password Input */}
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 24, position: 'relative' }}>
             <label style={{
               display: 'block',
               marginBottom: 6,
@@ -147,14 +148,14 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
               Password
             </label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyPress={handleKeyPress}
               style={{
                 width: '100%',
-                padding: '12px 14px',
+                padding: '12px 40px 12px 14px',
                 fontSize: 14,
                 borderRadius: 10,
                 border: `1.5px solid ${mist}`,
@@ -174,6 +175,31 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
                 e.target.style.boxShadow = 'none';
               }}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: ink,
+                fontSize: 16,
+                padding: 0,
+                width: 24,
+                height: 24,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => { e.target.style.color = gold; }}
+              onMouseLeave={(e) => { e.target.style.color = ink; }}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
           </div>
 
           {/* Forgot Password Link */}

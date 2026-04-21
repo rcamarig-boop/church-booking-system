@@ -16,6 +16,7 @@ This document presents the system analysis of the church reservation and managem
 flowchart LR
   Member((Member))
   Admin((Admin))
+  SuperAdmin((Super Admin))
 
   UC1[Register / Login]
   UC2[View Calendar]
@@ -39,6 +40,8 @@ flowchart LR
   UC19[Submit Concerns]
   UC20[Reply / Resolve Concerns]
   UC21[View Reports]
+  UC22[Delete Records]
+  UC23[Manage Invite Codes]
 
   Member --> UC1
   Member --> UC2
@@ -63,6 +66,21 @@ flowchart LR
   Admin --> UC19
   Admin --> UC20
   Admin --> UC21
+  Admin --> UC23
+
+  SuperAdmin --> UC1
+  SuperAdmin --> UC12
+  SuperAdmin --> UC13
+  SuperAdmin --> UC14
+  SuperAdmin --> UC15
+  SuperAdmin --> UC16
+  SuperAdmin --> UC17
+  SuperAdmin --> UC18
+  SuperAdmin --> UC19
+  SuperAdmin --> UC20
+  SuperAdmin --> UC21
+  SuperAdmin --> UC22
+  SuperAdmin --> UC23
 ```
 
 ## 2) Activity Diagram
@@ -103,7 +121,209 @@ flowchart TD
   ZA --> ZC([End - Request Rejected])
 ```
 
-## 3) Sequence Diagram
+## 3) Gantt Chart - Project Timeline
+
+```mermaid
+gantt
+  title Church Booking System - Development Timeline (Aug 2025 - Mar 2026)
+  dateFormat YYYY-MM-DD
+  
+  section Planning & Design
+  Requirements Analysis :a1, 2025-08-01, 2025-08-15
+  System Architecture Design :a2, 2025-08-10, 2025-08-30
+  Database Schema Design :a3, 2025-08-18, 2025-09-05
+  
+  section Frontend Development
+  React Setup & Project Structure :b1, 2025-09-01, 2025-09-12
+  Dashboard & Calendar Components :b2, 2025-09-08, 2025-10-10
+  Booking Modal & Forms :b3, 2025-09-25, 2025-11-15
+  Responsive Design - 7 Breakpoints :b4, 2025-10-15, 2025-11-15
+  Password Toggle & Form Validation :b5, 2025-11-10, 2025-12-05
+  Admin Dashboard Components :b6, 2025-11-20, 2026-01-20
+  
+  section Backend Development
+  Node/Express Setup :c1, 2025-09-01, 2025-09-15
+  Authentication & JWT :c2, 2025-09-10, 2025-09-25
+  Booking API Endpoints :c3, 2025-09-20, 2025-11-10
+  Admin Approval Workflow :c4, 2025-10-15, 2025-11-20
+  Conflict Detection (30-min) :c5, 2025-11-05, 2025-12-10
+  Calendar Management API :c6, 2025-11-15, 2025-12-20
+  User & Invite Code Management :c7, 2025-11-25, 2026-01-15
+  Real-time Notifications (Socket.IO) :c8, 2025-12-01, 2026-01-25
+  
+  section Testing & QA
+  Unit Testing :d1, 2026-01-15, 2026-02-01
+  Integration Testing :d2, 2026-01-20, 2026-02-10
+  User Acceptance Testing :d3, 2026-02-01, 2026-02-20
+  Bug Fixes & Optimization :d4, 2026-02-10, 2026-03-05
+  
+  section Documentation & Deployment
+  System Documentation :e1, 2026-01-20, 2026-02-28
+  API Documentation :e2, 2026-02-01, 2026-03-10
+  Project Diagrams & Algorithms :e3, 2026-02-15, 2026-03-15
+  Production Deployment :crit, e4, 2026-03-22, 2026-03-28
+  Post-Deployment Monitoring :e5, 2026-03-28, 2026-04-10
+```
+
+## 4) Booking Process Flowchart
+
+```mermaid
+flowchart TD
+  Start([Member Opens Booking])-->SelectService[Select Service Type]
+  SelectService-->SelectDate[Select Date<br/>Within 6-Month Window]
+  SelectDate-->ValidateDate{Date Valid?}
+  ValidateDate-->|No| DateError[Show Error<br/>Must be Tomorrow+]
+  DateError-->SelectDate
+  SelectDate-->SelectTime[Select Time 8am-6pm]
+  SelectTime-->ValidateTime{Time Valid?}
+  ValidateTime-->|No| TimeError[Show Error<br/>Outside Working Hours]
+  TimeError-->SelectTime
+  ValidateTime-->|Yes| CheckBookingLimit{Active Bookings<br/>< 2?}
+  CheckBookingLimit-->|No| LimitError[Show Error<br/>Cancel One First]
+  LimitError-->End1([Cannot Proceed])
+  CheckBookingLimit-->|Yes| FillForm[Fill Service-Specific Form]
+  FillForm-->ValidateForm{Form Valid?}
+  ValidateForm-->|No| FormError[Show Error]
+  FormError-->FillForm
+  ValidateForm-->|Yes| ChairsNeeded{Chairs/Tables?}
+  ChairsNeeded-->|Yes| EnterQuantity[Enter Quantities]
+  ChairsNeeded-->|No| Preview[Show Preview]
+  EnterQuantity-->Preview
+  Preview-->Confirm{Confirm?}
+  Confirm-->|No| Cancel([Cancelled])
+  Confirm-->|Yes| Submit[Submit Request]
+  Submit-->CreateRequest[Create booking_request<br/>Status: pending]
+  CreateRequest-->NotifyAdmin[Notify Admins]
+  NotifyAdmin-->Success([Request Submitted<br/>Awaiting Approval])
+```
+
+## 5) System Architecture Diagram
+
+```mermaid
+flowchart TB
+  subgraph Client["Client Layer"]
+    Web["Web Browser<br/>React App"]
+    Mobile["Mobile Browser<br/>Responsive UI"]
+  end
+  
+  subgraph Presentation["Presentation Layer"]
+    Dashboard["Dashboard Component"]
+    AdminDash["Admin Dashboard"]
+    BookingModal["Booking Modal"]
+    Calendar["Calendar View"]
+  end
+  
+  subgraph Business["Business Logic Layer"]
+    AuthService["Authentication Service<br/>JWT Tokens"]
+    BookingService["Booking Service<br/>FCFS Algorithm"]
+    ConflictService["Conflict Checker<br/>30-min Proximity"]
+    NotificationService["Notification Service<br/>Socket.IO"]
+  end
+  
+  subgraph API["API Layer"]
+    AuthAPI["/auth/register<br/>/auth/login"]
+    BookingAPI["/bookings<br/>/booking-requests<br/>/booking-records"]
+    CalendarAPI["/calendar<br/>/events"]
+    UserAPI["/users<br/>/invite-codes"]
+  end
+  
+  subgraph Database["Data Layer"]
+    DB[("PostgreSQL<br/>SQLite")]
+  end
+  
+  subgraph External["External Services"]
+    Email["Email Service<br/>Nodemailer"]
+    Socket["Socket.IO<br/>Real-time"]
+  end
+  
+  Web-->Dashboard
+  Mobile-->Dashboard
+  Web-->AdminDash
+  Mobile-->AdminDash
+  Dashboard-->BookingModal
+  Dashboard-->Calendar
+  AdminDash-->BookingModal
+  
+  Dashboard-->AuthService
+  BookingModal-->BookingService
+  BookingService-->ConflictService
+  AdminDash-->NotificationService
+  
+  AuthService-->AuthAPI
+  BookingService-->BookingAPI
+  ConflictService-->BookingAPI
+  Calendar-->CalendarAPI
+  AdminDash-->UserAPI
+  
+  AuthAPI-->DB
+  BookingAPI-->DB
+  CalendarAPI-->DB
+  UserAPI-->DB
+  
+  NotificationService-->Email
+  NotificationService-->Socket
+  Socket-->Web
+  Socket-->Mobile
+```
+
+## 6) Control Structure Diagram
+
+```mermaid
+flowchart LR
+  subgraph RoleControl["Role-Based Access Control"]
+    Member["Member"]
+    Admin["Admin"]
+    SuperAdmin["Super Admin"]
+  end
+  
+  subgraph MemberActions["Member Permissions"]
+    MB1["View Calendar"]
+    MB2["Create Booking"]
+    MB3["Cancel Own Booking"]
+    MB4["View Notifications"]
+    MB5["Submit Concerns"]
+  end
+  
+  subgraph AdminActions["Admin Permissions"]
+    AB1["All Member Actions"]
+    AB2["Approve/Reject Bookings"]
+    AB3["Manage Calendar"]
+    AB4["Edit/Cancel Any Booking"]
+    AB5["View Reports"]
+    AB6["Manage Events"]
+    AB7["Manage Invite Codes"]
+  end
+  
+  subgraph SuperAdminActions["Super Admin Permissions"]
+    SA1["All Admin Actions"]
+    SA2["Delete Records"]
+    SA3["Delete Invite Codes"]
+    SA4["User Management"]
+    SA5["System Settings"]
+  end
+  
+  Member-->MB1
+  Member-->MB2
+  Member-->MB3
+  Member-->MB4
+  Member-->MB5
+  
+  Admin-->AB1
+  Admin-->AB2
+  Admin-->AB3
+  Admin-->AB4
+  Admin-->AB5
+  Admin-->AB6
+  Admin-->AB7
+  
+  SuperAdmin-->SA1
+  SuperAdmin-->SA2
+  SuperAdmin-->SA3
+  SuperAdmin-->SA4
+  SuperAdmin-->SA5
+```
+
+## 7) Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -134,7 +354,7 @@ sequenceDiagram
   UI->>UI: Update calendar to display confirmed booking
 ```
 
-## 4) Entity Relationship Diagram
+## 8) Entity Relationship Diagram
 
 ```mermaid
 erDiagram
@@ -143,17 +363,17 @@ erDiagram
   USERS ||--o{ BOOKING_RECORDS : owns
   USERS ||--o{ CONCERNS : submits
   USERS ||--o{ NOTIFICATIONS : receives
-  USERS ||--o{ BOOKING_EDIT_PROPOSALS : proposes
-  USERS ||--o{ BOOKING_REQUEST_EDIT_PROPOSALS : proposes
+  USERS ||--o{ BOOKING_EDITS : proposes
+  USERS ||--o{ REQUEST_EDITS : proposes
   BOOKINGS ||--o{ BOOKING_RECORDS : logs
-  BOOKINGS ||--o{ BOOKING_EDIT_PROPOSALS : referenced
+  BOOKINGS ||--o{ BOOKING_EDITS : referenced
   BOOKING_REQUESTS ||--o{ BOOKING_RECORDS : logs
-  BOOKING_REQUESTS ||--o{ BOOKING_REQUEST_EDIT_PROPOSALS : referenced
+  BOOKING_REQUESTS ||--o{ REQUEST_EDITS : referenced
   CALENDAR ||--o{ BOOKINGS : limits
   EVENTS ||--o{ BOOKING_RECORDS : references
 
   USERS {
-    int id PK
+    int id
     string name
     string email
     string password
@@ -161,106 +381,106 @@ erDiagram
   }
 
   BOOKINGS {
-    int id PK
-    int userId FK
+    int id
+    int userId
     string name
     string email
     string service
     string date
     string slot
-    json details
+    string details
   }
 
   BOOKING_REQUESTS {
-    int id PK
-    int userId FK
+    int id
+    int userId
     string name
     string email
     string service
     string date
     string slot
-    string status
-    json details
+    string requestStatus
+    string details
   }
 
   BOOKING_RECORDS {
-    int id PK
-    int request_id FK
-    int booking_id FK
-    int userId FK
+    int id
+    int requestId
+    int bookingId
+    int userId
     string service
     string date
     string slot
     string action
-    json details
+    string details
   }
 
   CONCERNS {
-    int id PK
-    int userId FK
+    int id
+    int userId
     string subject
     string message
-    string status
+    string concernStatus
   }
 
   NOTIFICATIONS {
-    int id PK
-    int userId FK
+    int id
+    int userId
     string type
     string text
-    boolean read
+    string read
   }
 
   CALENDAR {
-    date date PK
+    string date
     int max_slots
     int booked
   }
 
   EVENTS {
-    int id PK
+    int id
     string title
     string date
     string time
     string description
   }
 
-  BOOKING_EDIT_PROPOSALS {
-    int id PK
-    int booking_id FK
-    int user_id FK
-    int admin_id FK
-    string current_booking_date
-    string current_booking_slot
-    json current_booking_details
-    string proposed_booking_date
-    string proposed_booking_slot
-    json proposed_booking_details
-    string admin_note
-    string user_reply
-    string status
-    timestamp created_at
+  BOOKING_EDITS {
+    int id
+    int bookingId
+    int userId
+    int adminId
+    string currentBookingDate
+    string currentBookingSlot
+    string currentBookingDetails
+    string proposedBookingDate
+    string proposedBookingSlot
+    string proposedBookingDetails
+    string adminNote
+    string userReply
+    string proposalStatus
+    string createdAt
   }
 
-  BOOKING_REQUEST_EDIT_PROPOSALS {
-    int id PK
-    int booking_request_id FK
-    int user_id FK
-    int admin_id FK
-    string current_request_date
-    string current_request_slot
-    json current_request_details
-    string proposed_request_date
-    string proposed_request_slot
-    json proposed_request_details
-    string admin_note
-    string user_reply
-    string status
-    timestamp created_at
+  REQUEST_EDITS {
+    int id
+    int bookingRequestId
+    int userId
+    int adminId
+    string currentRequestDate
+    string currentRequestSlot
+    string currentRequestDetails
+    string proposedRequestDate
+    string proposedRequestSlot
+    string proposedRequestDetails
+    string adminNote
+    string userReply
+    string proposalStatus
+    string createdAt
   }
 ```
 
-## 5) Class Diagram
+## 9) Class Diagram
 
 ```mermaid
 classDiagram
@@ -363,7 +583,7 @@ classDiagram
   ConcernManager --> api
 ```
 
-## 6) Deployment Diagram
+## 10) Deployment Diagram
 
 ```mermaid
 flowchart LR
@@ -400,7 +620,7 @@ flowchart LR
   SocketIO --> Mobile
 ```
 
-## 7) Algorithmic Process
+## 11) Algorithmic Process
 
 ### A. FCFS Algorithm
 
@@ -415,16 +635,15 @@ flowchart LR
 9. Record the action in booking records.
 10. Notify the user and administrator.
 
-### B. Date Color Conditioning Algorithm
+### B. Conflict Checker Algorithm
 
-1. Read the number of bookings already placed on each date.
-2. Read the maximum booking count configured for that date.
-3. Assign green if the date has no bookings.
-4. Assign yellow if the date is partially occupied.
-5. Assign orange if the date is nearing capacity.
-6. Assign red if the date is fully booked.
-7. Render the calendar cell using the assigned color.
-8. Mark closed dates as unavailable.
+1. When approving a booking request, check for conflicts with existing bookings.
+2. Query bookings on the same date where the time difference is less than or equal to 30 minutes.
+3. Also check other pending requests for the same date and time proximity.
+4. If any conflicts are found, display them to the admin.
+5. Admin can choose to approve anyway or reject the request.
+6. If approved, create the booking and update records.
+7. Notify the member of the approval or rejection.
 
 ### C. Date Availability Control Algorithm
 
@@ -436,7 +655,7 @@ flowchart LR
 6. Refresh the calendar to show the new availability state.
 7. Prevent booking submission when the date is closed or full.
 
-## 8) Pseudocode
+## 12) Pseudocode
 
 ### A. FCFS Algorithm
 
@@ -457,26 +676,34 @@ BEGIN
 END
 ```
 
-### B. Date Color Conditioning Algorithm
+### B. Conflict Checker Algorithm
 
 ```text
 BEGIN
-  FOR each date in the calendar
-    READ booked count
-    READ max booking count
-    IF date is closed THEN
-      SET color to gray
-    ELSE IF booked count = 0 THEN
-      SET color to green
-    ELSE IF booked count is near max THEN
-      SET color to orange
-    ELSE IF booked count is partially filled THEN
-      SET color to yellow
-    ELSE IF booked count >= max booking count THEN
-      SET color to red
+  INPUT: booking request with date and time
+  
+  FIND all existing bookings on same date
+  FOR each booking on same date
+    CALCULATE time difference in minutes
+    IF ABS(time_difference) <= 30 THEN
+      ADD to conflicts list
     ENDIF
-    RENDER date with selected color
   END FOR
+  
+  FIND all pending requests on same date
+  FOR each pending request on same date
+    CALCULATE time difference in minutes
+    IF ABS(time_difference) <= 30 THEN
+      ADD to conflicts list
+    ENDIF
+  END FOR
+  
+  IF conflicts list is not empty THEN
+    DISPLAY conflicts to admin
+    WAIT for admin decision (approve anyway or reject)
+  ELSE
+    PROCEED with booking approval
+  ENDIF
 END
 ```
 
@@ -496,7 +723,7 @@ BEGIN
 END
 ```
 
-## 9) Algorithms
+## 13) Algorithms
 
 ### A. FCFS Algorithm
 
@@ -511,19 +738,20 @@ Steps:
 5. Approve it only if the date still has available capacity.
 6. Record the approved booking and log the action.
 
-### B. Date Color Conditioning Algorithm
+### B. Conflict Checker Algorithm
 
-- Input: booked count and maximum booking count
-- Output: calendar cell color
+- Input: booking request with date and time slot
+- Output: list of conflicting bookings/requests within 30-minute proximity
 
 Steps:
-1. Read the current number of bookings for the date.
-2. Read the maximum booking count set by the admin.
-3. Use green for empty dates.
-4. Use yellow for partially occupied dates.
-5. Use orange for dates nearing capacity.
-6. Use red for full dates.
-7. Use gray or unavailable styling for closed dates.
+1. Query all existing bookings on the requested date.
+2. For each booking, calculate the absolute time difference in minutes.
+3. If any booking has a time difference of 30 minutes or less, add to conflicts.
+4. Query all pending requests on the requested date.
+5. For each pending request, calculate the absolute time difference in minutes.
+6. If any request has a time difference of 30 minutes or less, add to conflicts.
+7. If conflicts exist, display them to admin with options to approve anyway or reject.
+8. If no conflicts, proceed with booking approval.
 
 ### C. Date Availability Control Algorithm
 
@@ -538,7 +766,7 @@ Steps:
 5. Save the updated setting to the calendar table.
 6. Re-render the calendar to reflect the new state.
 
-## 10) Core Business Algorithms
+## 14) Core Business Algorithms
 
 ### A. Booking Request Submission & Approval Flow
 
@@ -698,7 +926,7 @@ BEGIN
 END
 ```
 
-## 11) Mobile Responsive Design Patterns
+## 15) Mobile Responsive Design Patterns
 
 ### Scrollable Container Pattern (Flexbox with Overflow)
 
@@ -821,7 +1049,7 @@ All card containers share consistent styling:
 | 900px | iPad/Desktop | 2-col fixed | repeat(2, 1fr) | 16px | Tablet landscape / small desktop |
 | 1920px+ | Desktop | 2-col fixed | repeat(2, 1fr) | 16px | Large desktop |
 
-## 12) Booking Modal Multi-Step Flow
+## 16) Booking Modal Multi-Step Flow
 
 ```mermaid
 sequenceDiagram
@@ -868,7 +1096,7 @@ sequenceDiagram
   User->>User: Redirect to dashboard
 ```
 
-## 13) Admin Approval Workflow
+## 17) Admin Approval Workflow
 
 After a member submits a booking request:
 
@@ -881,7 +1109,7 @@ After a member submits a booking request:
 4. **Confirmation**: Once accepted, booking appears on member's calendar and in reports
 5. **Cancellation**: Member or admin can cancel confirmed bookings anytime
 
-## 14) Notes for the Report
+## 18) Notes for the Report
 
 - **Time Validation**: Bookings are restricted to 8:00 AM - 6:00 PM with no 30-minute interval restrictions. Any minute value is allowed within this range (e.g., 8:15 AM, 2:47 PM, 6:00 PM are all valid).
 - **Calendar Navigation**: Past months are automatically disabled. Users can only view and book within a dynamic 6-month forward-looking window (tomorrow through 6 months ahead). Month navigation buttons disable gracefully at window boundaries.
@@ -893,4 +1121,4 @@ After a member submits a booking request:
 - **Responsive Grid System**: Dashboard uses conditional `gridTemplateColumns` React state. Desktop (900px+): `repeat(2, 1fr)` two columns. Tablet (600-900px): `1fr` single column (sidebar + main). Mobile (<600px): `1fr` single column with drawer sidebar.
 - **Data Storage**: The booking `details` field is stored as JSON and includes chapel selection, service-specific data (couple names for weddings, deceased info for funerals), chairs/tables quantities, and setup notes.
 - **Notification System**: Real-time notifications via Socket.IO for all booking actions (new bookings, confirmations, cancellations), proposal responses, and concern status updates.
-- **Architecture**: React frontend with responsive hooks (useState, useEffect, useCallback, useMemo) and dynamic resize listeners. Node/Express backend with validation layer enforcing business rules. SQLite database with normalized schema. Components: Dashboard, AdminDashboard, BookingModal (scrollable service form), CalendarViewNew, NotificationCenter, PageWrapper, authenticated routing with role-based access control.
+- **Architecture**: React frontend with responsive hooks (useState, useEffect, useCallback, useMemo) and dynamic resize listeners. Node/Express backend with validation layer enforcing business rules. SQLite database with normalized schema. Components: Dashboard, AdminDashboard, BookingModal (scrollable service form), CalendarViewNew, NotificationCenter, PageWrapper, authenticated routing with role-based access control. Role-based access control includes three roles: member (basic users), admin (can manage bookings and users), superadmin (full access including deleting records and invite codes).

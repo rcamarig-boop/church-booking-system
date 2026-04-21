@@ -971,9 +971,9 @@ app.get('/api/bookings', auth, async (req, res) => {
   ]);
   const filter = String(req.query.filter || '').toLowerCase();
   const filterClause = filter === 'past'
-    ? `date < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`
+    ? `date < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot < TO_CHAR(CURRENT_TIME, 'HH24:MI'))`
     : filter === 'upcoming'
-      ? `date >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')`
+      ? `date > TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot >= TO_CHAR(CURRENT_TIME, 'HH24:MI'))`
       : '';
 
   if (req.user.role === 'admin' || req.user.role === 'superadmin') {
@@ -1094,7 +1094,11 @@ app.get('/api/booking-requests', auth, admin, async (_, res) => {
   const { clause, params } = buildSearchClause(_.query.q, [
     'id', 'name', 'email', 'service', 'date', 'slot', 'status'
   ]);
-  const whereParts = [`status = ?`, clause].filter(Boolean);
+  const whereParts = [
+    `status = ?`,
+    `(date > TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot >= TO_CHAR(CURRENT_TIME, 'HH24:MI')))`,
+    clause
+  ].filter(Boolean);
   const where = `WHERE ${whereParts.join(' AND ')}`;
   const rows = await dbAll(
     `SELECT * FROM booking_requests ${where} ORDER BY created_at ASC, id ASC ${limit ? `LIMIT ${limit} OFFSET ${offset}` : ''}`,
@@ -1243,19 +1247,29 @@ app.get('/api/booking-requests/:id/conflicts', auth, admin, async (req, res) => 
 
   const request = normalizeBookingRequest(row);
   
-  // Get all existing bookings with the same date and time slot
-  const conflicts = await dbAll(
-    `SELECT * FROM bookings WHERE date = ? AND slot = ?`,
+  // Get all existing bookings with the same date and time within 30 minutes
+  const bookingConflicts = await dbAll(
+    `SELECT * FROM bookings WHERE date = ? AND ABS(EXTRACT(EPOCH FROM (slot::time - ?::time))/60) <= 30`,
     request.date,
     normalizeSlot(request.slot)
   );
 
-  const conflictingBookings = conflicts.map(normalizeBooking);
+  // Also check other pending requests
+  const requestConflicts = await dbAll(
+    `SELECT * FROM booking_requests WHERE id != ? AND status = 'pending' AND date = ? AND ABS(EXTRACT(EPOCH FROM (slot::time - ?::time))/60) <= 30`,
+    requestId,
+    request.date,
+    normalizeSlot(request.slot)
+  );
+
+  const conflictingBookings = bookingConflicts.map(normalizeBooking);
+  const conflictingRequests = requestConflicts.map(normalizeBookingRequest);
   
   res.json({
-    hasConflicts: conflictingBookings.length > 0,
+    hasConflicts: conflictingBookings.length > 0 || conflictingRequests.length > 0,
     requestData: request,
-    conflictingBookings: conflictingBookings
+    conflictingBookings: conflictingBookings,
+    conflictingRequests: conflictingRequests
   });
 });
 

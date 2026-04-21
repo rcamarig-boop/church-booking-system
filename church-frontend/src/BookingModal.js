@@ -99,6 +99,7 @@ export default function BookingModal({
 }) {
   const [service, setService] = useState('Counseling');
   const [startTime, setStartTime] = useState('09:00');
+  const [timeError, setTimeError] = useState(null);
   const [error, setError] = useState(null);
   const [currentMode, setCurrentMode] = useState(mode);
   const [showServiceForm, setShowServiceForm] = useState(false);
@@ -136,8 +137,14 @@ export default function BookingModal({
   }, []);
 
   const validateServiceForm = () => {
-    if (!isBookingDateWithinSixMonths(date)) {
-      return 'Bookings must be scheduled between tomorrow and 6 months ahead';
+    const now = new Date();
+    const today = getTodayIsoDate();
+    const selectedDateTime = new Date(`${date}T${startTime}:00`);
+    if (date < today || (date === today && selectedDateTime <= now)) {
+      return 'Booking time must be in the future';
+    }
+    if (date > getSixMonthsAheadIsoDate()) {
+      return 'Bookings cannot be scheduled more than 6 months ahead';
     }
     if (!String(serviceFormData.chapel || '').trim()) {
       return 'Chapel is required';
@@ -428,6 +435,7 @@ export default function BookingModal({
               <select
                 value={service}
                 onChange={e => setService(e.target.value)}
+                disabled={!isAllowedBookingTime(startTime)}
                 style={{
                   width: '100%',
                   padding: 12,
@@ -537,6 +545,8 @@ export default function BookingModal({
                   background: '#fff'
                 }}
               />
+
+              {!isAllowedBookingTime(startTime) && <div style={{ color: '#e53e3e', fontSize: 12, marginTop: 4 }}>Preferred time must be between 8:00 AM and 6:00 PM</div>}
 
               {bookingUsage && (
                 <div style={{
