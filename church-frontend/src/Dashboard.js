@@ -61,6 +61,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
   const [profileEmail, setProfileEmail] = useState(user?.email || '');
   const [profilePassword, setProfilePassword] = useState('');
   const [profileConfirm, setProfileConfirm] = useState('');
+  const [showProfilePassword, setShowProfilePassword] = useState(false);
+  const [showProfileConfirm, setShowProfileConfirm] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [timeTrigger, setTimeTrigger] = useState(0);
@@ -656,11 +658,13 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
               <button
                 onClick={() => {
                   if (profileSaving) return;
-                  setProfileEditorOpen(false);
-                  setProfileError('');
-                  setProfilePassword('');
-                  setProfileConfirm('');
-                }}
+              setProfileEditorOpen(false);
+              setProfileError('');
+              setProfilePassword('');
+              setProfileConfirm('');
+              setShowProfilePassword(false);
+              setShowProfileConfirm(false);
+            }}
                 className="church-review-close"
                 style={{ cursor: 'pointer' }}
               >
@@ -691,23 +695,41 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
                 />
               </div>
-              <div>
+              <div style={{ position: 'relative' }}>
                 <label style={{ display: 'block', marginBottom: 6 }}>New Password (optional)</label>
                 <input
-                  type="password"
+                  type={showProfilePassword ? 'text' : 'password'}
                   value={profilePassword}
                   onChange={(e) => setProfilePassword(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
+                  style={{ width: '100%', padding: '10px 42px 10px 10px', borderRadius: 12, border: `1px solid ${mist}` }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowProfilePassword((value) => !value)}
+                  aria-label={showProfilePassword ? 'Hide password' : 'Show password'}
+                  title={showProfilePassword ? 'Hide password' : 'Show password'}
+                  style={{ position: 'absolute', right: 10, top: 35, width: 28, height: 28, border: 'none', background: 'transparent', color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: 11, fontWeight: 700 }}
+                >
+                  {showProfilePassword ? 'Hide' : 'Eye'}
+                </button>
               </div>
-              <div>
+              <div style={{ position: 'relative' }}>
                 <label style={{ display: 'block', marginBottom: 6 }}>Confirm New Password</label>
                 <input
-                  type="password"
+                  type={showProfileConfirm ? 'text' : 'password'}
                   value={profileConfirm}
                   onChange={(e) => setProfileConfirm(e.target.value)}
-                  style={{ width: '100%', padding: 10, borderRadius: 12, border: `1px solid ${mist}` }}
+                  style={{ width: '100%', padding: '10px 42px 10px 10px', borderRadius: 12, border: `1px solid ${mist}` }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowProfileConfirm((value) => !value)}
+                  aria-label={showProfileConfirm ? 'Hide password' : 'Show password'}
+                  title={showProfileConfirm ? 'Hide password' : 'Show password'}
+                  style={{ position: 'absolute', right: 10, top: 35, width: 28, height: 28, border: 'none', background: 'transparent', color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: 11, fontWeight: 700 }}
+                >
+                  {showProfileConfirm ? 'Hide' : 'Eye'}
+                </button>
               </div>
               {profileError && (
                 <div className="church-review-error">{profileError}</div>
@@ -720,6 +742,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                     setProfileError('');
                     setProfilePassword('');
                     setProfileConfirm('');
+                    setShowProfilePassword(false);
+                    setShowProfileConfirm(false);
                   }}
                   className="church-review-btn church-review-btn--soft"
                 >
@@ -752,6 +776,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                       setProfileEditorOpen(false);
                       setProfilePassword('');
                       setProfileConfirm('');
+                      setShowProfilePassword(false);
+                      setShowProfileConfirm(false);
                     } catch (err) {
                       setProfileError(err.response?.data?.error || 'Failed to update profile.');
                     } finally {
@@ -2052,25 +2078,43 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                           style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
                         />
                       </div>
-                      <div>
+                      <div style={{ position: 'relative' }}>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>New Password</label>
                         <input
-                          type="password"
+                          type={showProfilePassword ? 'text' : 'password'}
                           value={profilePassword}
                           onChange={e => setProfilePassword(e.target.value)}
                           placeholder="Leave blank to keep current"
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                          style={{ width: '100%', padding: '10px 42px 10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowProfilePassword((value) => !value)}
+                          aria-label={showProfilePassword ? 'Hide password' : 'Show password'}
+                          title={showProfilePassword ? 'Hide password' : 'Show password'}
+                          style={{ position: 'absolute', right: 10, top: 31, width: 28, height: 28, border: 'none', background: 'transparent', color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: 11, fontWeight: 700 }}
+                        >
+                          {showProfilePassword ? 'Hide' : 'Eye'}
+                        </button>
                       </div>
-                      <div>
+                      <div style={{ position: 'relative' }}>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Confirm Password</label>
                         <input
-                          type="password"
+                          type={showProfileConfirm ? 'text' : 'password'}
                           value={profileConfirm}
                           onChange={e => setProfileConfirm(e.target.value)}
                           placeholder="Confirm new password"
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
+                          style={{ width: '100%', padding: '10px 42px 10px 12px', borderRadius: 8, border: `1.5px solid ${mist}`, fontSize: 14, color: ink, boxSizing: 'border-box', background: '#fafafa' }}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowProfileConfirm((value) => !value)}
+                          aria-label={showProfileConfirm ? 'Hide password' : 'Show password'}
+                          title={showProfileConfirm ? 'Hide password' : 'Show password'}
+                          style={{ position: 'absolute', right: 10, top: 31, width: 28, height: 28, border: 'none', background: 'transparent', color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: 11, fontWeight: 700 }}
+                        >
+                          {showProfileConfirm ? 'Hide' : 'Eye'}
+                        </button>
                       </div>
                     </div>
                     {profileError && (
@@ -2105,6 +2149,8 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                             onUserUpdate?.(res.data);
                             setProfilePassword('');
                             setProfileConfirm('');
+                            setShowProfilePassword(false);
+                            setShowProfileConfirm(false);
                             setProfileError('');
                           } catch (err) {
                             setProfileError(err.response?.data?.error || 'Failed to update profile.');
