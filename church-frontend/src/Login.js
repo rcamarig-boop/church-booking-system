@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import api from './api';
 import PageWrapper from './PageWrapper';
 
@@ -7,6 +7,26 @@ const ink = '#1f2a44';
 const gold = '#d6ad60';
 const mist = '#e7dfcf';
 const accentBlue = '#3b5b8a';
+
+function PasswordVisibilityIcon({ visible }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+      <circle cx="12" cy="12" r="3" />
+      {visible && <path d="M4 20 20 4" />}
+    </svg>
+  );
+}
 
 export default function Login({ onLogin, onBack, onForgotPassword }) {
   const [email, setEmail] = useState('');
@@ -71,7 +91,7 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
             color: gold,
             letterSpacing: 3
           }}>
-            ✦
+            âœ¦
           </div>
 
           {/* Header */}
@@ -147,59 +167,63 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
             }}>
               Password
             </label>
-            <input
-              type={showPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyPress={handleKeyPress}
-              style={{
-                width: '100%',
-                padding: '12px 40px 12px 14px',
-                fontSize: 14,
-                borderRadius: 10,
-                border: `1.5px solid ${mist}`,
-                background: '#fafafa',
-                color: ink,
-                transition: 'all 0.2s ease',
-                boxSizing: 'border-box'
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = gold;
-                e.target.style.background = '#fff';
-                e.target.style.boxShadow = `0 0 0 3px ${gold}15`;
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = mist;
-                e.target.style.background = '#fafafa';
-                e.target.style.boxShadow = 'none';
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: 'absolute',
-                right: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: ink,
-                fontSize: 16,
-                padding: 0,
-                width: 24,
-                height: 24,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              onMouseEnter={(e) => { e.target.style.color = gold; }}
-              onMouseLeave={(e) => { e.target.style.color = ink; }}
-            >
-              {showPassword ? '🙈' : '👁️'}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyPress={handleKeyPress}
+                style={{
+                  width: '100%',
+                  padding: '12px 40px 12px 14px',
+                  fontSize: 14,
+                  borderRadius: 10,
+                  border: `1.5px solid ${mist}`,
+                  background: '#fafafa',
+                  color: ink,
+                  transition: 'all 0.2s ease',
+                  boxSizing: 'border-box'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = gold;
+                  e.target.style.background = '#fff';
+                  e.target.style.boxShadow = `0 0 0 3px ${gold}15`;
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = mist;
+                  e.target.style.background = '#fafafa';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: ink,
+                  fontSize: 16,
+                  padding: 0,
+                  width: 24,
+                  height: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = gold; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = ink; }}
+              >
+                <PasswordVisibilityIcon visible={showPassword} />
+              </button>
+            </div>
           </div>
 
           {/* Forgot Password Link */}
@@ -286,7 +310,7 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
             color: '#d1d5db',
             fontSize: 12
           }}>
-            ✦ ✦ ✦
+            âœ¦ âœ¦ âœ¦
           </div>
 
           {/* Back Button */}
@@ -314,7 +338,7 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
                 e.target.style.borderColor = mist;
               }}
             >
-              ← Back to Home
+              â† Back to Home
             </button>
           )}
         </div>
@@ -322,3 +346,4 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
     </PageWrapper>
   );
 }
+
