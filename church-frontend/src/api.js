@@ -91,7 +91,9 @@ export default {
   },
 
   bookingRecords: {
-    list: (params) => api.get('/booking-records', { params })
+  list: (params) => api.get('/booking-records', { params }),
+  delete: (id) => api.delete(`/admin/booking-records/${id}`),
+  deleteAll: () => api.delete('/admin/booking-records/all')
   },
 
   bookingEditProposals: {
@@ -102,6 +104,14 @@ export default {
   bookingRequestEditProposals: {
     my: () => api.get('/booking-request-edit-proposals/my'),
     respond: (id, data) => api.post(`/booking-request-edit-proposals/${id}/respond`, data)
+  },
+
+  admin: {
+  deleteActivityLogs: () => api.delete('/admin/activity-logs'),
+  getInviteCodes: () => api.get('/admin/invite-codes'),
+  addInviteCode: (code) => api.post('/admin/invite-codes', { code }),
+  deleteInviteCode: (code) => api.delete(`/admin/invite-codes/${code}`),
+  updateInviteCode: (oldCode, newCode) => api.put(`/admin/invite-codes/${oldCode}`, { newCode })
   },
 
   events: {
