@@ -174,6 +174,7 @@ export default function AdminDashboard({ user, onLogout }) {
   // New feature states
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [activityLog, setActivityLog] = useState([]);
+  const [activityFilter, setActivityFilter] = useState('all');
   const [selectedRequestIds, setSelectedRequestIds] = useState(new Set());
   const [requestFilters, setRequestFilters] = useState('all');
   const [showPermissions, setShowPermissions] = useState(false);
@@ -513,6 +514,39 @@ export default function AdminDashboard({ user, onLogout }) {
   useEffect(() => {
     (async () => {
       try {
+        const res = await api.bookingRecords.list({
+          limit: 50,
+          offset: 0,
+          q: ''
+        });
+        const rows = (res.data || []).map((row) => {
+          const actionType = String(row.action || '').toLowerCase();
+          const normalizedType =
+            actionType.includes('approve') ? 'approve'
+              : actionType.includes('reject') ? 'reject'
+                : actionType.includes('delete') ? 'delete'
+                  : actionType.includes('cancel') ? 'cancel'
+                    : actionType.includes('edit') || actionType.includes('update') ? 'edit'
+                      : 'create';
+
+          return {
+            action: row.action ? String(row.action).replace(/\b\w/g, (char) => char.toUpperCase()) : 'Record Updated',
+            actor: row.actionBy || row.name || row.email || 'System',
+            timestamp: row.actionAt || row.date || new Date().toISOString(),
+            details: [row.service, row.date, row.slot].filter(Boolean).join(' • ') || row.note || 'Booking record updated',
+            type: normalizedType
+          };
+        });
+        setActivityLog(rows);
+      } catch {
+        setActivityLog([]);
+      }
+    })();
+  }, [refreshKey]);
+
+  useEffect(() => {
+    (async () => {
+      try {
         const res = await api.concerns.list({
           limit: PAGE_SIZE,
           offset: (concernPage - 1) * PAGE_SIZE,
@@ -544,6 +578,21 @@ export default function AdminDashboard({ user, onLogout }) {
   }, [bookingControlDate, calendarConfig]);
 
   const filteredUsers = useMemo(() => users, [users]);
+  const activityFilters = useMemo(() => ([
+    { type: 'all', label: 'All', icon: '📋' },
+    { type: 'approve', label: 'Approved', icon: '✅' },
+    { type: 'reject', label: 'Rejected', icon: '❌' },
+    { type: 'create', label: 'Created', icon: '➕' },
+    { type: 'edit', label: 'Edited', icon: '✏️' },
+    { type: 'delete', label: 'Deleted', icon: '🗑️' },
+    { type: 'cancel', label: 'Cancelled', icon: '⏹️' }
+  ]), []);
+  const filteredActivityLog = useMemo(
+    () => activityFilter === 'all'
+      ? activityLog
+      : activityLog.filter((entry) => entry.type === activityFilter),
+    [activityFilter, activityLog]
+  );
   const pendingVerificationCount = useMemo(
     () => users.filter(u => u.email_verified === false).length,
     [users]
@@ -3785,6 +3834,20 @@ export default function AdminDashboard({ user, onLogout }) {
                 <div style={{ fontSize: 14, color: '#6b7280' }}>
                   💡 Activity logs help maintain accountability and provide an audit trail for all system actions.
                 </div>
+              </div>
+              <div style={{
+                padding: '18px',
+                background: '#fff',
+                borderRadius: 12,
+                border: `1px solid ${mist}`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }}>
+                <ActivityFilters
+                  filters={activityFilters}
+                  selected={activityFilter}
+                  onSelect={setActivityFilter}
+                />
+                <ActivityLog activities={filteredActivityLog} />
               </div>
             </div>
           </div>

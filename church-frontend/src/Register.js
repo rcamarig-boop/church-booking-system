@@ -9,6 +9,27 @@ const gold = '#d6ad60';
 const mist = '#e7dfcf';
 const accentBlue = '#3b5b8a';
 
+const policyCopy = {
+  terms: {
+    title: 'Terms and Conditions',
+    body: [
+      'By creating an account, you agree to use the parish booking system only for legitimate church-related requests and personal account management.',
+      'You are responsible for keeping your login credentials secure and for the accuracy of the information you submit.',
+      'The parish may review, approve, reject, or remove requests or accounts when needed to protect operations, scheduling, or community safety.',
+      'Misuse of the platform, including false submissions, abusive behavior, or attempts to disrupt the system, may result in account suspension or removal.'
+    ]
+  },
+  privacy: {
+    title: 'Privacy Policy',
+    body: [
+      'The parish collects the information you provide during registration and booking so staff can manage requests, communicate with you, and maintain parish records.',
+      'Your account information is used for scheduling, notifications, support, and administrative review within the church management system.',
+      'The parish does not intend to use your personal data for unrelated commercial purposes.',
+      'You may contact the parish office if you need help correcting account information or understanding how your data is being used.'
+    ]
+  }
+};
+
 function PasswordVisibilityIcon({ visible }) {
   return (
     <svg
@@ -29,6 +50,90 @@ function PasswordVisibilityIcon({ visible }) {
   );
 }
 
+function PolicyModal({ policy, onClose }) {
+  if (!policy) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        zIndex: 10000
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 620,
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          background: '#fff',
+          borderRadius: 18,
+          border: `2px solid ${gold}`,
+          boxShadow: '0 24px 60px rgba(15, 23, 42, 0.2)',
+          padding: 24
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.2, color: gold, textTransform: 'uppercase', marginBottom: 6 }}>
+              Parish Account Policy
+            </div>
+            <h2 style={{ margin: 0, color: ink, fontSize: 24 }}>{policy.title}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#6b7280',
+              cursor: 'pointer',
+              fontSize: 28,
+              lineHeight: 1
+            }}
+          >
+            &times;
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gap: 12, color: '#4b5563', fontSize: 14, lineHeight: 1.7 }}>
+          {policy.body.map((paragraph) => (
+            <p key={paragraph} style={{ margin: 0 }}>
+              {paragraph}
+            </p>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '10px 16px',
+              borderRadius: 10,
+              border: `1px solid ${gold}`,
+              background: gold,
+              color: ink,
+              cursor: 'pointer',
+              fontWeight: 700
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Register({ onLogin, onBack, onGoToLogin }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -40,6 +145,8 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
+  const [openPolicy, setOpenPolicy] = useState(null);
 
   const submit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -56,6 +163,10 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
     }
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      return;
+    }
+    if (!acceptedPolicies) {
+      setError('Please agree to the Terms and Conditions and Privacy Policy before registering.');
       return;
     }
     try {
@@ -81,6 +192,10 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
 
   return (
     <PageWrapper>
+      <PolicyModal
+        policy={openPolicy ? policyCopy[openPolicy] : null}
+        onClose={() => setOpenPolicy(null)}
+      />
       <div style={{
         minHeight: '100vh',
         display: 'flex',
@@ -442,6 +557,42 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
                 <PasswordVisibilityIcon visible={showPassword} />
               </button>
             </div>
+          </div>
+
+          <div style={{
+            marginBottom: 20,
+            padding: '14px 16px',
+            borderRadius: 12,
+            border: `1.5px solid ${mist}`,
+            background: '#faf7f1'
+          }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', color: ink, fontSize: 13, lineHeight: 1.6 }}>
+              <input
+                type="checkbox"
+                checked={acceptedPolicies}
+                onChange={(e) => setAcceptedPolicies(e.target.checked)}
+                style={{ marginTop: 3, accentColor: accentBlue }}
+              />
+              <span>
+                I agree to the{' '}
+                <button
+                  type="button"
+                  onClick={() => setOpenPolicy('terms')}
+                  style={{ border: 'none', background: 'none', padding: 0, color: accentBlue, cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
+                >
+                  Terms and Conditions
+                </button>
+                {' '}and{' '}
+                <button
+                  type="button"
+                  onClick={() => setOpenPolicy('privacy')}
+                  style={{ border: 'none', background: 'none', padding: 0, color: accentBlue, cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
+                >
+                  Privacy Policy
+                </button>
+                .
+              </span>
+            </label>
           </div>
 
           {/* Error Message */}

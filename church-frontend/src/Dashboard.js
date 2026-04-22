@@ -6,6 +6,7 @@ import { SocketContext } from './App';
 import { loadSidebarContact } from './sidebarContact';
 import { NAME_MAX_LENGTH, isValidNameValue, sanitizeNameInput } from './inputValidation';
 import { PermissionDisplay } from './StatusComponents';
+import { HelpIcon } from './HelpSystem';
 
 const stone = '#f8f4ec';
 const ink = '#1f2a44';
@@ -47,6 +48,89 @@ function PasswordVisibilityIcon({ visible }) {
       <circle cx="12" cy="12" r="3" />
       {visible && <path d="M4 20 20 4" />}
     </svg>
+  );
+}
+
+const memberHelpConfig = {
+  events: {
+    title: 'Events Help',
+    description: 'View upcoming parish events and available mass services.',
+    steps: [
+      'Review event dates, times, and descriptions.',
+      'Open available mass services and submit an application when needed.',
+      'Check whether you already applied before submitting again.'
+    ]
+  },
+  bookings: {
+    title: 'My Bookings Help',
+    description: 'Manage your confirmed service bookings and review proposed changes.',
+    steps: [
+      'Use this table to review your confirmed bookings.',
+      'Open any pending change proposal before accepting or rejecting it.',
+      'Cancel a booking only if you no longer need the reserved schedule.'
+    ]
+  },
+  requests: {
+    title: 'My Requests Help',
+    description: 'Track pending booking requests that still need admin review.',
+    steps: [
+      'Review the current status of each request.',
+      'Watch for proposed edits from staff before approval.',
+      'Use this section to confirm your requested service, date, and time details.'
+    ]
+  },
+  calendar: {
+    title: 'Calendar Help',
+    description: 'Browse the parish schedule to see open dates and planned activities.',
+    steps: [
+      'Use the calendar above to explore schedules.',
+      'Check date availability before submitting a booking request.',
+      'Look for event markers or booking density before choosing a date.'
+    ]
+  },
+  concerns: {
+    title: 'Concerns Help',
+    description: 'Send concerns to the parish office and monitor replies.',
+    steps: [
+      'Use Raise Concern to submit a new concern.',
+      'Track status changes and admin replies from this section.',
+      'Close or delete your concern once it has been resolved.'
+    ]
+  },
+  tracking: {
+    title: 'Action Tracking Help',
+    description: 'See your recent requests, bookings, and concern activity in one place.',
+    steps: [
+      'Use this timeline to monitor what actions were already recorded for your account.',
+      'Check status updates for requests and concerns.',
+      'Use it as a quick summary of your recent parish activity.'
+    ]
+  },
+  settings: {
+    title: 'Settings Help',
+    description: 'Manage your account details and review your permissions.',
+    steps: [
+      'Update your profile information when needed.',
+      'Change your password from the profile section.',
+      'Review your available permissions and current session details.'
+    ]
+  }
+};
+
+function DashboardSectionHeader({ sectionKey, title, style }) {
+  const help = memberHelpConfig[sectionKey];
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, borderBottom: `3px solid ${gold}`, paddingBottom: 8 }}>
+      <h2 style={style}>{title}</h2>
+      {help && (
+        <HelpIcon
+          title={help.title}
+          description={help.description}
+          steps={help.steps}
+        />
+      )}
+    </div>
   );
 }
 
@@ -1481,7 +1565,11 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
           <div className="dashboard-main dashboard-left-content" style={{ background: '#fff', borderRadius: 16, boxShadow: '0 18px 40px rgba(0,0,0,0.1)', border: `2px solid ${gold}`, padding: 16, borderTop: `4px solid ${gold}` }}>
             {activeTab === 'events' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Events</h2>
+                <DashboardSectionHeader
+                  sectionKey="events"
+                  title="✦ Events"
+                  style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}
+                />
                 <div style={{ display: 'grid', gap: 10 }}>
                   {events.map((event) => (
                     <div key={event.id} style={{
@@ -1582,8 +1670,12 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'bookings' && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16, borderBottom: `3px solid ${gold}`, paddingBottom: 8 }}>
-                  <h2 style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}>✦ My Bookings</h2>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <DashboardSectionHeader
+                    sectionKey="bookings"
+                    title="✦ My Bookings"
+                    style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}
+                  />
                   {bookingUsage && (
                     <div style={{
                       padding: '6px 10px',
@@ -1683,7 +1775,11 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'requests' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ My Requests</h2>
+                <DashboardSectionHeader
+                  sectionKey="requests"
+                  title="✦ My Requests"
+                  style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}
+                />
                 
                 {bookingRequestEditProposals.filter(p => p.status === 'pending').map(proposal => (
                   <div
@@ -1759,7 +1855,11 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'calendar' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Calendar</h2>
+                <DashboardSectionHeader
+                  sectionKey="calendar"
+                  title="✦ Calendar"
+                  style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}
+                />
                 <div style={{ color: '#4a5568' }}>Use the calendar above to explore available dates.</div>
               </div>
             )}
@@ -1772,11 +1872,13 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   justifyContent: 'space-between',
                   gap: 12,
                   flexWrap: 'wrap',
-                  borderBottom: `3px solid ${gold}`,
-                  paddingBottom: 8,
                   marginBottom: 16
                 }}>
-                  <h2 style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}>✦ My Concerns</h2>
+                  <DashboardSectionHeader
+                    sectionKey="concerns"
+                    title="✦ My Concerns"
+                    style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}
+                  />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {concernUsage && (
                       <div style={{
@@ -1948,7 +2050,11 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'tracking' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Action Tracking</h2>
+                <DashboardSectionHeader
+                  sectionKey="tracking"
+                  title="✦ Action Tracking"
+                  style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}
+                />
                 <div style={{
                   display: 'grid',
                   gap: 12
@@ -2071,7 +2177,11 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
 
             {activeTab === 'settings' && (
               <div>
-                <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 20, fontWeight: 800, fontSize: 22 }}>⚙️ Settings</h2>
+                <DashboardSectionHeader
+                  sectionKey="settings"
+                  title="⚙️ Settings"
+                  style={{ color: ink, margin: 0, fontWeight: 800, fontSize: 22 }}
+                />
                 <div style={{ display: 'grid', gap: 16 }}>
 
                   {/* 👤 PROFILE */}

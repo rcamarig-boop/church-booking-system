@@ -1,6 +1,5 @@
 import React from 'react';
 
-// Activity log entry
 export function ActivityLogEntry({ action, actor, timestamp, details, type = 'info' }) {
   const getIcon = () => {
     switch (type) {
@@ -27,7 +26,7 @@ export function ActivityLogEntry({ action, actor, timestamp, details, type = 'in
   };
 
   const colors = getColor();
-  const formattedTime = new Date(timestamp).toLocaleString();
+  const formattedTime = timestamp ? new Date(timestamp).toLocaleString() : 'Unknown time';
 
   return (
     <div style={{
@@ -47,7 +46,7 @@ export function ActivityLogEntry({ action, actor, timestamp, details, type = 'in
           {action}
         </div>
         <div style={{ fontSize: 12, color: colors.text, opacity: 0.8, marginBottom: 4 }}>
-          by <strong>{actor}</strong>
+          by <strong>{actor || 'System'}</strong>
         </div>
         {details && (
           <div style={{ fontSize: 12, color: colors.text, opacity: 0.75, marginBottom: 4 }}>
@@ -62,7 +61,6 @@ export function ActivityLogEntry({ action, actor, timestamp, details, type = 'in
   );
 }
 
-// Activity log container
 export function ActivityLog({ activities, isLoading = false }) {
   if (isLoading) {
     return (
@@ -101,7 +99,7 @@ export function ActivityLog({ activities, isLoading = false }) {
     <div>
       {activities.map((activity, idx) => (
         <ActivityLogEntry
-          key={idx}
+          key={`${activity.timestamp || 'time'}-${activity.action || 'action'}-${idx}`}
           action={activity.action}
           actor={activity.actor}
           timestamp={activity.timestamp}
@@ -113,7 +111,6 @@ export function ActivityLog({ activities, isLoading = false }) {
   );
 }
 
-// Activity filter tabs
 export function ActivityFilters({ filters, selected, onSelect }) {
   return (
     <div style={{

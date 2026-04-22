@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 
-// Tooltip component (shows on hover)
 export function Tooltip({ children, text, side = 'top' }) {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -45,7 +44,6 @@ export function Tooltip({ children, text, side = 'top' }) {
   );
 }
 
-// Help icon component
 export function HelpIcon({ title, description, steps = [] }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -86,7 +84,6 @@ export function HelpIcon({ title, description, steps = [] }) {
   );
 }
 
-// Help modal component
 function HelpModal({ title, description, steps, onClose }) {
   return (
     <div
@@ -118,7 +115,7 @@ function HelpModal({ title, description, steps, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, color: '#1f2937' }}>❓ {title}</h2>
+          <h2 style={{ margin: 0, color: '#1f2937' }}>&#10067; {title}</h2>
           <button
             onClick={onClose}
             style={{
@@ -129,7 +126,7 @@ function HelpModal({ title, description, steps, onClose }) {
               color: '#9ca3af'
             }}
           >
-            ✕
+            &times;
           </button>
         </div>
 
@@ -173,7 +170,6 @@ function HelpModal({ title, description, steps, onClose }) {
   );
 }
 
-// Info card component
 export function InfoCard({ icon, title, description }) {
   return (
     <div style={{
