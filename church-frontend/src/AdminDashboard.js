@@ -170,6 +170,8 @@ export default function AdminDashboard({ user, onLogout }) {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [requests, setRequests] = useState([]);
   const [showCollectiveServiceModal, setShowCollectiveServiceModal] = useState(false);
+  const [inviteCodes, setInviteCodes] = useState([]);
+  const [newInviteCode, setNewInviteCode] = useState('');
   
   // New feature states
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -393,6 +395,17 @@ export default function AdminDashboard({ user, onLogout }) {
   useEffect(() => {
     loadData();
 
+    const loadInviteCodes = async () => {
+      try {
+        const res = await api.admin.getInviteCodes();
+        setInviteCodes(res.data.codes || []);
+      } catch (err) {
+        console.error('Failed to load invite codes:', err);
+      }
+    };
+    useEffect(() => {
+      if (user?.role === 'superadmin') loadInviteCodes();
+    }, [user?.role]);
     const refresh = () => loadData();
 
     socket.on('new_booking', refresh);
