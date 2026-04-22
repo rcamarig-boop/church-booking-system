@@ -14,13 +14,14 @@ import { SessionSecurityManager } from './FrontendSecurity';
 
 export const SocketContext = createContext();
 const DEFAULT_SOCKET_URL = 'http://localhost:5000';
+const DEFAULT_PRODUCTION_APP_URL = 'https://church-booking-system.onrender.com';
 const rawApiBase = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL;
 const socketBaseFromApi = rawApiBase
   ? rawApiBase.replace(/\/api\/?$/, '')
   : null;
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
   socketBaseFromApi ||
-  (process.env.NODE_ENV === 'production' ? window.location.origin : DEFAULT_SOCKET_URL);
+  (process.env.NODE_ENV === 'production' ? DEFAULT_PRODUCTION_APP_URL : DEFAULT_SOCKET_URL);
 const socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
   reconnection: true,
@@ -156,13 +157,19 @@ export default function App() {
   useEffect(() => {
     const raw = localStorage.getItem('church_user');
     if (raw) {
-      const u = JSON.parse(raw);
-      setUser(u);
-      api.setToken(u.token);
-      setCurrentPage('dashboard');
+      try {
+        const u = JSON.parse(raw);
+        setUser(u);
+        api.setToken(u.token);
+        setCurrentPage('dashboard');
 
-      // Restore session security manager on page refresh
-      initSessionManager();
+        // Restore session security manager on page refresh
+        initSessionManager();
+      } catch (err) {
+        console.warn('[App] Failed to restore saved session. Clearing invalid local storage.', err);
+        localStorage.removeItem('church_user');
+        api.setToken(null);
+      }
     }
 
     const handleConnect = () => console.log('[Socket] Connected');

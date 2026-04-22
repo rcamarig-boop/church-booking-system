@@ -971,9 +971,9 @@ app.get('/api/bookings', auth, async (req, res) => {
   ]);
   const filter = String(req.query.filter || '').toLowerCase();
   const filterClause = filter === 'past'
-    ? `date < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot < TO_CHAR(CURRENT_TIME, 'HH24:MI'))`
+    ? `date < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot < TO_CHAR(CURRENT_TIME::time, 'HH24:MI'))`
     : filter === 'upcoming'
-      ? `date > TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot >= TO_CHAR(CURRENT_TIME, 'HH24:MI'))`
+      ? `date > TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot >= TO_CHAR(CURRENT_TIME::time, 'HH24:MI'))`
       : '';
 
   if (req.user.role === 'admin' || req.user.role === 'superadmin') {
@@ -1096,7 +1096,7 @@ app.get('/api/booking-requests', auth, admin, async (_, res) => {
   ]);
   const whereParts = [
     `status = ?`,
-    `(date > TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot >= TO_CHAR(CURRENT_TIME, 'HH24:MI')))`,
+    `(date > TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot >= TO_CHAR(CURRENT_TIME::time, 'HH24:MI')))`,
     clause
   ].filter(Boolean);
   const where = `WHERE ${whereParts.join(' AND ')}`;

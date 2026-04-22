@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+﻿import React, { useCallback, useContext, useEffect, useState } from 'react';
 import api from './api';
 import { SocketContext } from './App';
 import { BOOKING_TIME_MAX, BOOKING_TIME_MIN, DATE_FIELD_KEYS, NAME_MAX_LENGTH, PHONE_FIELD_KEYS, NAME_FIELD_KEYS, isAllowedBookingTime, isBookingDateWithinSixMonths, getTodayIsoDate, isFutureIsoDate } from './inputValidation';
@@ -60,12 +60,12 @@ const actionWrap = {
 
 function Icon({ kind }) {
   if (kind === 'edit') {
-    return <span style={{ fontSize: 15, lineHeight: 1 }}>📄</span>;
+    return <span style={{ fontSize: 15, lineHeight: 1 }}>&#128196;</span>;
   }
   if (kind === 'approve') {
-    return <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>✓</span>;
+    return <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>&#10003;</span>;
   }
-  return <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>✕</span>;
+  return <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>&times;</span>;
 }
 
 const DETAIL_LABEL_OVERRIDES = {
@@ -470,7 +470,7 @@ export default function AdminRequestPanel({ onDecision }) {
                   padding: '4px 8px'
                 }}
               >
-                ✕
+                &times;
               </button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
@@ -856,7 +856,7 @@ export default function AdminRequestPanel({ onDecision }) {
             padding: 30
           }}>
             <h2 style={{ color: '#d97706', marginTop: 0, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-              ⚠️ Booking Conflict Warning
+              âš ï¸ Booking Conflict Warning
             </h2>
             
             <p style={{ color: '#555', marginBottom: 20, lineHeight: 1.6 }}>
@@ -871,7 +871,7 @@ export default function AdminRequestPanel({ onDecision }) {
               borderRadius: 4,
               marginBottom: 20
             }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#0c4a6e' }}>📝 Booking Request (Being Accepted)</h4>
+              <h4 style={{ margin: '0 0 10px 0', color: '#0c4a6e' }}>ðŸ“ Booking Request (Being Accepted)</h4>
               <table style={{ width: '100%', fontSize: 14, lineHeight: 1.8 }}>
                 <tbody>
                   <tr>
@@ -900,7 +900,7 @@ export default function AdminRequestPanel({ onDecision }) {
 
             {/* Existing Bookings */}
             <div style={{ marginBottom: 20 }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>🔴 Existing Booking(s) - Same Date & Time</h4>
+              <h4 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>ðŸ”´ Existing Booking(s) - Same Date & Time</h4>
               {conflictData.conflictingBookings.map((booking, idx) => (
                 <div key={idx} style={{ 
                   padding: 15, 
@@ -951,7 +951,7 @@ export default function AdminRequestPanel({ onDecision }) {
               color: '#78350f',
               fontSize: 14
             }}>
-              <strong>⚡ Action Required:</strong> These bookings have the same date and time. Please verify if this is intentional.
+              <strong>âš¡ Action Required:</strong> These bookings have the same date and time. Please verify if this is intentional.
             </div>
 
             {/* Action Buttons */}
@@ -1019,3 +1019,4 @@ export default function AdminRequestPanel({ onDecision }) {
     </div>
   );
 }
+

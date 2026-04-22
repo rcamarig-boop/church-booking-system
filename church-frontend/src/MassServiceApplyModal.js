@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import api from './api';
 import { DATE_FIELD_KEYS, NAME_FIELD_KEYS, PHONE_FIELD_KEYS, NAME_MAX_LENGTH } from './inputValidation';
 
@@ -123,13 +123,13 @@ export default function MassServiceApplyModal({ service, isOpen, onClose, onAppl
               color: '#9ca3af'
             }}
           >
-            ✕
+            &times;
           </button>
         </div>
 
         <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#f3f4f6', borderRadius: 8 }}>
           <div style={{ fontSize: 14, color: '#4b5563' }}>
-            <strong>Date:</strong> {service.date} • <strong>Time:</strong> {service.time}
+            <strong>Date:</strong> {service.date} &bull; <strong>Time:</strong> {service.time}
           </div>
           <div style={{ fontSize: 14, color: '#4b5563', marginTop: 4 }}>
             <strong>Chapel:</strong> {service.chapel}
@@ -224,3 +224,4 @@ export default function MassServiceApplyModal({ service, isOpen, onClose, onAppl
     </div>
   );
 }
+

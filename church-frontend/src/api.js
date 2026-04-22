@@ -1,11 +1,12 @@
 import axios from 'axios';
 
 const DEFAULT_API_BASE = 'http://localhost:5000/api';
+const DEFAULT_PRODUCTION_APP_URL = 'https://church-booking-system.onrender.com';
 const rawBase =
   process.env.REACT_APP_API_BASE_URL ||
   process.env.REACT_APP_API_URL ||
   (process.env.NODE_ENV === 'production'
-    ? window.location.origin
+    ? DEFAULT_PRODUCTION_APP_URL
     : DEFAULT_API_BASE);
 const API_BASE_URL = rawBase.endsWith('/api') ? rawBase : `${rawBase.replace(/\/$/, '')}/api`;
 

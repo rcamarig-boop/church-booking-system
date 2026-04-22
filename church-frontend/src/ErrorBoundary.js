@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 /**
  * Error Boundary Component
@@ -118,7 +118,7 @@ class ErrorBoundary extends React.Component {
             boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
             border: '1px solid #e2e8f0'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>&#9888;&#65039;</div>
             
             <h1 style={{
               color: '#1f2a44',
@@ -233,3 +233,4 @@ class ErrorBoundary extends React.Component {
 }
 
 export default ErrorBoundary;
+
