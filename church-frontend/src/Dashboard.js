@@ -868,7 +868,7 @@ export default function Dashboard({ user, onLogout, onUserUpdate }) {
                   padding: '4px 8px'
                 }}
               >
-                âœ•
+                &times;
               </button>
             </div>
             <div style={{ display: 'grid', gap: 12 }}>

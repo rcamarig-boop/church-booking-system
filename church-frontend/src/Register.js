@@ -106,7 +106,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
             color: gold,
             letterSpacing: 3
           }}>
-            âœ¦
+            &#10022;
           </div>
 
           {/* Header */}
@@ -129,7 +129,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
                 marginBottom: 16,
                 color: '#22c55e'
               }}>
-                âœ‰
+                &#9993;
               </div>
               <p style={{
                 fontSize: 14,
@@ -499,7 +499,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
             color: '#d1d5db',
             fontSize: 12
           }}>
-            âœ¦ âœ¦ âœ¦
+            &#10022; &#10022; &#10022;
           </div>
 
           {/* Back Button */}
@@ -527,7 +527,7 @@ export default function Register({ onLogin, onBack, onGoToLogin }) {
                 e.target.style.borderColor = mist;
               }}
             >
-              â† Back to Home
+              &larr; Back to Home
             </button>
           )}
           </>

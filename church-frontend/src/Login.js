@@ -91,7 +91,7 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
             color: gold,
             letterSpacing: 3
           }}>
-            âœ¦
+            &#10022;
           </div>
 
           {/* Header */}
@@ -310,7 +310,7 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
             color: '#d1d5db',
             fontSize: 12
           }}>
-            âœ¦ âœ¦ âœ¦
+            &#10022; &#10022; &#10022;
           </div>
 
           {/* Back Button */}
@@ -338,7 +338,7 @@ export default function Login({ onLogin, onBack, onForgotPassword }) {
                 e.target.style.borderColor = mist;
               }}
             >
-              â† Back to Home
+              &larr; Back to Home
             </button>
           )}
         </div>
