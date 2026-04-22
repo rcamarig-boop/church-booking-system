@@ -2660,6 +2660,103 @@ app.delete('/api/users/:id', auth, superadmin, async (req, res) => {
   }
 });
 
+/* ===================== SUPERADMIN DATA MANAGEMENT ===================== */
+app.delete('/api/admin/booking-records/:id', auth, superadmin, async (req, res) => {
+  const recordId = Number(req.params.id);
+  try {
+    await dbRun('DELETE FROM booking_records WHERE id=?', recordId);
+    res.json({ success: true, message: 'Booking record deleted' });
+  } catch (err) {
+    console.error('Failed to delete booking record:', err);
+    res.status(500).json({ error: 'Failed to delete booking record' });
+  }
+});
+
+app.delete('/api/admin/booking-records/all', auth, superadmin, async (req, res) => {
+  try {
+    await dbRun('DELETE FROM booking_records');
+    res.json({ success: true, message: 'All booking records deleted' });
+  } catch (err) {
+    console.error('Failed to delete all booking records:', err);
+    res.status(500).json({ error: 'Failed to delete all booking records' });
+  }
+});
+
+app.delete('/api/admin/activity-logs', auth, superadmin, async (req, res) => {
+  try {
+    await dbRun('DELETE FROM booking_records WHERE action IN (?, ?, ?, ?, ?)',
+      'created', 'updated', 'deleted', 'approved', 'rejected');
+    res.json({ success: true, message: 'Activity logs cleared' });
+  } catch (err) {
+    console.error('Failed to delete activity logs:', err);
+    res.status(500).json({ error: 'Failed to delete activity logs' });
+  }
+});
+
+app.get('/api/admin/invite-codes', auth, superadmin, async (req, res) => {
+  try {
+    const codes = MEMBER_INVITE_CODES.map((code, idx) => ({ id: idx, code }));
+    res.json({ codes });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch invite codes' });
+  }
+});
+
+app.post('/api/admin/invite-codes', auth, superadmin, async (req, res) => {
+  const { code } = req.body || {};
+  try {
+    if (!code || typeof code !== 'string' || code.trim().length === 0) {
+      return res.status(400).json({ error: 'Invalid invite code' });
+    }
+    const normalizedCode = code.trim().toUpperCase();
+    if (MEMBER_INVITE_CODES.includes(normalizedCode)) {
+      return res.status(409).json({ error: 'Code already exists' });
+    }
+    MEMBER_INVITE_CODES.push(normalizedCode);
+    res.json({ success: true, message: 'Invite code added', code: normalizedCode });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add invite code' });
+  }
+});
+
+app.delete('/api/admin/invite-codes/:code', auth, superadmin, async (req, res) => {
+  const { code } = req.params;
+  try {
+    const normalizedCode = String(code || '').trim().toUpperCase();
+    const idx = MEMBER_INVITE_CODES.indexOf(normalizedCode);
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Code not found' });
+    }
+    MEMBER_INVITE_CODES.splice(idx, 1);
+    res.json({ success: true, message: 'Invite code deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete invite code' });
+  }
+});
+
+app.put('/api/admin/invite-codes/:oldCode', auth, superadmin, async (req, res) => {
+  const { oldCode } = req.params;
+  const { newCode } = req.body || {};
+  try {
+    if (!newCode || typeof newCode !== 'string' || newCode.trim().length === 0) {
+      return res.status(400).json({ error: 'Invalid new code' });
+    }
+    const normalizedOldCode = String(oldCode || '').trim().toUpperCase();
+    const normalizedNewCode = newCode.trim().toUpperCase();
+    const idx = MEMBER_INVITE_CODES.indexOf(normalizedOldCode);
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Code not found' });
+    }
+    if (MEMBER_INVITE_CODES.includes(normalizedNewCode)) {
+      return res.status(409).json({ error: 'New code already exists' });
+    }
+    MEMBER_INVITE_CODES[idx] = normalizedNewCode;
+    res.json({ success: true, message: 'Invite code updated', code: normalizedNewCode });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update invite code' });
+  }
+});
+
 app.put('/api/users/me', auth, async (req, res) => {
   const userId = req.user.id;
   const { name, email, password } = req.body || {};
