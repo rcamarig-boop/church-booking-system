@@ -1915,41 +1915,83 @@ app.put('/api/bookings/:id', auth, admin, async (req, res) => {
 });
 
 app.delete('/api/bookings/:id', auth, async (req, res) => {
-  const booking = await dbGet(
-    'SELECT * FROM bookings WHERE id=?',
-    req.params.id
-  );
+  try {
+    const booking = await dbGet(
+      'SELECT * FROM bookings WHERE id=?',
+      req.params.id
+    );
 
-  if (!booking) return res.status(404).json({ error: 'Not found' });
+    if (!booking) return res.status(404).json({ error: 'Not found' });
 
-  const normalized = normalizeBooking(booking);
-  const isOwner = normalized.userId === req.user.id;
-  const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const normalized = normalizeBooking(booking);
+    const isOwner = normalized.userId === req.user.id;
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
 
-  if (!isAdmin && !isOwner)
-    return res.status(403).json({ error: 'Forbidden' });
+    if (!isAdmin && !isOwner)
+      return res.status(403).json({ error: 'Forbidden' });
 
-  await dbRun('DELETE FROM bookings WHERE id=?', req.params.id);
-  await dbRun(
-    'UPDATE calendar SET booked = CASE WHEN booked > 0 THEN booked - 1 ELSE 0 END WHERE date=?',
-    booking.date
-  );
+    const cancellationNote = isAdmin && !isOwner
+      ? `Deleted by admin from booking #${normalized.id}`
+      : `Cancelled booking #${normalized.id}`;
 
-  await addBookingRecord({
-    bookingId: normalized.id,
-    userId: normalized.userId,
-    name: normalized.name,
-    email: normalized.email,
-    service: normalized.service,
-    date: normalized.date,
-    slot: normalizeSlot(normalized.slot),
-    details: normalized.details || null,
-    action: 'cancelled',
-    actionBy: req.user.id
-  });
+    await transaction(async (conn) => {
+      // Clean up dependent proposal rows first in case the deployed schema
+      // enforces booking_id foreign keys.
+      await conn.prepare(
+        'DELETE FROM booking_edit_proposals WHERE booking_id=?'
+      ).run(req.params.id);
 
-  io.emit('booking_deleted', normalized);
-  res.json({ success: true });
+      // Detach historical records that may still reference this booking id so
+      // accepted bookings created before this fix can still be cancelled.
+      await conn.prepare(`
+        UPDATE booking_records
+        SET booking_id = NULL,
+            note = CASE
+              WHEN note IS NULL OR note = '' THEN ?
+              ELSE note || ' | ' || ?
+            END
+        WHERE booking_id=?
+      `).run(
+        `Former booking id: ${normalized.id}`,
+        `Former booking id: ${normalized.id}`,
+        req.params.id
+      );
+
+      // Keep the audit trail even when bookings/booking_records use foreign keys
+      // by storing the deleted booking id in the note instead of booking_id.
+      await addBookingRecord({
+        bookingId: null,
+        userId: normalized.userId,
+        name: normalized.name,
+        email: normalized.email,
+        service: normalized.service,
+        date: normalized.date,
+        slot: normalizeSlot(normalized.slot),
+        details: normalized.details || null,
+        action: 'cancelled',
+        note: cancellationNote,
+        actionBy: req.user.id
+      }, conn);
+
+      const deleteResult = await conn.prepare(
+        'DELETE FROM bookings WHERE id=?'
+      ).run(req.params.id);
+
+      if (!deleteResult.changes) {
+        throw new Error(`Booking ${req.params.id} was not deleted`);
+      }
+
+      await conn.prepare(
+        'UPDATE calendar SET booked = CASE WHEN booked > 0 THEN booked - 1 ELSE 0 END WHERE date=?'
+      ).run(booking.date);
+    });
+
+    io.emit('booking_deleted', normalized);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`Booking deletion failed for ${req.params.id}:`, err.message);
+    res.status(500).json({ error: 'Booking deletion failed. Please try again.' });
+  }
 });
 
 /* ===================== EVENTS ===================== */

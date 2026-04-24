@@ -164,14 +164,14 @@ export default function AdminRequestPanel({ onDecision }) {
   // New UX state
   const [selectedRequestIds, setSelectedRequestIds] = useState(new Set());
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [requestFilters, setRequestFilters] = useState('all');
+  const [requestView, setRequestView] = useState('active');
 
   // Bulk action handlers
   const handleSelectAll = () => {
-    if (selectedRequestIds.size === requests.length) {
+    if (selectedRequestIds.size === paginatedRequests.length) {
       setSelectedRequestIds(new Set());
     } else {
-      setSelectedRequestIds(new Set(requests.map(r => r.id)));
+      setSelectedRequestIds(new Set(paginatedRequests.map(r => r.id)));
     }
   };
 
@@ -280,18 +280,17 @@ export default function AdminRequestPanel({ onDecision }) {
   const loadRequests = useCallback(async () => {
     try {
       const res = await api.bookingRequests.list({
-        limit: pageSize,
-        offset: (page - 1) * pageSize
+        limit: 1000,
+        offset: 0
       });
       setRequests(res.data || []);
-      setHasMore((res.data || []).length === pageSize);
       setError(null);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load booking requests.');
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, []);
 
   useEffect(() => {
     loadRequests();
@@ -395,6 +394,39 @@ export default function AdminRequestPanel({ onDecision }) {
       setEditorLoading(false);
     }
   };
+
+  const isPastDateTime = (date, time) => {
+    if (!date) return false;
+    const base = time ? `${date}T${time}` : `${date}T23:59`;
+    const dt = new Date(base);
+    if (Number.isNaN(dt.getTime())) {
+      const dayOnly = new Date(`${date}T23:59`);
+      return dayOnly < new Date();
+    }
+    return dt < new Date();
+  };
+
+  const activeRequests = React.useMemo(
+    () => requests.filter((request) => String(request.status || 'pending').toLowerCase() === 'pending' && !isPastDateTime(request.date, request.slot)),
+    [requests]
+  );
+
+  const historyRequests = React.useMemo(
+    () => requests.filter((request) => String(request.status || 'pending').toLowerCase() !== 'pending' || isPastDateTime(request.date, request.slot)),
+    [requests]
+  );
+
+  const visibleRequests = requestView === 'history' ? historyRequests : activeRequests;
+  const paginatedRequests = visibleRequests.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setHasMore(page * pageSize < visibleRequests.length);
+  }, [page, pageSize, visibleRequests]);
+
+  useEffect(() => {
+    setPage(1);
+    setSelectedRequestIds(new Set());
+  }, [requestView, requests]);
 
   if (loading) return <div>Loading booking requests...</div>;
 
@@ -689,17 +721,26 @@ export default function AdminRequestPanel({ onDecision }) {
       {/* Quick Filters */}
       <QuickFilters 
         filters={[
-          { label: 'All', value: 'all', active: requestFilters === 'all', onClick: () => setRequestFilters('all') },
-          { label: 'Pending', value: 'pending', active: requestFilters === 'pending', onClick: () => setRequestFilters('pending') },
+          { label: `Active (${activeRequests.length})`, value: 'active', active: requestView === 'active', onClick: () => setRequestView('active') },
+          { label: `History (${historyRequests.length})`, value: 'history', active: requestView === 'history', onClick: () => setRequestView('history') },
         ]}
       />
 
+      {requestView === 'history' && (
+        <div style={{ marginBottom: 12 }}>
+          <StatusBadge status="pending" label="Expired requests are kept here" />
+          <div style={{ marginTop: 8, color: '#64748b', fontSize: 13, lineHeight: 1.5 }}>
+            History includes approved and rejected requests, plus pending requests whose scheduled date or time already passed before they were reviewed.
+          </div>
+        </div>
+      )}
+
       {/* Bulk Actions Toolbar */}
-      {selectedRequestIds.size > 0 && (
+      {requestView === 'active' && selectedRequestIds.size > 0 && (
         <BulkActionsToolbar
           selectedCount={selectedRequestIds.size}
           onSelectAll={handleSelectAll}
-          allSelected={selectedRequestIds.size === requests.length}
+          allSelected={paginatedRequests.length > 0 && selectedRequestIds.size === paginatedRequests.length}
           onApprove={handleBulkApprove}
           onReject={handleBulkReject}
           onClear={() => setSelectedRequestIds(new Set())}
@@ -724,10 +765,12 @@ export default function AdminRequestPanel({ onDecision }) {
         <thead>
           <tr style={{ background: '#eee' }}>
             <th style={{ ...th, width: 40, padding: 8, textAlign: 'center' }}>
-              <SelectCheckbox 
-                checked={requests.length > 0 && selectedRequestIds.size === requests.length}
-                onChange={handleSelectAll}
-              />
+              {requestView === 'active' ? (
+                <SelectCheckbox 
+                  checked={paginatedRequests.length > 0 && selectedRequestIds.size === paginatedRequests.length}
+                  onChange={handleSelectAll}
+                />
+              ) : null}
             </th>
             <th style={th}>ID</th>
             <th style={th}>Name</th>
@@ -742,16 +785,20 @@ export default function AdminRequestPanel({ onDecision }) {
           </tr>
         </thead>
         <tbody>
-          {requests.map(r => (
+          {paginatedRequests.map(r => (
             (() => {
               const detailEntries = buildDetailEntries(r);
+              const normalizedStatus = String(r.status || 'pending').toLowerCase();
+              const isHistoricalPending = normalizedStatus === 'pending' && isPastDateTime(r.date, r.slot);
               return (
             <tr key={r.id} style={{ background: selectedRequestIds.has(r.id) ? '#f0f4ff' : undefined }}>
               <td style={{ ...td, textAlign: 'center', width: 40 }}>
-                <SelectCheckbox 
-                  checked={selectedRequestIds.has(r.id)}
-                  onChange={() => handleSelectOne(r.id)}
-                />
+                {requestView === 'active' ? (
+                  <SelectCheckbox 
+                    checked={selectedRequestIds.has(r.id)}
+                    onChange={() => handleSelectOne(r.id)}
+                  />
+                ) : null}
               </td>
               <td style={td}>{r.id}</td>
               <td style={td}>{r.name || '-'}</td>
@@ -761,7 +808,7 @@ export default function AdminRequestPanel({ onDecision }) {
               <td style={td}>{r.slot || '-'}</td>
               <td style={td}>{r.chapel || r.details?.chapel || '-'}</td>
               <td style={td}>
-                <StatusBadge status="pending" />
+                <StatusBadge status={isHistoricalPending ? 'pending' : normalizedStatus} label={isHistoricalPending ? 'Expired' : undefined} />
               </td>
               <td style={{ ...td, minWidth: 280 }}>
                 {detailEntries.length ? (
@@ -777,55 +824,61 @@ export default function AdminRequestPanel({ onDecision }) {
                 )}
               </td>
               <td style={{ ...td, ...actionsColStyle }}>
-                <div style={actionWrap}>
-                  <button
-                    title="Edit request"
-                    aria-label="Edit request"
-                    disabled={processingId === r.id}
-                    onClick={() => handleEdit(r)}
-                    style={{
-                      ...iconBtn,
-                      background: '#3182ce',
-                      opacity: processingId === r.id ? 0.6 : 1
-                    }}
-                  >
-                    <Icon kind="edit" />
-                  </button>
-                  <button
-                    title="Approve request"
-                    aria-label="Approve request"
-                    disabled={processingId === r.id}
-                    onClick={() => handleAction(r.id, 'approve')}
-                    style={{
-                      ...iconBtn,
-                      background: '#38a169',
-                      opacity: processingId === r.id ? 0.6 : 1
-                    }}
-                  >
-                    <Icon kind="approve" />
-                  </button>
-                  <button
-                    title="Reject request"
-                    aria-label="Reject request"
-                    disabled={processingId === r.id}
-                    onClick={() => handleAction(r.id, 'reject')}
-                    style={{
-                      ...iconBtn,
-                      background: '#e53e3e',
-                      opacity: processingId === r.id ? 0.6 : 1
-                    }}
-                  >
-                    <Icon kind="reject" />
-                  </button>
-                </div>
+                {requestView === 'active' ? (
+                  <div style={actionWrap}>
+                    <button
+                      title="Edit request"
+                      aria-label="Edit request"
+                      disabled={processingId === r.id}
+                      onClick={() => handleEdit(r)}
+                      style={{
+                        ...iconBtn,
+                        background: '#3182ce',
+                        opacity: processingId === r.id ? 0.6 : 1
+                      }}
+                    >
+                      <Icon kind="edit" />
+                    </button>
+                    <button
+                      title="Approve request"
+                      aria-label="Approve request"
+                      disabled={processingId === r.id}
+                      onClick={() => handleAction(r.id, 'approve')}
+                      style={{
+                        ...iconBtn,
+                        background: '#38a169',
+                        opacity: processingId === r.id ? 0.6 : 1
+                      }}
+                    >
+                      <Icon kind="approve" />
+                    </button>
+                    <button
+                      title="Reject request"
+                      aria-label="Reject request"
+                      disabled={processingId === r.id}
+                      onClick={() => handleAction(r.id, 'reject')}
+                      style={{
+                        ...iconBtn,
+                        background: '#e53e3e',
+                        opacity: processingId === r.id ? 0.6 : 1
+                      }}
+                    >
+                      <Icon kind="reject" />
+                    </button>
+                  </div>
+                ) : (
+                  <span style={{ color: '#64748b', fontWeight: 600 }}>Archived</span>
+                )}
               </td>
             </tr>
               );
             })()
           ))}
-          {requests.length === 0 && (
+          {paginatedRequests.length === 0 && (
             <tr>
-              <td style={td} colSpan={11}>No pending booking requests.</td>
+              <td style={td} colSpan={11}>
+                {requestView === 'history' ? 'No request history yet.' : 'No active booking requests.'}
+              </td>
             </tr>
           )}
         </tbody>

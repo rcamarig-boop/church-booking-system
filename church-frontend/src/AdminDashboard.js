@@ -268,6 +268,19 @@ export default function AdminDashboard({ user, onLogout }) {
     return parts.length ? parts.join(' | ') : '-';
   };
 
+  const renderSectionHeader = (title, helpTitle, helpDescription, steps = []) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, margin: 0, fontWeight: 800, fontSize: 22 }}>
+        {title}
+      </h2>
+      <HelpIcon
+        title={helpTitle}
+        description={helpDescription}
+        steps={steps}
+      />
+    </div>
+  );
+
   useEffect(() => {
     if (!user) return;
     setProfileName(user.name || '');
@@ -373,14 +386,17 @@ export default function AdminDashboard({ user, onLogout }) {
       const val = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
 
       const c = val(0);
-      const reqCount = val(1);
       const conCount = val(2);
       const reqs = val(3);
+      const requestRows = reqs?.data || [];
+      const activePendingCount = requestRows.filter(
+        (request) => String(request.status || 'pending').toLowerCase() === 'pending' && !isPastDateTime(request.date, request.slot)
+      ).length;
 
       if (c) setCalendarConfig(c.data || {});
-      if (reqCount) setPendingRequestsCount(reqCount.data?.count || 0);
+      setPendingRequestsCount(activePendingCount);
       if (conCount) setOpenConcernsCount(conCount.data?.count || 0);
-      if (reqs) setRequests(reqs.data || []);
+      if (reqs) setRequests(requestRows);
       setRefreshKey(k => k + 1);
     } catch (err) {
       console.error('Admin load failed', err);
@@ -599,7 +615,7 @@ export default function AdminDashboard({ user, onLogout }) {
   );
   const filteredEvents = useMemo(() => events, [events]);
 
-  const now = useMemo(() => new Date(), []);
+  const now = useMemo(() => new Date(), [timeTrigger]);
   const isPastEvent = (evt) => {
     if (!evt?.date) return false;
     const base = evt.time ? `${evt.date}T${evt.time}` : `${evt.date}T23:59`;
@@ -639,6 +655,11 @@ export default function AdminDashboard({ user, onLogout }) {
     const past = filteredBookings.length - upcoming;
     return { upcoming, past };
   }, [filteredBookings]);
+
+  const activePendingRequests = useMemo(
+    () => requests.filter((request) => String(request.status || 'pending').toLowerCase() === 'pending' && !isPastDateTime(request.date, request.slot)),
+    [requests, timeTrigger]
+  );
 
 
   const filteredRecords = useMemo(() => records, [records]);
@@ -744,6 +765,7 @@ export default function AdminDashboard({ user, onLogout }) {
       totalBookings: bookings.length,
       totalRecords: records.length,
       totalRequests: requests.length,
+      activePendingRequests: activePendingRequests.length,
       totalConcerns: concerns.length,
       serviceCounts,
       actionCounts,
@@ -758,7 +780,7 @@ export default function AdminDashboard({ user, onLogout }) {
       topMembers,
       ...setupStats
     };
-  }, [bookings, records, users, events, requests, concerns]);
+  }, [bookings, records, users, events, requests, concerns, activePendingRequests]);
 
   // Analyze collective service candidates
   const collectiveServiceCandidates = useMemo(() => {
@@ -766,7 +788,7 @@ export default function AdminDashboard({ user, onLogout }) {
     const grouped = {};
 
     // Group requests by date + service
-    requests.forEach(req => {
+    activePendingRequests.forEach(req => {
       const key = `${req.date}|${req.service}`;
       if (!grouped[key]) {
         grouped[key] = [];
@@ -775,7 +797,7 @@ export default function AdminDashboard({ user, onLogout }) {
     });
 
     console.log('📊 Grouping Analysis:', {
-      totalRequests: requests.length,
+      totalRequests: activePendingRequests.length,
       groupedKeys: Object.keys(grouped),
       allGroups: grouped
     });
@@ -798,7 +820,7 @@ export default function AdminDashboard({ user, onLogout }) {
     console.log('💡 Final candidates:', candidates);
 
     return candidates;
-  }, [requests]);
+  }, [activePendingRequests]);
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todayEvents = useMemo(
@@ -2324,7 +2346,16 @@ export default function AdminDashboard({ user, onLogout }) {
         {/* TAB CONTENT */}
         {activeTab === 'analytics' && (
           <div>
-            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>📊 Dashboard Analytics</h2>
+            {renderSectionHeader(
+              '📊 Dashboard Analytics',
+              'Analytics Help',
+              HELP_TEXT.analytics,
+              [
+                'Review system-wide counts and trends.',
+                'Use this page to spot upcoming load and booking patterns.',
+                'Open collective-service suggestions for clustered active requests.'
+              ]
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
               <div style={{ background: '#fff', borderRadius: 16, padding: '16px', border: `1px solid ${mist}`, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}>
                 <div style={{ color: '#718096', fontSize: 12, marginBottom: 8 }}>Events Today</div>
@@ -2461,6 +2492,16 @@ export default function AdminDashboard({ user, onLogout }) {
         )}
         {activeTab === 'calendar' && (
           <div>
+            {renderSectionHeader(
+              '📅 Calendar Controls',
+              'Calendar Help',
+              HELP_TEXT.calendar,
+              [
+                'Set max bookings per date.',
+                'Close or reopen dates for new bookings.',
+                'Use the calendar above to review scheduled services and events.'
+              ]
+            )}
             <div
               style={{
                 marginBottom: 16,
@@ -2590,7 +2631,16 @@ export default function AdminDashboard({ user, onLogout }) {
         {/* USERS */}
         {activeTab === 'users' && (
           <div>
-            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Parishioners</h2>
+            {renderSectionHeader(
+              '✦ Parishioners',
+              'Parishioners Help',
+              HELP_TEXT.parishioners,
+              [
+                'Search for members by name, email, or role.',
+                'Approve waiting accounts and reset member passwords when needed.',
+                'Super admins can change roles and remove accounts.'
+              ]
+            )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 12 }}>
               <button
                 onClick={() => setUserVerificationFilter('all')}
@@ -2808,7 +2858,16 @@ export default function AdminDashboard({ user, onLogout }) {
         {/* EVENTS */}
         {activeTab === 'events' && (
           <div>
-            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Events</h2>
+            {renderSectionHeader(
+              '✦ Events',
+              'Events Help',
+              HELP_TEXT.events,
+              [
+                'Use Upcoming and History to separate future and past events.',
+                'Edit existing event details directly from the list.',
+                'Delete only when the event should be fully removed from the calendar.'
+              ]
+            )}
             <input
             type="text"
             placeholder="Search events by id, title, date, time"
@@ -2921,7 +2980,16 @@ export default function AdminDashboard({ user, onLogout }) {
       {/* BOOKINGS */}
       {activeTab === 'bookings' && (
         <div>
-          <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Bookings</h2>
+          {renderSectionHeader(
+            '✦ Bookings',
+            'Bookings Help',
+            HELP_TEXT.bookings,
+            [
+              'Upcoming shows active accepted bookings while History shows passed ones.',
+              'Use Edit to propose booking changes for members to review.',
+              'Use Cancel to remove an accepted booking and free the calendar slot.'
+            ]
+          )}
           <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
             <input
               type="text"
@@ -3011,9 +3079,23 @@ export default function AdminDashboard({ user, onLogout }) {
                         <button
                           style={dangerBtn}
                           onClick={async () => {
+                            if (!b.id) {
+                              window.alert('Cannot cancel: missing booking id.');
+                              return;
+                            }
                             if (window.confirm('Cancel this booking?')) {
-                              await api.bookings.remove(b.id);
-                              loadData();
+                              try {
+                                await api.bookings.remove(b.id);
+                                loadData();
+                              } catch (err) {
+                                if (err.response?.status === 404) {
+                                  loadData();
+                                  return;
+                                }
+                                window.alert(
+                                  err.response?.data?.error || 'Cancel failed. Please refresh and try again.'
+                                );
+                              }
                             }
                           }}
                         >
@@ -3059,7 +3141,16 @@ export default function AdminDashboard({ user, onLogout }) {
 
         {activeTab === 'concerns' && (
           <div>
-            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Concerns</h2>
+            {renderSectionHeader(
+              '✦ Concerns',
+              'Concerns Help',
+              HELP_TEXT.concerns,
+              [
+                'Reply to members directly from this table.',
+                'Resolve concerns after the issue is completed.',
+                'Delete only when the concern should be removed from records.'
+              ]
+            )}
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -3240,7 +3331,16 @@ export default function AdminDashboard({ user, onLogout }) {
 
         {activeTab === 'records' && (
           <div>
-            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Booking Records</h2>
+            {renderSectionHeader(
+              '✦ Booking Records',
+              'Records Help',
+              HELP_TEXT.records,
+              [
+                'Search the audit trail by person, service, date, or action.',
+                'Use records to confirm what happened to a booking or request.',
+                'Historical notes remain here even after a booking is cancelled.'
+              ]
+            )}
             <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
               <input
                 type="text"
@@ -3329,7 +3429,16 @@ export default function AdminDashboard({ user, onLogout }) {
 
         {activeTab === 'reports' && (
           <div>
-            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>✦ Reporting</h2>
+            {renderSectionHeader(
+              '✦ Reporting',
+              'Reports Help',
+              HELP_TEXT.reports,
+              [
+                'Review high-level totals for users, bookings, records, and setup needs.',
+                'Use the charts to compare request, concern, and chapel activity.',
+                'Use this page for admin summaries and manual reporting.'
+              ]
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 16 }}>
               <div style={{ background: '#fff', border: `2px solid ${gold}`, borderTop: `4px solid ${gold}`, borderRadius: 8, padding: 12, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}>
                 <div style={{ color: '#6b7280', fontSize: 12 }}>Total Parishioners</div>
@@ -3599,7 +3708,16 @@ export default function AdminDashboard({ user, onLogout }) {
         {/* ADD EVENT */}
         {activeTab === 'add_event' && (
           <div style={{ maxWidth: 520 }}>
-            <h2>Add Church Event</h2>
+            {renderSectionHeader(
+              'Add Church Event',
+              'Add Event Help',
+              'Create a new church event with a date, optional time, and description.',
+              [
+                'Enter a clear title and choose the event date.',
+                'Add time only when the event has a fixed schedule.',
+                'After saving, you will return to the event list.'
+              ]
+            )}
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', marginBottom: 6 }}>Title</label>
               <input
@@ -3688,13 +3806,32 @@ export default function AdminDashboard({ user, onLogout }) {
         {/* MASS SERVICES */}
         {activeTab === 'mass_services' && (
           <div>
+            {renderSectionHeader(
+              '🎫 Mass Services',
+              'Mass Services Help',
+              HELP_TEXT.massServices,
+              [
+                'Create collective services for shared member registration.',
+                'Review applications and manage capacities from this panel.',
+                'Use this for grouped sacramental or ministry schedules.'
+              ]
+            )}
             <AdminMassServicesPanel />
           </div>
         )}
 
         {activeTab === 'tracking' && (
           <div>
-            <h2 style={{ color: ink, borderBottom: `3px solid ${gold}`, paddingBottom: 8, marginBottom: 16, fontWeight: 800, fontSize: 22 }}>📊 Admin Action Log</h2>
+            {renderSectionHeader(
+              '📊 Admin Action Log',
+              'Actions Help',
+              HELP_TEXT.actions,
+              [
+                'Review action-required totals for requests and concerns.',
+                'Use this view for a quick operational summary.',
+                'Check recent concern activity and overall admin workload.'
+              ]
+            )}
             <div style={{
               display: 'grid',
               gap: 12
