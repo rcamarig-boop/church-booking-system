@@ -909,7 +909,7 @@ export default function AdminRequestPanel({ onDecision }) {
             padding: 30
           }}>
             <h2 style={{ color: '#d97706', marginTop: 0, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-              âš ï¸ Booking Conflict Warning
+              ✦¸⚠️ Booking Conflict Warning
             </h2>
             
             <p style={{ color: '#555', marginBottom: 20, lineHeight: 1.6 }}>
@@ -924,7 +924,7 @@ export default function AdminRequestPanel({ onDecision }) {
               borderRadius: 4,
               marginBottom: 20
             }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#0c4a6e' }}>ðŸ“ Booking Request (Being Accepted)</h4>
+              <h4 style={{ margin: '0 0 10px 0', color: '#0c4a6e' }}>✦ Booking Request (Being Accepted)</h4>
               <table style={{ width: '100%', fontSize: 14, lineHeight: 1.8 }}>
                 <tbody>
                   <tr>
@@ -953,7 +953,7 @@ export default function AdminRequestPanel({ onDecision }) {
 
             {/* Existing Bookings */}
             <div style={{ marginBottom: 20 }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>ðŸ”´ Existing Booking(s) - Same Date & Time</h4>
+              <h4 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>✦ Existing Booking(s) - Same Date & Time</h4>
               {conflictData.conflictingBookings.map((booking, idx) => (
                 <div key={idx} style={{ 
                   padding: 15, 
@@ -1004,7 +1004,7 @@ export default function AdminRequestPanel({ onDecision }) {
               color: '#78350f',
               fontSize: 14
             }}>
-              <strong>âš¡ Action Required:</strong> These bookings have the same date and time. Please verify if this is intentional.
+              <strong>⚠️ Action Required:</strong> These bookings have the same date and time. Please verify if this is intentional.
             </div>
 
             {/* Action Buttons */}
