@@ -123,6 +123,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const [bookingFilter, setBookingFilter] = useState('upcoming'); // 'upcoming' | 'past'
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [totalRequestsCount, setTotalRequestsCount] = useState(0);
   const [openConcernsCount, setOpenConcernsCount] = useState(0);
   const [bookingPage, setBookingPage] = useState(1);
   const [eventPage, setEventPage] = useState(1);
@@ -378,6 +379,7 @@ export default function AdminDashboard({ user, onLogout }) {
     try {
       const results = await Promise.allSettled([
         api.calendar.get(),
+        api.bookingRequests.count(),
         api.bookingRequests.count({ status: 'pending' }),
         api.concerns.count({ status: 'open' }),
         api.bookingRequests.list({ limit: 1000 }) // Load all requests for analysis
@@ -386,14 +388,16 @@ export default function AdminDashboard({ user, onLogout }) {
       const val = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
 
       const c = val(0);
-      const conCount = val(2);
-      const reqs = val(3);
+      const totalReqCount = val(1);
+      const conCount = val(3);
+      const reqs = val(4);
       const requestRows = reqs?.data || [];
       const activePendingCount = requestRows.filter(
         (request) => String(request.status || 'pending').toLowerCase() === 'pending' && !isPastDateTime(request.date, request.slot)
       ).length;
 
       if (c) setCalendarConfig(c.data || {});
+      if (totalReqCount) setTotalRequestsCount(totalReqCount.data?.count || 0);
       setPendingRequestsCount(activePendingCount);
       if (conCount) setOpenConcernsCount(conCount.data?.count || 0);
       if (reqs) setRequests(requestRows);
@@ -764,7 +768,7 @@ export default function AdminDashboard({ user, onLogout }) {
       totalEvents: events.length,
       totalBookings: bookings.length,
       totalRecords: records.length,
-      totalRequests: requests.length,
+      totalRequests: totalRequestsCount,
       activePendingRequests: activePendingRequests.length,
       totalConcerns: concerns.length,
       serviceCounts,
@@ -780,7 +784,7 @@ export default function AdminDashboard({ user, onLogout }) {
       topMembers,
       ...setupStats
     };
-  }, [bookings, records, users, events, requests, concerns, activePendingRequests]);
+  }, [bookings, records, users, events, requests, concerns, activePendingRequests, totalRequestsCount]);
 
   // Analyze collective service candidates
   const collectiveServiceCandidates = useMemo(() => {
@@ -4197,7 +4201,7 @@ export default function AdminDashboard({ user, onLogout }) {
                     <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Open Concerns</div>
                   </div>
                   <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{requests.length}</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{totalRequestsCount}</div>
                     <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Requests</div>
                   </div>
                 </div>
