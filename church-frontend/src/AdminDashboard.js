@@ -60,6 +60,8 @@ function PasswordVisibilityIcon({ visible }) {
 }
 
 const PAGE_SIZE = 10;
+const ANALYTICS_FETCH_LIMIT = 5000;
+const ACTIVITY_PAGE_SIZE = 10;
 
 const dangerBtn = {
   padding: '8px 12px',
@@ -124,6 +126,11 @@ export default function AdminDashboard({ user, onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [totalRequestsCount, setTotalRequestsCount] = useState(0);
+  const [totalUsersCount, setTotalUsersCount] = useState(0);
+  const [totalEventsCount, setTotalEventsCount] = useState(0);
+  const [totalBookingsCount, setTotalBookingsCount] = useState(0);
+  const [totalRecordsCount, setTotalRecordsCount] = useState(0);
+  const [totalConcernsCount, setTotalConcernsCount] = useState(0);
   const [openConcernsCount, setOpenConcernsCount] = useState(0);
   const [bookingPage, setBookingPage] = useState(1);
   const [eventPage, setEventPage] = useState(1);
@@ -176,9 +183,16 @@ export default function AdminDashboard({ user, onLogout }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [activityLog, setActivityLog] = useState([]);
   const [activityFilter, setActivityFilter] = useState('all');
+  const [activityPage, setActivityPage] = useState(1);
   const [selectedRequestIds, setSelectedRequestIds] = useState(new Set());
   const [requestFilters, setRequestFilters] = useState('all');
   const [showPermissions, setShowPermissions] = useState(false);
+  const [analyticsUsers, setAnalyticsUsers] = useState([]);
+  const [analyticsEvents, setAnalyticsEvents] = useState([]);
+  const [analyticsBookings, setAnalyticsBookings] = useState([]);
+  const [analyticsRecords, setAnalyticsRecords] = useState([]);
+  const [analyticsConcerns, setAnalyticsConcerns] = useState([]);
+  const [analyticsRequests, setAnalyticsRequests] = useState([]);
 
   // Track window width for responsive grid layout
   useEffect(() => {
@@ -379,8 +393,19 @@ export default function AdminDashboard({ user, onLogout }) {
     try {
       const results = await Promise.allSettled([
         api.calendar.get(),
+        api.users.count(),
+        api.users.list({ limit: ANALYTICS_FETCH_LIMIT }),
+        api.events.count(),
+        api.events.list({ limit: ANALYTICS_FETCH_LIMIT }),
+        api.bookings.count(),
+        api.bookings.list({ limit: ANALYTICS_FETCH_LIMIT }),
+        api.bookingRecords.count(),
+        api.bookingRecords.list({ limit: ANALYTICS_FETCH_LIMIT }),
+        api.concerns.count(),
+        api.concerns.list({ limit: ANALYTICS_FETCH_LIMIT, q: '' }),
         api.bookingRequests.count(),
         api.bookingRequests.count({ status: 'pending' }),
+        api.bookingRequests.list({ limit: ANALYTICS_FETCH_LIMIT, all: 'true' }),
         api.concerns.count({ status: 'open' }),
         api.bookingRequests.list({ limit: 1000 }) // Load all requests for analysis
       ]);
@@ -388,16 +413,38 @@ export default function AdminDashboard({ user, onLogout }) {
       const val = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
 
       const c = val(0);
-      const totalReqCount = val(1);
-      const conCount = val(3);
-      const reqs = val(4);
+      const usersCount = val(1);
+      const allUsers = val(2);
+      const eventsCount = val(3);
+      const allEvents = val(4);
+      const bookingsCount = val(5);
+      const allBookings = val(6);
+      const recordsCount = val(7);
+      const allRecords = val(8);
+      const totalConcerns = val(9);
+      const allConcerns = val(10);
+      const totalReqCount = val(11);
+      const allRequests = val(13);
+      const conCount = val(14);
+      const reqs = val(15);
       const requestRows = reqs?.data || [];
       const activePendingCount = requestRows.filter(
         (request) => String(request.status || 'pending').toLowerCase() === 'pending' && !isPastDateTime(request.date, request.slot)
       ).length;
 
       if (c) setCalendarConfig(c.data || {});
+      if (usersCount) setTotalUsersCount(usersCount.data?.count || 0);
+      if (allUsers) setAnalyticsUsers(allUsers.data || []);
+      if (eventsCount) setTotalEventsCount(eventsCount.data?.count || 0);
+      if (allEvents) setAnalyticsEvents(allEvents.data || []);
+      if (bookingsCount) setTotalBookingsCount(bookingsCount.data?.count || 0);
+      if (allBookings) setAnalyticsBookings(allBookings.data || []);
+      if (recordsCount) setTotalRecordsCount(recordsCount.data?.count || 0);
+      if (allRecords) setAnalyticsRecords(allRecords.data || []);
+      if (totalConcerns) setTotalConcernsCount(totalConcerns.data?.count || 0);
+      if (allConcerns) setAnalyticsConcerns(allConcerns.data || []);
       if (totalReqCount) setTotalRequestsCount(totalReqCount.data?.count || 0);
+      if (allRequests) setAnalyticsRequests(allRequests.data || []);
       setPendingRequestsCount(activePendingCount);
       if (conCount) setOpenConcernsCount(conCount.data?.count || 0);
       if (reqs) setRequests(requestRows);
@@ -535,7 +582,7 @@ export default function AdminDashboard({ user, onLogout }) {
     (async () => {
       try {
         const res = await api.bookingRecords.list({
-          limit: 50,
+          limit: ANALYTICS_FETCH_LIMIT,
           offset: 0,
           q: ''
         });
@@ -613,9 +660,21 @@ export default function AdminDashboard({ user, onLogout }) {
       : activityLog.filter((entry) => entry.type === activityFilter),
     [activityFilter, activityLog]
   );
+  const activityPageCount = useMemo(
+    () => Math.max(1, Math.ceil(filteredActivityLog.length / ACTIVITY_PAGE_SIZE)),
+    [filteredActivityLog]
+  );
+  const paginatedActivityLog = useMemo(
+    () => filteredActivityLog.slice((activityPage - 1) * ACTIVITY_PAGE_SIZE, activityPage * ACTIVITY_PAGE_SIZE),
+    [filteredActivityLog, activityPage]
+  );
+  useEffect(() => { setActivityPage(1); }, [activityFilter, activityLog]);
+  useEffect(() => {
+    setActivityPage((current) => Math.min(current, activityPageCount));
+  }, [activityPageCount]);
   const pendingVerificationCount = useMemo(
-    () => users.filter(u => u.email_verified === false).length,
-    [users]
+    () => analyticsUsers.filter(u => u.email_verified === false).length,
+    [analyticsUsers]
   );
   const filteredEvents = useMemo(() => events, [events]);
 
@@ -661,33 +720,33 @@ export default function AdminDashboard({ user, onLogout }) {
   }, [filteredBookings]);
 
   const activePendingRequests = useMemo(
-    () => requests.filter((request) => String(request.status || 'pending').toLowerCase() === 'pending' && !isPastDateTime(request.date, request.slot)),
-    [requests, timeTrigger]
+    () => analyticsRequests.filter((request) => String(request.status || 'pending').toLowerCase() === 'pending' && !isPastDateTime(request.date, request.slot)),
+    [analyticsRequests, timeTrigger]
   );
 
 
   const filteredRecords = useMemo(() => records, [records]);
 
   const reportData = useMemo(() => {
-    const serviceCounts = bookings.reduce((acc, b) => {
+    const serviceCounts = analyticsBookings.reduce((acc, b) => {
       const key = String(b.service || 'unknown');
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
-    const actionCounts = records.reduce((acc, r) => {
+    const actionCounts = analyticsRecords.reduce((acc, r) => {
       const key = String(r.action || 'unknown');
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
-    const roleCounts = users.reduce((acc, u) => {
+    const roleCounts = analyticsUsers.reduce((acc, u) => {
       const key = String(u.role || 'member');
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
-    const setupStats = bookings.reduce((acc, b) => {
+    const setupStats = analyticsBookings.reduce((acc, b) => {
       const details = b.details && typeof b.details === 'object' ? b.details : {};
       const needsSetup = !!details.needsChairsTables;
       const chairsCount = Number.parseInt(details.chairsCount, 10);
@@ -710,21 +769,21 @@ export default function AdminDashboard({ user, onLogout }) {
     });
 
     // Request status breakdown
-    const requestStatusCounts = requests.reduce((acc, r) => {
+    const requestStatusCounts = analyticsRequests.reduce((acc, r) => {
       const key = String(r.status || 'pending');
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
     // Concern status breakdown
-    const concernStatusCounts = concerns.reduce((acc, c) => {
+    const concernStatusCounts = analyticsConcerns.reduce((acc, c) => {
       const key = String(c.status || 'pending');
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
     // Bookings by chapel
-    const chapelCounts = bookings.reduce((acc, b) => {
+    const chapelCounts = analyticsBookings.reduce((acc, b) => {
       const chapel = b.chapel || b.details?.chapel || 'Unspecified';
       acc[chapel] = (acc[chapel] || 0) + 1;
       return acc;
@@ -732,7 +791,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
     // Bookings by month (upcoming)
     const today = new Date().toISOString().slice(0, 10);
-    const monthlyBookings = bookings.reduce((acc, b) => {
+    const monthlyBookings = analyticsBookings.reduce((acc, b) => {
       if (!b.date) return acc;
       const month = b.date.slice(0, 7); // YYYY-MM
       acc[month] = (acc[month] || 0) + 1;
@@ -740,11 +799,11 @@ export default function AdminDashboard({ user, onLogout }) {
     }, {});
 
     // Upcoming vs past bookings
-    const upcomingBookings = bookings.filter(b => b.date >= today).length;
-    const pastBookings = bookings.filter(b => b.date < today).length;
+    const upcomingBookings = analyticsBookings.filter(b => b.date >= today).length;
+    const pastBookings = analyticsBookings.filter(b => b.date < today).length;
 
     // Busiest days (top 5)
-    const dateCounts = bookings.reduce((acc, b) => {
+    const dateCounts = analyticsBookings.reduce((acc, b) => {
       if (!b.date) return acc;
       acc[b.date] = (acc[b.date] || 0) + 1;
       return acc;
@@ -754,7 +813,7 @@ export default function AdminDashboard({ user, onLogout }) {
       .slice(0, 5);
 
     // Most active members (top 5 by bookings)
-    const memberBookingCounts = bookings.reduce((acc, b) => {
+    const memberBookingCounts = analyticsBookings.reduce((acc, b) => {
       const name = b.name || 'Unknown';
       acc[name] = (acc[name] || 0) + 1;
       return acc;
@@ -764,13 +823,13 @@ export default function AdminDashboard({ user, onLogout }) {
       .slice(0, 5);
 
     return {
-      totalUsers: users.length,
-      totalEvents: events.length,
-      totalBookings: bookings.length,
-      totalRecords: records.length,
+      totalUsers: totalUsersCount,
+      totalEvents: totalEventsCount,
+      totalBookings: totalBookingsCount,
+      totalRecords: totalRecordsCount,
       totalRequests: totalRequestsCount,
       activePendingRequests: activePendingRequests.length,
-      totalConcerns: concerns.length,
+      totalConcerns: totalConcernsCount,
       serviceCounts,
       actionCounts,
       roleCounts,
@@ -784,7 +843,7 @@ export default function AdminDashboard({ user, onLogout }) {
       topMembers,
       ...setupStats
     };
-  }, [bookings, records, users, events, requests, concerns, activePendingRequests, totalRequestsCount]);
+  }, [analyticsBookings, analyticsRecords, analyticsUsers, analyticsRequests, analyticsConcerns, activePendingRequests, totalUsersCount, totalEventsCount, totalBookingsCount, totalRecordsCount, totalRequestsCount, totalConcernsCount]);
 
   // Analyze collective service candidates
   const collectiveServiceCandidates = useMemo(() => {
@@ -828,12 +887,12 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todayEvents = useMemo(
-    () => events.filter(e => e.date === todayStr).length,
-    [events, todayStr]
+    () => analyticsEvents.filter(e => e.date === todayStr).length,
+    [analyticsEvents, todayStr]
   );
   const todayBookings = useMemo(
-    () => bookings.filter(b => b.date === todayStr).length,
-    [bookings, todayStr]
+    () => analyticsBookings.filter(b => b.date === todayStr).length,
+    [analyticsBookings, todayStr]
   );
 
   const normalizeSlotToTime = (slot) => {
@@ -891,7 +950,7 @@ export default function AdminDashboard({ user, onLogout }) {
     const nowMs = Date.now();
     const upcoming = [];
 
-    events.forEach(e => {
+    analyticsEvents.forEach(e => {
       if (!e.date || !e.time) return;
       const dt = new Date(`${e.date}T${e.time}`);
       const diff = dt.getTime() - nowMs;
@@ -905,7 +964,7 @@ export default function AdminDashboard({ user, onLogout }) {
       });
     });
 
-    bookings.forEach(b => {
+    analyticsBookings.forEach(b => {
       if (!b.date) return;
       const time = normalizeSlotToTime(b.slot);
       if (!time) return;
@@ -926,7 +985,7 @@ export default function AdminDashboard({ user, onLogout }) {
       const bt = new Date(`${b.date}T${b.time}`).getTime();
       return at - bt;
     });
-  }, [events, bookings, timeTrigger]);
+  }, [analyticsEvents, analyticsBookings, timeTrigger]);
 
   const activeTabLabel = useMemo(() => {
       const map = {
@@ -3881,7 +3940,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   }}>
                     <div style={{ fontSize: 24, marginBottom: 4 }}>📅</div>
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Total Bookings</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{bookings.length}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{totalBookingsCount}</div>
                   </div>
                 <div className="church-card" style={{
                     background: '#fff',
@@ -3892,7 +3951,7 @@ export default function AdminDashboard({ user, onLogout }) {
                   }}>
                     <div style={{ fontSize: 24, marginBottom: 4 }}>🕯</div>
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Total Events</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{events.length}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: ink }}>{totalEventsCount}</div>
                   </div>
                 </div>
 
@@ -3988,7 +4047,26 @@ export default function AdminDashboard({ user, onLogout }) {
                   selected={activityFilter}
                   onSelect={setActivityFilter}
                 />
-                <ActivityLog activities={filteredActivityLog} />
+                <ActivityLog activities={paginatedActivityLog} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, alignItems: 'center' }}>
+                  <button
+                    onClick={() => setActivityPage((page) => Math.max(1, page - 1))}
+                    disabled={activityPage <= 1}
+                    style={{ ...dangerBtn, background: '#94a3b8' }}
+                  >
+                    Prev
+                  </button>
+                  <div style={{ color: '#4a5568', fontWeight: 600 }}>
+                    Page {activityPage} of {activityPageCount}
+                  </div>
+                  <button
+                    onClick={() => setActivityPage((page) => Math.min(activityPageCount, page + 1))}
+                    disabled={activityPage >= activityPageCount}
+                    style={{ ...dangerBtn, background: accentBlue }}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -4185,15 +4263,15 @@ export default function AdminDashboard({ user, onLogout }) {
                   gap: 12
                 }}>
                   <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{users.length}</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{totalUsersCount}</div>
                     <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Parishioners</div>
                   </div>
                   <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{bookings.length}</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{totalBookingsCount}</div>
                     <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Bookings</div>
                   </div>
                   <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{events.length}</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: ink }}>{totalEventsCount}</div>
                     <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Events</div>
                   </div>
                   <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>

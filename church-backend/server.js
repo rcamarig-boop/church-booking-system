@@ -142,7 +142,7 @@ function buildSearchClause(q, fields) {
   const term = String(q || '').trim().toLowerCase();
   if (!term) return { clause: '', params: [] };
   const like = `%${term}%`;
-  const parts = fields.map(f => `LOWER(COALESCE(${f}, '')) LIKE ?`);
+  const parts = fields.map(f => `LOWER(COALESCE(CAST(${f} AS TEXT), '')) LIKE ?`);
   return {
     clause: `(${parts.join(' OR ')})`,
     params: fields.map(() => like)
@@ -998,6 +998,11 @@ app.get('/api/bookings', auth, async (req, res) => {
   res.json(rows.map(normalizeBooking));
 });
 
+app.get('/api/bookings/count', auth, admin, async (req, res) => {
+  const row = await dbGet('SELECT COUNT(*) as count FROM bookings');
+  res.json({ count: row?.count ?? 0 });
+});
+
 // Public booking slots (date + slot + service) for calendar availability
 app.get('/api/bookings/slots', auth, async (_, res) => {
   if (!bookingSlotCol) return res.json([]);
@@ -1091,19 +1096,21 @@ app.post('/api/bookings', auth, async (req, res) => {
 
 app.get('/api/booking-requests', auth, admin, async (_, res) => {
   const { limit, offset } = getPagination(_);
+  const includeAll = String(_.query.all || '').toLowerCase() === 'true';
   const { clause, params } = buildSearchClause(_.query.q, [
     'id', 'name', 'email', 'service', 'date', 'slot', 'status'
   ]);
-  const whereParts = [
-    `status = ?`,
-    `(date > TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot >= TO_CHAR(CURRENT_TIME::time, 'HH24:MI')))`,
-    clause
-  ].filter(Boolean);
-  const where = `WHERE ${whereParts.join(' AND ')}`;
+  const whereParts = includeAll
+    ? [clause].filter(Boolean)
+    : [
+        `status = ?`,
+        `(date > TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') OR (date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AND slot >= TO_CHAR(CURRENT_TIME::time, 'HH24:MI')))` ,
+        clause
+      ].filter(Boolean);
+  const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
   const rows = await dbAll(
     `SELECT * FROM booking_requests ${where} ORDER BY created_at ASC, id ASC ${limit ? `LIMIT ${limit} OFFSET ${offset}` : ''}`,
-    'pending',
-    ...params
+    ...(includeAll ? params : ['pending', ...params])
   );
   res.json(rows.map(normalizeBookingRequest));
 });
@@ -1643,6 +1650,11 @@ app.get('/api/booking-records', auth, admin, async (_, res) => {
   })));
 });
 
+app.get('/api/booking-records/count', auth, admin, async (_, res) => {
+  const row = await dbGet('SELECT COUNT(*) as count FROM booking_records');
+  res.json({ count: row?.count ?? 0 });
+});
+
 app.get('/api/booking-edit-proposals/my', auth, async (req, res) => {
   const rows = await dbAll(
     `SELECT *
@@ -2013,6 +2025,11 @@ app.get('/api/events', auth, async (_, res) => {
     ...params
   );
   res.json(rows.map(normalizeEvent));
+});
+
+app.get('/api/events/count', auth, admin, async (_, res) => {
+  const row = await dbGet('SELECT COUNT(*) as count FROM events');
+  res.json({ count: row?.count ?? 0 });
 });
 
 app.post('/api/events', auth, admin, async (req, res) => {
@@ -2593,6 +2610,11 @@ app.get('/api/users', auth, admin, async (req, res) => {
     ...values
   );
   res.json(rows);
+});
+
+app.get('/api/users/count', auth, admin, async (_, res) => {
+  const row = await dbGet('SELECT COUNT(*) as count FROM users');
+  res.json({ count: row?.count ?? 0 });
 });
 
 // Change user role (superadmin only)

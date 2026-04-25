@@ -72,6 +72,7 @@ export default {
 
   bookings: {
     list: (params) => api.get('/bookings', { params }),
+    count: () => api.get('/bookings/count'),
     slots: () => api.get('/bookings/slots'),
     usage: () => api.get('/bookings/usage'),
     create: data => api.post('/bookings', data),
@@ -91,7 +92,8 @@ export default {
   },
 
   bookingRecords: {
-    list: (params) => api.get('/booking-records', { params })
+    list: (params) => api.get('/booking-records', { params }),
+    count: () => api.get('/booking-records/count')
   },
 
   bookingEditProposals: {
@@ -106,6 +108,7 @@ export default {
 
   events: {
     list: (params) => api.get('/events', { params }),
+    count: () => api.get('/events/count'),
     create: data => api.post('/events', data),
     update: (id, data) => api.put(`/events/${id}`, data),
     remove: id => api.delete(`/events/${id}`)
@@ -150,6 +153,7 @@ export default {
 
   users: {
     list: (params) => api.get('/users', { params }),
+    count: () => api.get('/users/count'),
     updateMe: data => api.put('/users/me', data),
     verifyEmail: (id) => api.put(`/users/${id}/verify-email`),
     resetPassword: (id, newPassword) => api.put(`/users/${id}/reset-password`, { newPassword }),
