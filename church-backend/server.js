@@ -473,6 +473,10 @@ async function ensureBookingEditProposalsTable() {
     CREATE INDEX IF NOT EXISTS booking_edit_proposals_user_idx
     ON booking_edit_proposals (user_id, status, created_at DESC);
   `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS booking_edit_proposals_user_id_idx
+    ON booking_edit_proposals (user_id, id DESC);
+  `);
 }
 
 async function ensureBookingRequestEditProposalsTable() {
@@ -528,6 +532,10 @@ async function ensureBookingRequestEditProposalsTable() {
     CREATE INDEX IF NOT EXISTS booking_request_edit_proposals_user_idx
     ON booking_request_edit_proposals (user_id, status, created_at DESC);
   `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS booking_request_edit_proposals_user_id_idx
+    ON booking_request_edit_proposals (user_id, id DESC);
+  `);
 }
 
 async function ensureMassServicesTable() {
@@ -575,6 +583,29 @@ async function ensureMassServiceApplicationsTable() {
   await exec(`
     CREATE INDEX IF NOT EXISTS mass_service_applications_user_idx
     ON mass_service_applications (user_id, status);
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS mass_service_applications_user_applied_idx
+    ON mass_service_applications (user_id, applied_at DESC);
+  `);
+}
+
+async function ensurePerformanceIndexes() {
+  await exec(`
+    CREATE INDEX IF NOT EXISTS booking_requests_user_id_idx
+    ON booking_requests (user_id, id DESC);
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS bookings_user_id_idx
+    ON bookings (user_id, created_at DESC, id DESC);
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS concerns_user_id_created_idx
+    ON concerns (user_id, created_at DESC, id DESC);
+  `);
+  await exec(`
+    CREATE INDEX IF NOT EXISTS booking_records_action_idx
+    ON booking_records (action_at DESC, id DESC);
   `);
 }
 
